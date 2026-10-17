@@ -11,7 +11,9 @@ import { resolveBuild, type Build } from '../src/engine/build.ts';
 import { armorDamageReduction, scaleEnemy } from '../src/engine/enemy.ts';
 import { hitEnemy } from '../src/engine/damage.ts';
 import { parseModEffects } from '../src/mods/parse.ts';
-import { buffEffects, buffById } from '../src/engine/buffs.ts';
+import { buffEffects, buffById, abilityStrengthFromMods } from '../src/engine/buffs.ts';
+import { rivenEffects } from '../src/engine/riven.ts';
+import { viralMultiplier, corrosiveArmorMultiplier } from '../src/engine/dot.ts';
 import type { AbilityData, ArcaneData, EnemyData, ModData, Snapshot, WeaponData, WeaponStats } from '../src/types.ts';
 
 const close = (actual: number, expected: number, tolerance = 1e-6) =>
@@ -35,6 +37,7 @@ function weapon(overrides: Partial<WeaponStats> = {}): WeaponData {
     type: 'Rifle',
     masteryRank: 0,
     disposition: 1,
+    dispositionMultiplier: 1,
     polarities: [],
     exilusPolarity: null,
     modClasses: ['Rifle'],
@@ -95,6 +98,13 @@ function snapshot(
       heat: { 'Cloned Flesh': 25 },
     },
     healthTypes: { 'Alloy Armor': 'armor', 'Cloned Flesh': 'health' },
+    rivenStats: {
+      rifle: { Damage: 1.65, Multishot: 0.9, 'Critical Chance': 1.4999, 'Critical Damage': 1.19997, Zoom: 0.5999 },
+      shotgun: { Damage: 1.647 },
+      pistol: { Damage: 2.196 },
+      archgun: { Damage: 0.999 },
+      melee: { Damage: 1.647 },
+    },
   };
 }
 
@@ -391,4 +401,75 @@ test('buff registry resolves the curated values from the dataset', () => {
   close(buffEffects(snap, eclipse, 100)[0].value, 0.75);
   const vex = buffById('vex-armor')!;
   close(buffEffects(snap, vex, 100)[0].value, 2.75);
+});
+
+test('riven values follow base × disposition × weight', () => {
+  const snap = snapshot([weapon({ impact: 100 })], []);
+  // Two bonuses and no malus -> weight 0.99 (wiki: Attribute Value Formula).
+  const riven = rivenEffects(snap, snap.weapons['Test Weapon'], { stats: ['damage', 'multishot'] });
+  close(riven.effects[0].value, 1.65 * 1 * 0.99, 1e-9);
+  close(riven.effects[1].value, 0.9 * 1 * 0.99, 1e-9);
+  // Adding a malus switches to the 2+1 weights: 1.2375 for bonuses, -0.495 for the malus.
+  const withMalus = rivenEffects(snap, snap.weapons['Test Weapon'], { stats: ['damage', 'multishot'], malus: 'zoom' });
+  close(withMalus.effects[0].value, 1.65 * 1.2375, 1e-9);
+  close(withMalus.effects[2].value, 0.5999 * -0.495, 1e-9);
+});
+
+test('riven stat rank scales from rank 0 to rank 8', () => {
+  const snap = snapshot([weapon({ impact: 100 })], []);
+  const rank0 = rivenEffects(snap, snap.weapons['Test Weapon'], { stats: ['damage', 'multishot'], rank: 0 });
+  const rank8 = rivenEffects(snap, snap.weapons['Test Weapon'], { stats: ['damage', 'multishot'], rank: 8 });
+  close(rank0.effects[0].value, rank8.effects[0].value / 9, 1e-9);
+});
+
+test('viral and corrosive stacks follow the wiki tables', () => {
+  close(viralMultiplier(0), 1);
+  close(viralMultiplier(1), 2); // first stack: +100%
+  close(viralMultiplier(10), 4.25); // 325% cap
+  close(corrosiveArmorMultiplier(1), 0.74); // 26% strip
+  close(corrosiveArmorMultiplier(10), 0.2); // 80% strip cap
+});
+
+test('slash bleed is True damage: it ignores the 90% armour reduction', () => {
+  // 100 base damage, forced Slash proc on every hit through Hunter Munitions.
+  const hunterMunitions = mod('Hunter Munitions', 5, ['+30% chance to apply on Critical'], { classes: ['Rifle'] });
+  const snap = snapshot([weapon({ slash: 100, critChance: 1, critMultiplier: 1 })], [hunterMunitions], [bombard]);
+  const resolved = build(snap, ['Hunter Munitions'], { conditions: { } });
+  const hit = hitEnemy(snap, resolved, scaleEnemy(snap, bombard, 100));
+  const bleed = hit.dot.find((entry) => entry.type === 'slash');
+  assert.ok(bleed, 'expected a bleed proc');
+  // Faction 1, status damage 1: tick = (100 + 1) × 0.35 = 35.35, no armour applied.
+  close(bleed!.tickDamage, (100 + 1) * 0.35, 1e-6);
+  close(bleed!.ticks, 6);
+});
+
+test('heat DoT is reduced by armour, bleed is not', () => {
+  const snap = snapshot([weapon({ heat: 100 })], [], [bombard]);
+  const resolved = build(snap, [], { conditions: {} });
+  const hit = hitEnemy(snap, resolved, scaleEnemy(snap, bombard, 100));
+  const heat = hit.dot.find((entry) => entry.type === 'heat');
+  assert.ok(heat);
+  assert.ok(heat!.tickDamage < (100 + 1) * 0.5, 'heat DoT must suffer armour DR');
+});
+
+test('Corrosive stacks reduce armour and therefore raise direct damage', () => {
+  const snap = snapshot([weapon({ puncture: 100 })], [], [bombard]);
+  const clean = hitEnemy(snap, build(snap, []), scaleEnemy(snap, bombard, 100));
+  const stripped = hitEnemy(snap, build(snap, [], { debuffs: { corrosiveStacks: 10 } }), scaleEnemy(snap, bombard, 100));
+  assert.ok(stripped.damagePerShotHealth > clean.damagePerShotHealth * 3);
+});
+
+test('Viral stacks amplify damage to health', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [], [bombard]);
+  const clean = hitEnemy(snap, build(snap, []), scaleEnemy(snap, bombard, 100));
+  const viral = hitEnemy(snap, build(snap, [], { debuffs: { viralStacks: 10 } }), scaleEnemy(snap, bombard, 100));
+  close(viral.damagePerShotHealth / clean.damagePerShotHealth, 4.25, 1e-9);
+});
+
+test('ability strength is derived from Warframe mods', () => {
+  const intensify = mod('Intensify', 5, ['+30% Ability Strength'], { classes: ['Warframe'] });
+  const blindRage = mod('Blind Rage', 5, ['+99% Ability Strength', '-55% Ability Efficiency'], { classes: ['Warframe'] });
+  const snap = snapshot([], [intensify, blindRage]);
+  const strength = abilityStrengthFromMods(snap, ['Intensify', 'Blind Rage']);
+  close(strength.strength, 100 * (1 + 0.3 + 0.99));
 });

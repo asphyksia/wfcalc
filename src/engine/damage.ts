@@ -12,6 +12,7 @@
 import { DAMAGE_TYPES, type DamageType, type Snapshot } from '../types.ts';
 import type { ResolvedBuild } from './build.ts';
 import { armorDamageReduction, type ScaledEnemy } from './enemy.ts';
+import { computeDot, effectiveArmor, viralMultiplier, type DotContext, type DotEntry } from './dot.ts';
 
 export interface TypeBreakdown {
   type: DamageType;
@@ -43,6 +44,10 @@ export interface EnemyHit {
   timeToKill: number | null;
   /** Faction damage multiplier that was applied to this target (1 when none). */
   factionMultiplier: number;
+  /** Damage over time by status type. */
+  dot: DotEntry[];
+  /** Sustained DPS including status damage. */
+  totalDps: number;
   /** Highest single-type damage multiplier found (useful to sanity check element choice). */
   bestType: { type: DamageType; multiplier: number } | null;
   warnings: string[];
@@ -70,6 +75,11 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
   const factionKey = (scaled.enemy.faction ?? '').toLowerCase();
   const factionMultiplier = 1 + (build.factionBonus[factionKey] ?? 0) + (build.factionBonus.all ?? 0);
 
+  // Status debuffs the player keeps up on the target.
+  const debuffs: DotContext = build.debuffs;
+  const viral = viralMultiplier(debuffs.viralStacks ?? 0);
+  const armorAfterStatus = effectiveArmor(scaled.armor, debuffs);
+
   const breakdown: TypeBreakdown[] = [];
   let perProjectileShield = 0;
   let perProjectileHealth = 0;
@@ -80,8 +90,9 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
 
     const healthMod = healthModifier(snapshot, type, healthType);
     const armorMod = armor ? healthModifier(snapshot, type, armor.type) : 0;
-    const dr = armor ? armorDamageReduction(scaled.armor, armorMod) : 0;
-    const toHealth = raw * (1 + healthMod) * (1 - dr);
+    const dr = armor ? armorDamageReduction(armorAfterStatus, armorMod) : 0;
+    // Viral amplifies all damage dealt to health, direct hits included.
+    const toHealth = raw * (1 + healthMod) * (1 - dr) * viral;
 
     const shieldMod = shieldType ? healthModifier(snapshot, type, shieldType) : 0;
     const bypassesShield = type === 'toxin' && scaled.enemy.toxinBypassesShields;
@@ -109,30 +120,38 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
   const damagePerShotShield = perProjectileShield * critMultiplier * shots * factionMultiplier;
   const damagePerShotHealth = perProjectileHealth * critMultiplier * shots * factionMultiplier;
 
-  // Sequential kill: shields first (while the bypassing part already chews health), then health.
+  // Sequential kill, as rates rather than shots so status damage counts:
+  // shields first (only shield-capable damage), then health (direct + DoT).
+  const dot = computeDot(snapshot, build, scaled, debuffs, factionMultiplier);
+  const dotDps = dot.reduce((sum, entry) => sum + entry.dps, 0);
+  const cycleTime = build.magazineSize / Math.max(0.01, build.fireRate) + build.reloadTime;
+  const pullsPerSecond = build.magazineSize / cycleTime;
+
   let remainingShield = scaled.shield;
   let remainingHealth = scaled.health;
   let shotsToKill = 0;
 
-  if (damagePerShotHealth <= 0 && damagePerShotShield <= 0) {
+  const shieldDps = damagePerShotShield * pullsPerSecond;
+  const healthDps = damagePerShotHealth * pullsPerSecond + dotDps;
+
+  if (shieldDps <= 0 && healthDps <= 0) {
     shotsToKill = Infinity;
   } else {
-    if (remainingShield > 0 && damagePerShotShield > 0) {
-      const shieldShots = remainingShield / damagePerShotShield;
-      shotsToKill += shieldShots;
-      remainingHealth = Math.max(0, remainingHealth - shieldShots * bypassProjectile * critMultiplier * shots);
+    let seconds = 0;
+    if (remainingShield > 0 && shieldDps > 0) {
+      const shieldSeconds = remainingShield / shieldDps;
+      seconds += shieldSeconds;
+      // Shield-bypassing damage (Toxin) already chews health during the shield phase.
+      const bypassDps = bypassProjectile * critMultiplier * build.multishot * pullsPerSecond;
+      remainingHealth = Math.max(0, remainingHealth - shieldSeconds * bypassDps);
     } else if (remainingShield > 0) {
-      // Only shield-bypassing damage: shields never go down, but health still does.
-      remainingShield = 0;
+      remainingShield = 0; // only shield-bypassing damage: shields never break, health still drops
     }
-    if (remainingHealth > 0) {
-      shotsToKill += damagePerShotHealth > 0 ? remainingHealth / damagePerShotHealth : Infinity;
-    }
+    if (remainingHealth > 0) seconds += healthDps > 0 ? remainingHealth / healthDps : Infinity;
+    shotsToKill = Number.isFinite(seconds) ? seconds * pullsPerSecond : Infinity;
   }
 
-  const cycleTime = build.magazineSize / Math.max(0.01, build.fireRate) + build.reloadTime;
-  const triggerPullsPerSecond = build.magazineSize / cycleTime;
-  const timeToKill = Number.isFinite(shotsToKill) && triggerPullsPerSecond > 0 ? shotsToKill / triggerPullsPerSecond : null;
+  const timeToKill = Number.isFinite(shotsToKill) && pullsPerSecond > 0 ? shotsToKill / pullsPerSecond : null;
 
   const bestType = breakdown.reduce<{ type: DamageType; multiplier: number } | null>(
     (best, entry) => (!best || entry.healthMultiplier > best.multiplier ? { type: entry.type, multiplier: entry.healthMultiplier } : best),
@@ -150,6 +169,8 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
     shotsToKill,
     timeToKill,
     factionMultiplier,
+    dot,
+    totalDps: build.sustainedDps + dotDps,
     bestType,
     warnings,
   };

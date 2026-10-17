@@ -46,6 +46,9 @@ Weapon arcanes whose slot fits the weapon, with max rank and description.
   "arcanes": [{ "name": "Primary Merciless", "rank": 5 }],
   "buffs": ["roar", "toxic-lash"],
   "abilityStrength": 284,
+  "frameMods": [{ "name": "Intensify" }],
+  "riven": { "stats": ["damage", "multishot"], "malus": "zoom", "roll": 1.05, "rank": 8 },
+  "debuffs": { "viralStacks": 10, "corrosiveStacks": 4 },
   "mods": [{ "name": "Serration" }, { "name": "Vital Sense", "rank": 3 }],
   "enemy": "Bombard",
   "level": 150,
@@ -60,6 +63,8 @@ Weapon arcanes whose slot fits the weapon, with max rank and description.
 - `mode` is optional; omitted means the arsenal stat block.
 - `arcanes`: weapon arcanes; the slot must match the weapon category.
 - `buffs`: registry ids from `GET /api/buffs`; `abilityStrength` is a percentage (100 = unmodded).
+- `riven` is resolved against the weapon's own disposition; `roll` (0.9-1.1) and `rank` (0-8) are optional.
+- `debuffs` are status stacks kept up on the target: Viral amplifies health damage, Corrosive strips armour.
 - `conditions` toggles conditional mods: `onKill` (stacks), `onWeakPointHit`,
   `onWeakPointKill`, `onReload`, `aiming`, `sliding`, `holstered`, `statusTypes` (count).
 
@@ -80,7 +85,9 @@ Response (abridged):
     "name": "Bombard", "level": 150, "health": 118480.2, "armor": 2700,
     "breakdown": [{ "type": "blast", "raw": 7117.37, "healthMultiplier": 0.1,
                     "toHealth": 711.74, "procShare": 0.935 }],
-    "shotsToKill": 27.4, "timeToKill": 57.51
+    "shotsToKill": 27.4, "timeToKill": 57.51,
+    "dot": [{ "type": "slash", "procsPerSecond": 0.13, "tickDamage": 952, "ticks": 6, "dps": 760 }],
+    "totalDps": 6360
   },
   "warnings": [],
   "unsupportedMods": [],

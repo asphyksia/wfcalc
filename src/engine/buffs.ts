@@ -93,6 +93,8 @@ export const BUFFS: BuffDefinition[] = [
   { id: 'accelerant', ability: 'Accelerant', kind: 'elementMultiplier', element: 'heat', unit: 'multiplier', pick: byLabel('multiplier') },
   { id: 'sonar', ability: 'Sonar', kind: 'weakPoint', unit: 'multiplier' },
   { id: 'resupply', ability: 'Resupply', kind: 'damage', pick: byLabel('weapon', 'damage') },
+  { id: 'amp', ability: 'Amp', kind: 'damage', note: 'minimum roll' },
+  { id: 'haste-mote', ability: 'Reservoirs', kind: 'speed', pick: byLabel('fire', 'rate'), note: "Wisp's Haste Mote" },
 ];
 
 export const buffById = (id: string): BuffDefinition | undefined =>
@@ -134,6 +136,39 @@ export function buffEffects(snapshot: Snapshot, definition: BuffDefinition, stre
     default:
       return [];
   }
+}
+
+/**
+ * Ability Strength from the caster's Warframe mods.
+ *
+ * Mods add percentages to a base of 100%: Intensify +30% -> 130% strength.
+ * Ranks scale like any other mod: `value × (rank+1) / (maxRank+1)`.
+ *
+ * Not modelled: Umbral set bonuses, Archon Shards, and Helminth invigorations.
+ */
+export function abilityStrengthFromMods(
+  snapshot: Snapshot,
+  mods: Array<string | { name: string; rank?: number }>,
+): { strength: number; bonus: number; mods: string[]; warnings: string[] } {
+  let bonus = 0;
+  const used: string[] = [];
+  const warnings: string[] = [];
+  for (const entry of mods) {
+    const wanted = typeof entry === 'string' ? entry : entry.name;
+    const rank = typeof entry === 'string' ? undefined : entry.rank;
+    const mod = snapshot.mods[wanted]
+      ?? snapshot.mods[Object.keys(snapshot.mods).find((key) => key.toLowerCase() === wanted.toLowerCase()) ?? ''];
+    if (!mod) {
+      warnings.push(`warframe mod not found: ${wanted}`);
+      continue;
+    }
+    const rankFraction = rank === undefined || mod.maxRank <= 0 ? 1 : Math.max(0, Math.min(1, (rank + 1) / (mod.maxRank + 1)));
+    for (const effect of mod.effects) {
+      if (effect.target === 'abilityStrength') bonus += effect.value * rankFraction;
+    }
+    used.push(mod.name);
+  }
+  return { strength: 100 * (1 + bonus), bonus, mods: used, warnings };
 }
 
 /** Every buff that is currently available, for CLI/UI listings. */

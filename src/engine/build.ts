@@ -29,7 +29,8 @@ import {
   type WeaponMode,
 } from '../types.ts';
 import { normalizeName } from '../data.ts';
-import { buffById, buffEffects } from './buffs.ts';
+import { abilityStrengthFromMods, buffById, buffEffects } from './buffs.ts';
+import { rivenEffects, type RivenSpec } from './riven.ts';
 
 export interface BuildMod {
   name: string;
@@ -49,6 +50,12 @@ export interface Build {
   buffs?: string[];
   /** Caster's Ability Strength as a percentage (100 = unmodded). */
   abilityStrength?: number;
+  /** Caster's Warframe mods; Ability Strength is derived from them when given. */
+  frameMods?: Array<string | BuildMod>;
+  /** Riven mod stats for this weapon. */
+  riven?: RivenSpec;
+  /** Status debuffs on the target, in DotContext terms (viralStacks, corrosiveStacks). */
+  debuffs?: { viralStacks?: number; corrosiveStacks?: number };
   /** Which fire mode to use; defaults to the arsenal mode. */
   mode?: string;
   /** Active conditions for conditional mods. */
@@ -87,6 +94,16 @@ export interface ResolvedBuild {
   factionBonus: Record<string, number>;
   /** Active buffs, for display. */
   activeBuffs: string[];
+  /** Riven stat lines as rolled, for display. */
+  rivenLines: string[];
+  /** Total Status Damage bonus (multiplies DoT ticks). */
+  statusDamageBonus: number;
+  /** Status effects forced by mods (Hunter Munitions and friends). */
+  forcedProcs: Array<{ type: DamageType; chance: number; requiresCrit: boolean }>;
+  /** Ability Strength used for buffs (from frame mods when provided). */
+  abilityStrength: number;
+  /** Status debuffs kept up on the target (viral/corrosive stacks). */
+  debuffs: { viralStacks?: number; corrosiveStacks?: number };
   /** Elemental bonuses as they were combined, for display. */
   elements: Array<{ type: DamageType; share: number }>;
   /** Mods whose effects are not fully understood, so the result is a lower bound. */
@@ -130,6 +147,7 @@ interface Collected {
   elementBonuses: Array<{ element: BaseElement; amount: number }>;
   faction: Map<string, number>;
   elementMultipliers: Map<DamageType, number>;
+  forcedProcs: Array<{ type: DamageType; chance: number; requiresCrit: boolean }>;
   conversions: Array<{ from: BaseElement; to: DamageType; share: number }>;
   inactive: string[];
   unsupported: string[];
@@ -159,6 +177,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     elementBonuses: [],
     faction: new Map(),
     elementMultipliers: new Map(),
+    forcedProcs: [],
     conversions: [],
     inactive: [],
     unsupported: [],
@@ -178,6 +197,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   }
   const sources: Source[] = [];
   const equipped: string[] = [];
+  const rivenLines: string[] = [];
 
   const resolveMod = (wanted: string) =>
     snapshot.mods[wanted] ?? snapshot.mods[Object.keys(snapshot.mods).find((k) => normalizeName(k) === normalizeName(wanted)) ?? ''];
@@ -224,6 +244,21 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     sources.push({ name: arcane.name, maxRank: arcane.maxRank, rank, effects: arcane.effects, partial: false, incompatible: [] });
   }
 
+  // Riven: values depend on the weapon's disposition, so it is resolved per weapon.
+  if (build.riven) {
+    const riven = rivenEffects(snapshot, weapon, build.riven);
+    for (const warning of riven.warnings) collected.warnings.push(`riven: ${warning}`);
+    sources.push({ name: 'Riven', maxRank: 0, effects: riven.effects, partial: false, incompatible: [] });
+    rivenLines.push(...riven.lines);
+  }
+
+  // Ability Strength comes from the frame's mods when they are provided.
+  const frameStrength = build.frameMods?.length
+    ? abilityStrengthFromMods(snapshot, build.frameMods)
+    : null;
+  if (frameStrength) for (const warning of frameStrength.warnings) collected.warnings.push(`frame: ${warning}`);
+  const abilityStrength = frameStrength ? frameStrength.strength : build.abilityStrength ?? 100;
+
   // Warframe buffs from the registry.
   const activeBuffs: string[] = [];
   for (const id of build.buffs ?? []) {
@@ -232,7 +267,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
       collected.warnings.push(`unknown buff: ${id}`);
       continue;
     }
-    const effects = buffEffects(snapshot, definition, build.abilityStrength ?? 100);
+    const effects = buffEffects(snapshot, definition, abilityStrength);
     if (!effects.length) {
       collected.warnings.push(`${definition.ability}: no numbers in the dataset, buff ignored`);
       continue;
@@ -278,6 +313,13 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
               const key = `element:${effect.element}`;
               collected.byTarget.set(key, (collected.byTarget.get(key) ?? 0) + value);
             }
+          } else if (effect.target === 'forcedProc' && effect.element) {
+            // Hunter Munitions wording: the proc only happens on critical hits.
+            collected.forcedProcs.push({
+              type: effect.element,
+              chance: value,
+              requiresCrit: /critical|crit/i.test(effect.raw),
+            });
           } else if (effect.target === 'factionDamage' && effect.faction) {
             collected.faction.set(effect.faction, (collected.faction.get(effect.faction) ?? 0) + value);
           } else {
@@ -419,6 +461,11 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     sustainedDps,
     factionBonus: Object.fromEntries(collected.faction),
     activeBuffs,
+    rivenLines,
+    statusDamageBonus: bonus('statusDamage'),
+    forcedProcs: collected.forcedProcs,
+    abilityStrength,
+    debuffs: build.debuffs ?? {},
     elements,
     unsupportedMods: collected.unsupported,
     inactiveConditions: collected.inactive,

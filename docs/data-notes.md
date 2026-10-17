@@ -72,6 +72,18 @@ Cloudflare. Do not use it.
 13. **"Stacks up to 240%" is a cap, not a stack count.** Divide by the per-stack value
     (`Melee Exposure`: 240 / 60 = 4 stacks). The parser does this when the cap is a percentage.
 
+14. **Riven base values live in a wikitable with "<br>" and template noise**, and the label
+    is what keys the attribute: `{{D|Heat}} Damage` must be expanded *before* stripping
+    templates, otherwise "Cold Damage" and "Heat Damage" both collapse to "Damage" and the
+    first one wins. Same for `{{Faction|Grineer}}` in "Damage vs. Grineer".
+
+15. **The riven disposition multiplier is `omegaAttenuation`** in the WFCD export (0.5-1.55).
+    The 1-5 star rating is only a display bucket; using it directly gives wrong stat values.
+
+16. **Multi-tab ability pages repeat the `| strength =` parameter** (Wisp's Reservoirs has one
+    per mote). Read every occurrence and keep the `<br>` separators, or the motes collapse
+    into one unparseable stat.
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully
@@ -86,3 +98,10 @@ previously parsed broke (`npm test` covers the important cases).
 - Whether level-scaled armour should be clamped to 200..2700 *before* applying
   damage-type modifiers (currently: after scaling, before modifiers).
 - Eximus units: they are separate rows in the dataset, with inflated pools.
+
+## Refresh order
+
+`npm run update` runs, in order: `fetch.ts` (WFCD + wiki pages), `fetch-abilities.ts`
+(ability infoboxes), `build-data.ts` (snapshot). `build-data.ts` reads
+`data/raw/ability-stats.json`, so running it alone after a fresh checkout fails until
+the ability fetch has run once.

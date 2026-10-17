@@ -30,7 +30,10 @@ const state = {
   mods: [], // [{ name, rank }]
   arcanes: [], // [{ name, rank }]
   buffs: [], // registry ids, e.g. ['roar', 'toxic-lash']
+  frameMods: [], // [{ name, rank }] for the caster's Warframe
   abilityStrength: 100,
+  riven: null, // { stats: [], malus }
+  debuffs: { viralStacks: 0, corrosiveStacks: 0 },
   enemy: 'Bombard',
   level: 100,
   mode: '',
@@ -129,6 +132,17 @@ const renderModList = debounce((filter) => {
     .join('');
 }, 120);
 
+/** `damage,multishot,-zoom` -> { stats, malus } */
+function parseRivenInput(text) {
+  const stats = [];
+  let malus = null;
+  for (const token of text.split(',').map((part) => part.trim()).filter(Boolean)) {
+    if (token.startsWith('-')) malus = token.slice(1);
+    else stats.push(token);
+  }
+  return stats.length ? { stats, malus } : null;
+}
+
 /** ---------- rendering ---------- */
 
 function renderWeaponMeta(result) {
@@ -220,6 +234,8 @@ function renderResults(result) {
   }
   const critMultiplier = 1 + result.critChance * (result.critMultiplier - 1);
   const target = result.target;
+  const dot = target?.dot ?? [];
+  const dotDps = dot.reduce((sum, entry) => sum + entry.dps, 0);
 
   $('stats').innerHTML = `
     <div class="card"><span>damage / projectile</span><b>${fmt(result.projectileTotal, 1)}</b></div>
@@ -231,6 +247,7 @@ function renderResults(result) {
     <div class="card"><span>sustained dps</span><b>${fmt(result.sustainedDps, 0)}</b><small>reload ${fmt(result.reloadTime, 2)}s</small></div>
     ${result.activeBuffs?.length ? `<div class="card"><span>buffs</span><b>${result.activeBuffs.length}</b><small>${result.activeBuffs.join(', ')}</small></div>` : ''}
     ${target && target.factionMultiplier && Math.abs(target.factionMultiplier - 1) > 0.001 ? `<div class="card"><span>faction</span><b>×${target.factionMultiplier.toFixed(2)}</b><small>${target.faction ?? ''}</small></div>` : ''}
+    ${dotDps > 0 ? `<div class="card"><span>status dps</span><b>${fmt(dotDps, 0)}</b><small>${dot.length} type(s)</small></div>` : ''}
     ${target ? `<div class="card accent"><span>time to kill lv${target.level}</span><b>${target.timeToKill === null ? '—' : fmt(target.timeToKill, 2) + 's'}</b><small>${fmt(target.shotsToKill, 1)} shots</small></div>` : ''}
   `;
 
@@ -281,6 +298,19 @@ function renderResults(result) {
   if (result.unsupportedMods.length) notes.push(`Unknown mod effects (numbers are a lower bound): ${result.unsupportedMods.join(', ')}`);
   if (result.inactiveConditions.length) notes.push(`${result.inactiveConditions.length} conditional effect(s) inactive — raise the stacks to activate`);
   if (result.weapon.mode) notes.push(`Using fire mode: ${result.weapon.mode}`);
+  if (dot.length) {
+    $('target-report').innerHTML += `
+      <table class="breakdown">
+        <thead><tr><th>status</th><th>proc/s</th><th>tick</th><th>ticks</th><th>dps</th></tr></thead>
+        <tbody>${dot
+          .slice()
+          .sort((a, b) => b.dps - a.dps)
+          .map(
+            (entry) => `<tr><td><i class="dot" style="background:${ELEMENT_COLORS[entry.type] ?? '#888'}"></i>${entry.type}</td>
+              <td>${fmt(entry.procsPerSecond, 2)}</td><td>${fmt(entry.tickDamage, 1)}</td><td>${entry.ticks}</td><td>${fmt(entry.dps, 0)}</td></tr>`,
+          )
+          .join('')}</tbody></table>`;
+  }
   $('notes').innerHTML = notes.map((note) => `<p>· ${note}</p>`).join('');
 }
 
@@ -357,6 +387,25 @@ function bindEvents() {
     recalc();
   });
 
+  $('framemods-input').addEventListener('change', (event) => {
+    state.frameMods = event.target.value.split(',').map((name) => name.trim()).filter(Boolean).map((name) => ({ name }));
+    recalc();
+  });
+
+  $('riven-input').addEventListener('change', (event) => {
+    state.riven = parseRivenInput(event.target.value);
+    recalc();
+  });
+
+  const debuffInput = (id, key) => {
+    $(id).addEventListener('change', (event) => {
+      state.debuffs[key] = Number(event.target.value);
+      recalc();
+    });
+  };
+  debuffInput('viral', 'viralStacks');
+  debuffInput('corrosive', 'corrosiveStacks');
+
   $('headshot').addEventListener('change', (event) => {
     state.headshot = event.target.checked;
     recalc();
@@ -399,6 +448,10 @@ function syncInputsFromState() {
   $('arcane-input').value = state.arcanes?.[0]?.name ?? '';
   $('strength-input').value = String(state.abilityStrength ?? 100);
   $('strength-value').textContent = `${state.abilityStrength ?? 100}%`;
+  $('framemods-input').value = (state.frameMods ?? []).map((mod) => mod.name).join(', ');
+  $('riven-input').value = state.riven ? [...state.riven.stats, state.riven.malus ? `-${state.riven.malus}` : ''].filter(Boolean).join(',') : '';
+  $('viral').value = String(state.debuffs?.viralStacks ?? 0);
+  $('corrosive').value = String(state.debuffs?.corrosiveStacks ?? 0);
 }
 
 async function main() {

@@ -32,14 +32,13 @@ const ABILITIES: Array<{ page: string; frame: string; ability: string; kind: 'ab
   { page: 'Fireball_Frenzy', frame: 'Ember', ability: 'Fireball Frenzy', kind: 'augment' },
   { page: 'Smite_Infusion', frame: 'Oberon', ability: 'Smite Infusion', kind: 'augment' },
   { page: 'Venom_Dose', frame: 'Saryn', ability: 'Venom Dose', kind: 'augment' },
-  { page: 'Amp', frame: 'Octavia', ability: 'Amp', kind: 'ability' },
-  { page: 'Reservoir', frame: 'Wisp', ability: 'Reservoir', kind: 'ability' },
+  { page: 'Amp_(Ability)', frame: 'Octavia', ability: 'Amp', kind: 'ability' },
+  { page: 'Reservoirs', frame: 'Wisp', ability: 'Reservoirs', kind: 'ability' },
   { page: 'Covenant', frame: 'Harrow', ability: 'Covenant', kind: 'ability' },
   { page: 'Sonar', frame: 'Banshee', ability: 'Sonar', kind: 'ability' },
   { page: 'Warcry', frame: 'Valkyr', ability: 'Warcry', kind: 'ability' },
   { page: 'Accelerant', frame: 'Ember', ability: 'Accelerant', kind: 'ability' },
   { page: 'Resupply', frame: 'Cyte-09', ability: 'Resupply', kind: 'ability' },
-  { page: 'Elemental_Ward', frame: 'Chroma', ability: 'Elemental Ward', kind: 'ability' },
   { page: 'Electric_Shield', frame: 'Volt', ability: 'Electric Shield', kind: 'ability' },
 ];
 
@@ -48,11 +47,19 @@ const force = process.argv.includes('--force');
 /** Removes `{{Template|...}}` noise so the numbers stay readable. */
 const stripTemplates = (text: string): string => text.replace(/\{\{[^{}]*\}\}/g, ' ').replace(/\s+/g, ' ').trim();
 
-/** Reads the first `| key = value` of an ability infobox template. */
+/**
+ * Reads every `| key = value` of an ability infobox. Multi-mote abilities
+ * (Wisp's Reservoirs) repeat `strength` once per tab, and each tab is a buff.
+ */
 function templateParam(wikitext: string, key: string): string | null {
-  const re = new RegExp(`\\|\\s*${key}\\s*=\\s*([^\\n|]+)`, 'i');
-  const match = re.exec(wikitext);
-  return match ? match[1].trim() : null;
+  const values = templateParamAll(wikitext, key);
+  // Keep the <br> separators: they delimit one stat per mote/tab.
+  return values.length ? values.join('<br>') : null;
+}
+
+function templateParamAll(wikitext: string, key: string): string[] {
+  const re = new RegExp(`\\|\\s*${key}\\s*=\\s*([^\\n|]+)`, 'gi');
+  return [...wikitext.matchAll(re)].map((match) => match[1].trim());
 }
 
 interface Segment {

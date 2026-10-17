@@ -11,7 +11,7 @@
     "node": ">=23"
   },
   "scripts": {
-    "update": "node tools/fetch.ts && node tools/build-data.ts",
+    "update": "node tools/fetch.ts && node tools/fetch-abilities.ts && node tools/build-data.ts",
     "serve": "node src/server.ts",
     "calc": "node src/cli.ts",
     "check": "tsc --noEmit",

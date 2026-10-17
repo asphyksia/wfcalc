@@ -274,6 +274,8 @@ function buildWeapons(): Record<string, WeaponData> {
         type,
         masteryRank: Number(weapon.masteryReq ?? 0),
         disposition: Number(weapon.disposition ?? 1),
+        // omegaAttenuation is the exact disposition multiplier the game uses for rivens.
+        dispositionMultiplier: Number(weapon.omegaAttenuation ?? 1),
         polarities: Array.isArray(weapon.polarities) ? weapon.polarities.map((p: unknown) => String(p).toLowerCase()) : [],
         exilusPolarity: typeof weapon.exilusPolarity === 'string' ? weapon.exilusPolarity.toLowerCase() : null,
         modClasses: modClassesFor(category, type),
@@ -403,6 +405,68 @@ function buildWarframes(): Record<string, WarframeData> {
   return out;
 }
 
+// -------------------------------------------------------------------- rivens
+
+/** Weapon classes the riven base-value table is split into. */
+const RIVEN_CLASSES = ['rifle', 'shotgun', 'pistol', 'archgun', 'melee'];
+
+/**
+ * Reads the "Base Values" wikitable from the Riven Mods page:
+ *   | Effect        | Prefix || Suffix || Rifle || Shotgun || Pistol || Archgun || Melee
+ * Each cell is a percentage ("149.99%"), a multiplier ("x0.45") or a flat value ("8.1s").
+ */
+function buildRivenStats(): Record<string, Record<string, number>> {
+  const wikitext = readFileSync(join(RAW, 'wiki-riven-mods.wiki'), 'utf8');
+  const section = wikitext.split('=== Base Values ===')[1]?.split('\n|}')[0] ?? '';
+  const rows = section.split(/\n\|-\n/).slice(1);
+  const out: Record<string, Record<string, number>[]> = {};
+
+  for (const row of rows) {
+    const lines = row.split('\n').map((line) => line.trim()).filter(Boolean);
+    if (!lines.length || !lines[0].startsWith('|') || lines[0].startsWith('|-')) continue;
+    const label = lines[0]
+      .replace(/^\|\s*/, '')
+      // {{D|Heat}} and {{Faction|Grineer}} carry the meaning: expand them before dropping templates.
+      .replace(/\{\{D\|([^}|]*)[^}]*\}\}/g, '$1')
+      .replace(/\{\{Faction\|([^}|]*)[^}]*\}\}/g, '$1')
+      .replace(/<sup>.*?<\/sup>/g, '')
+      .replace(/<br\s*\/?>/g, ' / ')
+      .replace(/\{\{[^}]*\}\}/g, ' ')
+      .replace(/\[\[([^\]|]*\|)?([^\]]*)\]\]/g, '$2')
+      .replace(/\s+/g, ' ')
+      .trim()
+      // "Critical Chance / Critical Chance (x2 for Heavy Attacks)" -> keep the first name.
+      .split(' / ')[0]
+      .replace(/\s*\(.*?\)\s*$/, '')
+      .trim();
+    const cells = lines.slice(1).join(' ').split('||').map((cell) => cell.trim());
+    // Effect label, prefix, suffix, then one value per weapon class.
+    const values = cells.slice(2, 2 + RIVEN_CLASSES.length);
+    if (!label || values.length < RIVEN_CLASSES.length) continue;
+    if (out[label]) continue;
+    out[label] = [];
+    values.forEach((cell) => {
+      const kind = /^x/i.test(cell) ? 'multiplier' : /s$/i.test(cell) ? 'flat' : 'percent';
+      const number = Number(cell.replace(/[^\d.]/g, ''));
+      out[label].push(Number.isFinite(number) ? { [kind]: number } as any : ({} as any));
+    });
+  }
+
+  const table: Record<string, Record<string, number>> = {};
+  RIVEN_CLASSES.forEach((klass, index) => {
+    table[klass] = {};
+    for (const [label, values] of Object.entries(out)) {
+      const value = values[index];
+      const kind = Object.keys(value ?? {})[0];
+      if (!kind) continue;
+      const raw = (value as any)[kind] as number;
+      table[klass][label] = kind === 'percent' ? raw / 100 : raw;
+    }
+  });
+  console.log(`riven stats: ${Object.keys(table.rifle).length} attributes x ${RIVEN_CLASSES.length} classes`);
+  return table;
+}
+
 // ----------------------------------------------------------------- abilities
 
 function buildAbilities(): Record<string, AbilityData> {
@@ -439,6 +503,7 @@ function main(): void {
     arcanes: buildArcanes(),
     warframes: buildWarframes(),
     abilities: buildAbilities(),
+    rivenStats: buildRivenStats(),
     enemies: buildEnemies(healthTypes),
     modifiers,
     healthTypes,

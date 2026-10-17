@@ -23,6 +23,7 @@ import { resolveBuild, type Build, type BuildMod } from './engine/build.ts';
 import { scaleEnemy } from './engine/enemy.ts';
 import { hitEnemy } from './engine/damage.ts';
 import { BUFFS, availableBuffs } from './engine/buffs.ts';
+import { RIVEN_ATTRIBUTES, type RivenSpec } from './engine/riven.ts';
 import type { Snapshot } from './types.ts';
 
 interface Args {
@@ -61,6 +62,24 @@ function parseModArg(raw: string): BuildMod {
   return { name: raw.trim() };
 }
 
+/** `--riven damage,multishot,-zoom` -> a riven spec (- prefix means malus). */
+function parseRiven(args: Args): RivenSpec | undefined {
+  const raw = flag(args, 'riven');
+  if (!raw) return undefined;
+  const stats: string[] = [];
+  let malus: string | undefined;
+  for (const token of raw.split(',').map((entry) => entry.trim()).filter(Boolean)) {
+    if (token.startsWith('-')) malus = token.slice(1);
+    else stats.push(token);
+  }
+  return {
+    stats,
+    malus,
+    roll: flag(args, 'riven-roll') ? Number(flag(args, 'riven-roll')) : undefined,
+    rank: flag(args, 'riven-rank') ? Number(flag(args, 'riven-rank')) : undefined,
+  };
+}
+
 /** Conditions from `--stacks onKill=5` and friends. */
 function parseConditions(args: Args): Record<string, number> {
   const conditions: Record<string, number> = {};
@@ -92,6 +111,15 @@ function buildFromArgs(snapshot: Snapshot, args: Args, mods: string[]): Build {
     arcanes: flagAll(args, 'arcane').map(parseModArg),
     buffs,
     abilityStrength: flag(args, 'strength') ? Number(flag(args, 'strength')) : undefined,
+    frameMods: flagAll(args, 'frame-mods')
+      .flatMap((entry) => entry.split(','))
+      .map((entry) => parseModArg(entry.trim()))
+      .filter((entry) => entry.name),
+    riven: parseRiven(args),
+    debuffs: {
+      viralStacks: flag(args, 'viral') ? Number(flag(args, 'viral')) : undefined,
+      corrosiveStacks: flag(args, 'corrosive') ? Number(flag(args, 'corrosive')) : undefined,
+    },
     mode: flag(args, 'mode'),
     conditions: parseConditions(args),
     headshot: args.flags.has('headshot'),
@@ -151,7 +179,11 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
           shotsToKill: hit.shotsToKill,
           timeToKill: hit.timeToKill,
           factionMultiplier: hit.factionMultiplier,
+          dot: hit.dot,
+          totalDps: hit.totalDps,
           activeBuffs: resolved.activeBuffs,
+          abilityStrength: resolved.abilityStrength,
+          riven: resolved.rivenLines,
           warnings: resolved.warnings,
           unsupportedMods: resolved.unsupportedMods,
           inactiveConditions: resolved.inactiveConditions,
@@ -184,7 +216,18 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
       `   -> ${num(hit.shotsToKill)} shots${hit.timeToKill !== null ? `, ${num(hit.timeToKill, 2)}s` : ''}`,
   );
   if (hit.factionMultiplier !== 1) console.log(`  faction      x${hit.factionMultiplier.toFixed(2)} vs ${enemy.faction ?? 'unknown'}`);
-  if (resolved.activeBuffs.length) console.log(`  buffs        ${resolved.activeBuffs.join(', ')} @ ${build.abilityStrength ?? 100}% strength`);
+  if (resolved.activeBuffs.length) console.log(`  buffs        ${resolved.activeBuffs.join(', ')} @ ${num(resolved.abilityStrength)}% strength`);
+  if (resolved.rivenLines.length) console.log(`  riven        ${resolved.rivenLines.join(', ')}`);
+  if (hit.dot.length) {
+    console.log('  ── status damage ──');
+    for (const entry of hit.dot.sort((a, b) => b.dps - a.dps)) {
+      console.log(
+        `   ${entry.type.padEnd(12)} ${num(entry.procsPerSecond, 2).padStart(5)} proc/s  ` +
+          `tick ${num(entry.tickDamage, 1).padStart(7)} × ${entry.ticks}  → ${num(entry.dps).padStart(8)} dps`,
+      );
+    }
+    console.log(`   ${'total'.padEnd(12)} ${num(hit.totalDps).padStart(34)} dps including status`);
+  }
   if (hit.bestType) {
     console.log(`  best type    ${hit.bestType.type} ×${hit.bestType.multiplier.toFixed(2)}`);
   }
@@ -237,6 +280,14 @@ function main(): void {
       console.log(`\n${list.length} enemy(ies)`);
       break;
     }
+    case 'rivens': {
+      const query = (args.positional[0] ?? '').toLowerCase();
+      for (const attribute of RIVEN_ATTRIBUTES.filter((a) => a.id.includes(query))) {
+        console.log(`${attribute.id.padEnd(18)} ${attribute.label}`);
+      }
+      console.log(`\n${RIVEN_ATTRIBUTES.length} attribute(s). Usage: --riven damage,multishot,-zoom`);
+      break;
+    }
     case 'buffs': {
       for (const buff of availableBuffs(snapshot)) {
         const definition = BUFFS.find((b) => b.id === buff.id)!;
@@ -286,13 +337,17 @@ function main(): void {
   wfcalc mods <weapon> [query]          mods that fit a weapon
   wfcalc arcanes [query]                weapon arcanes
   wfcalc buffs                          warframe buffs modelled
+  wfcalc rivens [query]                 riven attribute ids
   wfcalc enemies [query]                search enemies
   wfcalc calc <weapon> [options]        damage report
   wfcalc compare <weapon> --vs a,b      compare setups
   wfcalc serve                          web UI + JSON API (see docs/api.md)
 
 Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
-         --strength 284  --enemy NAME  --level N  --faction NAME  --mode "Name"
+         --strength 284  --frame-mods "Intensify,Blind Rage"  --riven damage,multishot
+         --riven-roll 1.05
+         --viral 10  --corrosive 10  (status debuffs on the target)
+         --enemy NAME  --level N  --faction NAME  --mode "Name"
          --stacks onKill=5  --status-types N  --headshot  --json`);
   }
 }

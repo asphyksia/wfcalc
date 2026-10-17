@@ -85,6 +85,10 @@ const TARGET_RULES: Array<[RegExp, Mapped]> = [
 
   [/^(?:critical chance|crit chance)$/, { target: 'critChance', op: 'add' }],
   [/^(?:critical damage|critical multiplier|crit damage)$/, { target: 'critDamage', op: 'add' }],
+  [/^ability strength$/, { target: 'abilityStrength', op: 'add' }],
+  [/^ability duration$/, { target: 'abilityDuration', op: 'add' }],
+  [/^ability range$/, { target: 'abilityRange', op: 'add' }],
+  [/^ability efficiency$/, { target: 'abilityEfficiency', op: 'add' }],
   [/^status chance$/, { target: 'statusChance', op: 'add' }],
   [/^status duration$/, { target: 'statusDuration', op: 'add' }],
   [/^status damage$/, { target: 'statusDamage', op: 'add' }],
@@ -109,11 +113,21 @@ const TARGET_RULES: Array<[RegExp, Mapped]> = [
   [/^heavy attack wind ?up speed$/, { target: 'heavyAttackSpeed', op: 'add' }],
   [/^(?:blast radius|blast range)$/, { target: 'blastRadius', op: 'add' }],
   [/^chance to explode.*$/, { target: 'explodeChance', op: 'add' }],
+  // Forced status procs: Hunter Munitions "+30% chance to apply on Critical".
+  [/^chance to apply(?: (?:a |an )?(\w+?)(?: status(?: effect)?)?)?(?: on (?:critical|crit))?$/, { target: 'forcedProc', op: 'add' }],
 ];
 
 /** Maps the descriptive part of a stat line onto an effect target. */
 export function mapTarget(rest: string): Mapped | null {
   const text = rest.toLowerCase().trim();
+
+  // "chance to apply <element>" — Hunter Munitions, Internal Bleeding, Hemorrhage...
+  const forced = /^chance to apply(?: (?:a |an )?(\w+?)(?: status(?: effect)?)?)?(?: on (?:critical|crit))?$/.exec(text);
+  if (forced) {
+    // Unnamed forced procs are Slash (Hunter Munitions wording).
+    const element = ELEMENT_BY_NAME[forced[1] ?? 'slash'] ?? 'slash';
+    return { target: 'forcedProc', element, op: 'add' };
+  }
 
   const converted = /(?:of )?damage converted into (\w+)/i.exec(rest);
   if (converted) {

@@ -1,0 +1,178 @@
+/**
+ * Damage over time from weapon status effects.
+ *
+ * From wiki.warframe.com/w/Damage_over_Time and Damage/Calculation:
+ *
+ *   tick = (seed + 1) × C × M
+ *
+ *   seed = the modded damage of that type from the hit (total damage for Bleed)
+ *   C    = 0.35 for Slash, 0.5 for Heat / Electricity / Toxin / Gas
+ *   M    = status damage bonuses × faction damage, applied a second time
+ *
+ * Tick counts over the effect's duration:
+ *
+ *   | type        | ticks | notes                                  |
+ *   | Slash       | 6     | True damage, ignores armour            |
+ *   | Heat        | 6     |                                        |
+ *   | Toxin       | 6     | bypasses shields where applicable      |
+ *   | Electricity | 6     |                                        |
+ *   | Gas         | 6     |                                        |
+ *   | Blast       | 1     | detonation at 2s, not a real DoT       |
+ *
+ * Procs arrive at `statusChance × multishot × damageShare` per trigger pull, and each
+ * proc is an independent instance, so the steady-state DoT is
+ * `procsPerSecond × tickDamage × ticks`.
+ */
+import { type DamageType, type Snapshot } from '../types.ts';
+import type { ResolvedBuild } from './build.ts';
+import { armorDamageReduction, type ScaledEnemy } from './enemy.ts';
+
+/** Damage types that produce a damage-over-time effect from weapon hits. */
+export const DOT_TYPES = ['slash', 'heat', 'toxin', 'electricity', 'gas', 'blast'] as const;
+
+/** Tick coefficient per type (wiki: C). */
+const TICK_COEFFICIENT: Record<string, number> = {
+  slash: 0.35,
+  heat: 0.5,
+  toxin: 0.5,
+  electricity: 0.5,
+  gas: 0.5,
+  blast: 0.5,
+};
+
+/** Number of ticks per proc. */
+const TICK_COUNT: Record<string, number> = {
+  slash: 6,
+  heat: 6,
+  toxin: 6,
+  electricity: 6,
+  gas: 6,
+  blast: 1,
+};
+
+/** Bleed is True damage: it ignores armour and health-type modifiers. */
+const TICK_DAMAGE_TYPE: Record<string, DamageType> = {
+  slash: 'true',
+  heat: 'heat',
+  toxin: 'toxin',
+  electricity: 'electricity',
+  gas: 'gas',
+  blast: 'blast',
+};
+
+export interface DotEntry {
+  /** Damage type that procced. */
+  type: DamageType;
+  /** Procs per second at the build's fire rate. */
+  procsPerSecond: number;
+  /** Damage of one tick after enemy modifiers. */
+  tickDamage: number;
+  /** Ticks per proc. */
+  ticks: number;
+  /** Damage per second contributed by this status. */
+  dps: number;
+  /** Total damage of one proc. */
+  damagePerProc: number;
+}
+
+const healthModifier = (snapshot: Snapshot, type: DamageType, healthType: string): number =>
+  (snapshot.modifiers[type]?.[healthType] ?? 0) / 100;
+
+export interface DotContext {
+  /** Viral stacks on the target: +100% damage to health at 1 stack, +25% each more. */
+  viralStacks?: number;
+  /** Corrosive stacks: 26% armour reduction, then 6% more each, capped at 80%. */
+  corrosiveStacks?: number;
+}
+
+/** Damage-to-health multiplier from Viral stacks (wiki: 100%, then +25% up to 325%). */
+export function viralMultiplier(stacks: number): number {
+  if (stacks <= 0) return 1;
+  const bonus = Math.min(3.25, 1 + 0.25 * (stacks - 1));
+  return 1 + bonus;
+}
+
+/** Armour multiplier after Corrosive stacks (wiki: 26%, then 6% each, capped at 80%). */
+export function corrosiveArmorMultiplier(stacks: number): number {
+  if (stacks <= 0) return 1;
+  const strip = Math.min(0.8, 0.26 + 0.06 * (stacks - 1));
+  return 1 - strip;
+}
+
+/** Effective armour after Corrosive procs. */
+export function effectiveArmor(armor: number, context: DotContext): number {
+  return Math.max(0, armor * corrosiveArmorMultiplier(context.corrosiveStacks ?? 0));
+}
+
+/**
+ * Computes the sustained damage per second from status procs alone.
+ * `flatFactionMultiplier` is the faction bonus already resolved by the caller.
+ */
+export function computeDot(
+  snapshot: Snapshot,
+  build: ResolvedBuild,
+  scaled: ScaledEnemy,
+  context: DotContext,
+  factionMultiplier: number,
+): DotEntry[] {
+  const healthPool = scaled.pools.find((pool) => pool.category === 'health' || pool.category === 'object');
+  const armorPool = scaled.pools.find((pool) => pool.category === 'armor');
+  const healthType = healthPool?.type ?? 'Cloned Flesh';
+  const armor = effectiveArmor(scaled.armor, context);
+  const viral = viralMultiplier(context.viralStacks ?? 0);
+
+  // Trigger pulls per second, ignoring reloads: DoT keeps ticking between magazines anyway.
+  const pullsPerSecond = build.fireRate;
+  const perProjectileTotal = build.damage.projectileTotal || 1;
+  const statusPerProjectile = build.statusChance;
+  const statusDamageBonus = 1 + (build.statusDamageBonus ?? 0);
+
+  const entries: DotEntry[] = [];
+
+  // Forced procs (Hunter Munitions): extra proc rate of a type, sometimes gated on crits.
+  const forced = new Map<DamageType, number>();
+  for (const proc of build.forcedProcs ?? []) {
+    const rate = build.multishot * pullsPerSecond * proc.chance * (proc.requiresCrit ? build.critChance : 1);
+    if (rate > 0) forced.set(proc.type, (forced.get(proc.type) ?? 0) + rate);
+  }
+
+  for (const type of DOT_TYPES) {
+    const coefficient = TICK_COEFFICIENT[type];
+    const ticks = TICK_COUNT[type];
+    const dotType = TICK_DAMAGE_TYPE[type];
+
+    // Bleed takes the whole modded damage as its seed; the others use their own component.
+    const component = type === 'slash' ? perProjectileTotal : build.damage.perProjectile[type] ?? 0;
+    if (component <= 0) continue;
+
+    // Proc share: the status roll is weighted by each type's damage share.
+    const share = type === 'slash'
+      ? (build.damage.perProjectile.slash ?? 0) / perProjectileTotal
+      : component / perProjectileTotal;
+    // A purely forced proc (no damage of that type on the weapon) still deals its DoT.
+    if (share <= 0 && (forced.get(type) ?? 0) <= 0) continue;
+
+    const procsPerProjectile = statusPerProjectile * share;
+    const procsPerSecond =
+      procsPerProjectile * build.multishot * pullsPerSecond + (forced.get(type) ?? 0);
+
+    // Faction damage double-dips: it is already inside the seed and is applied again here.
+    const rawTick = (component + 1) * coefficient * statusDamageBonus * factionMultiplier * factionMultiplier;
+    const armorModifier = armorPool && dotType !== 'true' ? healthModifier(snapshot, dotType, armorPool.type) : 0;
+    const dr = dotType === 'true' ? 0 : armorDamageReduction(armor, armorModifier);
+    const healthMod = dotType === 'true' ? 0 : healthModifier(snapshot, dotType, healthType);
+    const tickDamage = rawTick * (1 + healthMod) * (1 - dr) * viral;
+
+    const damagePerProc = tickDamage * ticks;
+    entries.push({
+      type,
+      procsPerSecond,
+      tickDamage,
+      ticks,
+      damagePerProc,
+      dps: procsPerSecond * damagePerProc,
+    });
+  }
+
+  return entries;
+}

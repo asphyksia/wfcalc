@@ -39,6 +39,7 @@ Interactive UI: `wfcalc serve` → <http://127.0.0.1:7777>.
 | `wfcalc mods <weapon> [query]` | Mods that fit that weapon |
 | `wfcalc arcanes [query]` | Weapon arcanes |
 | `wfcalc buffs` | Warframe buffs the calculator models |
+| `wfcalc rivens [query]` | Riven attribute ids |
 | `wfcalc enemies [query]` | Search the 479 enemies |
 | `wfcalc serve [--port 7777]` | Local web UI + JSON API |
 | `wfcalc update` | Re-download sources and rebuild the snapshot |
@@ -51,6 +52,10 @@ Interactive UI: `wfcalc serve` → <http://127.0.0.1:7777>.
 | `--arcane NAME[:R5]` | Equip a weapon arcane (Primary Merciless, Melee Exposure...) |
 | `--buff roar,eclipse` | Activate Warframe buffs (see `wfcalc buffs`) |
 | `--strength 284` | Caster's Ability Strength in percent (default 100) |
+| `--frame-mods "Intensify,Blind Rage"` | Derive Ability Strength from Warframe mods |
+| `--riven damage,multishot,-zoom` | Riven stats (`-` marks the malus) |
+| `--riven-roll 1.05` / `--riven-rank 6` | Riven random roll (0.9-1.1) and rank |
+| `--viral 10`, `--corrosive 10` | Status stacks kept up on the target |
 | `--enemy NAME`, `--level N` | Target and level (default Bombard at 100) |
 | `--faction grineer` | Shorthand for a benchmark enemy of that faction |
 | `--mode "Incarnon Form"` | Use an alternative fire mode |
@@ -87,16 +92,22 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
   single armor curve, the 200–2700 armor clamp).
 - Damage-type modifiers per health **and** armor type, armor damage reduction,
   Toxin shield bypass.
-- Per-type damage breakdown, status proc distribution, shots to kill and time to kill.
+- **Rivens** with real values: wiki base table × the weapon's own disposition × the
+  bonus/malus weights × an optional roll.
+- **Damage over time** from status procs (Slash, Heat, Toxin, Electricity, Gas, Blast)
+  including the faction double-dip, plus **Viral** and **Corrosive** stacks on the target.
+- Forced procs (Hunter Munitions, Internal Bleeding) and Status Damage mods.
+- Per-type damage breakdown, status proc distribution, shots to kill and time to kill,
+  with status damage counted into the kill time.
 
 ## What it does not model yet
 
-- Warframe mods feeding Ability Strength automatically (pass `--strength` instead),
-  and buffs outside the curated registry (Harrow's Covenant, Elemental Ward,
-  Provoke, Amp: their infoboxes list several sub-stats and need hand-mapping).
-- Rivens with custom rolls (the disposition is in the data, the roll generator is not).
-- Status damage over time (slash/heat ticks), Incarnon evolution trees, stances and
-  melee combo multipliers.
+- Buffs outside the curated registry: Harrow's Covenant needs the damage dealt during
+  invulnerability, which the calculator cannot know. Elemental Ward and Provoke do not
+  buff weapon damage, so they are intentionally absent.
+- Umbral set bonuses, Archon Shards and Helminth invigorations for Ability Strength.
+- Incarnon evolution trees, stances and melee combo multipliers.
+- Area-of-effect falloff, punch-through multi-hits, and per-pellet proc variance.
 - 17% of weapon mods are only partially understood — mostly pure utility
   (beam range, dodge speed, combo efficiency). They are reported as
   `unsupportedMods` and the result is flagged as a lower bound rather than silently

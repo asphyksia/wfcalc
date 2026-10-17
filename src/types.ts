@@ -121,8 +121,10 @@ export interface WeaponData {
   /** Narrow in-game class, decides which mods fit: Rifle, Shotgun, Bow, Sniper, Pistol, ... */
   type: string;
   masteryRank: number;
-  /** Riven disposition, 1 to 5 stars (WFCD stores 0.5-1.5). */
+  /** Riven disposition as stars, 1 to 5 (for display). */
   disposition: number;
+  /** The game's disposition multiplier for riven stat values (0.5 - 1.55). */
+  dispositionMultiplier: number;
   polarities: string[];
   exilusPolarity: string | null;
   /** Which mod-compatibility class this weapon accepts. */
@@ -268,6 +270,12 @@ export interface Snapshot {
   warframes: Record<string, WarframeData>;
   /** Ability numbers used by the buff registry (Roar, Eclipse, elemental augments...). */
   abilities: Record<string, AbilityData>;
+  /**
+   * Riven base values per weapon class (`rifle`, `shotgun`, `pistol`, `archgun`, `melee`),
+   * keyed by attribute label as the wiki writes it ("Critical Chance", "Damage vs. Grineer").
+   * Percentages are already fractions; multipliers and flat values are as written.
+   */
+  rivenStats: Record<string, Record<string, number>>;
   enemies: Record<string, EnemyData>;
   /** damage type -> health type -> percentage points */
   modifiers: ModifierTable;

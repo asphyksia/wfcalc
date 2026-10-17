@@ -153,11 +153,53 @@ Notes:
   conditions (`--stacks onKill=5`). Arcane slots are enforced (a Melee arcane on a rifle
   gives a warning, not a silent wrong answer).
 
-## 6. Time to kill
+## 6. Status damage over time (`Damage_over_Time`)
 
-Shields are chewed through first, then health, using the per-shot damage against each
-pool. Toxin damage bypasses shields (except Treasurer and Hounds). Time comes from
-the sustained fire rate, which accounts for the magazine and reload cycle.
+```
+tick      = (seed + 1) × C × status_damage_bonus × faction²
+total     = tick × ticks
+dot_dps   = procs_per_second × total
+```
+
+- `seed`: the modded damage of that type (the **whole** damage for Bleed).
+- `C`: 0.35 for Slash, 0.5 for Heat / Electricity / Toxin / Gas.
+- Faction damage is applied **twice** (it is already inside the seed), as the wiki notes.
+- `ticks`: 6 for Slash/Heat/Toxin/Electricity/Gas, 1 for Blast's detonation.
+- Bleed is **True** damage: no armour DR, no health-type modifier.
+- `procs_per_second = fireRate × multishot × statusChance × damageShare`, plus forced
+  procs such as Hunter Munitions (`+30% chance on crit` → crit-gated rate).
+
+Verified by test against the wiki's worked example shape
+(`(100 + 1) × 0.35` for a pure-Slash weapon).
+
+### Target debuffs
+
+| Effect | Rule |
+|---|---|
+| Viral (N stacks) | damage to health ×(1 + 100% first stack, +25% each further, cap 325%) |
+| Corrosive (N stacks) | armour ×(1 − 26% first stack, −6% each further, cap 80%) |
+
+These apply to direct hits and to DoT ticks alike.
+
+## 7. Rivens (`Riven_Mods → Attributes`)
+
+```
+value = base × disposition × weight × roll
+```
+
+- `base` comes from the wiki base-value table, per weapon class (rifle / shotgun /
+  pistol / archgun / melee). Bows, snipers and launchers use the rifle table.
+- `disposition` is the game's own multiplier (`omegaAttenuation`), e.g. 0.7.
+- `weight`: 2 bonuses 0.99 · 3 bonuses 0.75 · 2+malus 1.2375/−0.495 · 3+malus 0.9375/−0.75.
+- `roll`: 0.9–1.1, default 1.0 (average riven).
+- Rank scales as `(rank + 1) / 9`, matching the 8-rank riven scale.
+
+## 8. Time to kill
+
+Computed as rates rather than shots so status damage counts: shields first (only
+shield-capable damage), then health using direct damage plus DoT DPS. Toxin bypasses
+shields (except Treasurer and Hounds). Time comes from the sustained fire rate, which
+accounts for the magazine and reload cycle.
 
 ## Known approximations
 

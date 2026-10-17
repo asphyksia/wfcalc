@@ -45,10 +45,23 @@
     </label>
     <datalist id="arcane-list"></datalist>
     <label class="field">
+      <span>Warframe mods (sets ability strength)</span>
+      <input id="framemods-input" placeholder="Intensify, Transient Fortitude" autocomplete="off" />
+    </label>
+    <label class="field">
       <span>Ability strength <b id="strength-value">100%</b></span>
       <input id="strength-input" type="range" min="40" max="500" step="5" value="100" />
     </label>
     <div id="buff-list" class="buffs"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Riven</h2></div>
+    <label class="field">
+      <span>Stats (comma separated, - for a malus)</span>
+      <input id="riven-input" placeholder="damage,multishot,-zoom" autocomplete="off" />
+    </label>
+    <div id="riven-meta" class="meta"></div>
   </section>
 
   <section class="panel">
@@ -67,6 +80,8 @@
       <label class="stack">On kill stacks <input type="number" id="onkill" min="0" max="10" value="0" /></label>
       <label class="stack">Status types <input type="number" id="status-types" min="1" max="12" value="1" /></label>
       <label><input type="checkbox" id="aiming" /> aiming</label>
+      <label class="stack">Viral stacks <input type="number" id="viral" min="0" max="10" value="0" /></label>
+      <label class="stack">Corrosive stacks <input type="number" id="corrosive" min="0" max="10" value="0" /></label>
     </div>
     <div id="enemy-meta" class="meta"></div>
   </section>
