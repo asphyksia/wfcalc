@@ -92,6 +92,15 @@ Cloudflare. Do not use it.
     is in the middle of the sentence. Same for "Increase Base Damage by +51". Both need a
     "… by <number>" fallback before giving up on a line.
 
+19. **Incarnon trees are also inherited by variants.** WFCD gives "Incarnon Form" attacks to
+    Lex Prime, Strun Wraith and friends, but the wiki only has "Lex Incarnon Genesis".
+    Strip the variant affixes (Prime/Wraith/Vandal/Prisma/Mk1/Telos/Rakta/Synoid/Dex) and copy
+    the base weapon's tree.
+
+20. **AoE falloff is in the export**: `attacks[].falloff = {start, end, reduction}`. The arsenal
+    `damage` block already includes the radial hit at the centre, so applying falloff means
+    subtracting that portion and adding it back scaled — not adding the radial on top.
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully

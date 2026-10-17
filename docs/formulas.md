@@ -210,6 +210,10 @@ damage both land correctly:
 Perks whose text describes a mechanic (chaining beams, ammo pooling) are stored as text
 and shown in the UI/CLI, but not applied.
 
+Variants (Prime, Wrath, Vandal, Prisma, Mk1, Telos, Rakta, Synoid, Dex) inherit the tree
+of their base weapon, because an Incarnon Genesis installs on the base weapon *and* its
+variants. That is what turns 25 scraped trees into 54 usable ones.
+
 ## 9. Rivens (`Riven_Mods → Attributes`)
 
 ```
@@ -223,7 +227,23 @@ value = base × disposition × weight × roll
 - `roll`: 0.9–1.1, default 1.0 (average riven).
 - Rank scales as `(rank + 1) / 9`, matching the 8-rank riven scale.
 
-## 10. Time to kill
+## 10. AoE damage falloff
+
+WFCD ships a `falloff: { start, end, reduction }` per attack. The arsenal stat block
+counts the radial hit **at the centre of the blast**, so:
+
+```
+factor(d) = 1                                    d <= start
+          = 1 - reduction × (d - start)/(end - start)   otherwise
+          = 1 - reduction                        d >= end
+
+total(d) = arsenal - radial + radial × factor(d)
+```
+
+Verified: Kuva Bramma at the centre 2718.9 per projectile, at 4 m 1754.6, at 9 m 717.9
+(end 8.3 m, reduction 0.9 → the radial part keeps 10%).
+
+## 11. Time to kill
 
 Computed as rates rather than shots so status damage counts: shields first (only
 shield-capable damage), then health using direct damage plus DoT DPS. Toxin bypasses

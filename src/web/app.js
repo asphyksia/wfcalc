@@ -36,6 +36,7 @@ const state = {
   incarnon: [], // ['EVO2:0']
   comboHits: 0,
   heavyAttack: false,
+  aoeDistance: null,
   debuffs: { viralStacks: 0, corrosiveStacks: 0 },
   enemy: 'Bombard',
   level: 100,
@@ -408,6 +409,14 @@ function bindEvents() {
     recalc();
   });
 
+  $('aoe-input').addEventListener('input', (event) => {
+    const value = Number(event.target.value);
+    // 0 means "at the blast centre", which is what the arsenal numbers already show.
+    state.aoeDistance = value === 0 ? null : value;
+    $('aoe-value').textContent = value === 0 ? 'centre' : `${value} m`;
+    recalc();
+  });
+
   $('heavy').addEventListener('change', (event) => {
     state.heavyAttack = event.target.checked;
     recalc();
@@ -475,6 +484,8 @@ function syncInputsFromState() {
   $('combo-input').value = String(state.comboHits ?? 0);
   $('combo-value').textContent = String(state.comboHits ?? 0);
   $('heavy').checked = Boolean(state.heavyAttack);
+  $('aoe-input').value = String(state.aoeDistance ?? 0);
+  $('aoe-value').textContent = state.aoeDistance ? `${state.aoeDistance} m` : 'centre';
   $('viral').value = String(state.debuffs?.viralStacks ?? 0);
   $('corrosive').value = String(state.debuffs?.corrosiveStacks ?? 0);
 }

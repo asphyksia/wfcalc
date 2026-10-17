@@ -125,21 +125,27 @@ async function main(): Promise<void> {
       }
     }
     if (!wikitext) {
-      const page = `${encodeURIComponent(weapon).replace(/%2F/g, '/')}_Incarnon_Genesis`;
-      const response = await fetch(`https://wiki.warframe.com/w/${page}?action=raw`, {
-        headers: { 'user-agent': 'wfcalc/0.1 (offline damage calculator)' },
-      });
-      if (!response.ok) {
+      // Genesis weapons have a dedicated "X Incarnon Genesis" page; native Incarnon
+      // weapons (Phenmor, Laetum...) keep the same Evolutions table on their own page.
+      const pages = [
+        `${encodeURIComponent(weapon).replace(/%2F/g, '/')}_Incarnon_Genesis`,
+        encodeURIComponent(weapon).replace(/%2F/g, '/'),
+      ];
+      for (const page of pages) {
+        const response = await fetch(`https://wiki.warframe.com/w/${page}?action=raw`, {
+          headers: { 'user-agent': 'wfcalc/0.1 (offline damage calculator)' },
+        });
+        if (!response.ok) continue;
+        const text = await response.text();
+        if (/<!DOCTYPE html>/i.test(text) || !text.includes('===Evolutions===')) continue;
+        wikitext = text;
+        await writeFile(file, text);
+        break;
+      }
+      if (!wikitext) {
         missing++;
         continue;
       }
-      const text = await response.text();
-      if (/<!DOCTYPE html>/i.test(text)) {
-        missing++;
-        continue;
-      }
-      wikitext = text;
-      await writeFile(file, text);
     }
 
     const options = parseEvolutions(wikitext);

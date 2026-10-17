@@ -116,6 +116,7 @@ function buildFromArgs(snapshot: Snapshot, args: Args, mods: string[]): Build {
       .map((entry) => parseModArg(entry.trim()))
       .filter((entry) => entry.name),
     riven: parseRiven(args),
+    aoeDistance: flag(args, 'aoe-distance') ? Number(flag(args, 'aoe-distance')) : undefined,
     comboHits: flag(args, 'combo-hits') ? Number(flag(args, 'combo-hits')) : undefined,
     heavyAttack: args.flags.has('heavy'),
     incarnon: flagAll(args, 'incarnon').flatMap((entry) => entry.split(',')).map((e) => e.trim()).filter(Boolean),
@@ -380,6 +381,7 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
          --incarnon "EVO2:0,EVO4:1"  --riven-roll 1.05
          --viral 10  --corrosive 10  (status debuffs on the target)
          --combo-hits 220  --heavy   (melee combo multiplier / heavy attack)
+         --aoe-distance 4            (AoE falloff distance in metres)
          --enemy NAME  --level N  --faction NAME  --mode "Name"
          --stacks onKill=5  --status-types N  --headshot  --json`);
   }

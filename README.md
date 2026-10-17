@@ -59,6 +59,7 @@ Interactive UI: `wfcalc serve` → <http://127.0.0.1:7777>.
 | `--viral 10`, `--corrosive 10` | Status stacks kept up on the target |
 | `--incarnon "EVO2:0,EVO4:1"` | Incarnon evolutions per tier (see `wfcalc incarnon`) |
 | `--combo-hits 220` / `--heavy` | Melee combo counter and heavy attack |
+| `--aoe-distance 4` | Distance to the blast centre for AoE weapons (falloff) |
 | `--enemy NAME`, `--level N` | Target and level (default Bombard at 100) |
 | `--faction grineer` | Shorthand for a benchmark enemy of that faction |
 | `--mode "Incarnon Form"` | Use an alternative fire mode |
@@ -98,7 +99,10 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
 - **Rivens** with real values: wiki base table × the weapon's own disposition × the
   bonus/malus weights × an optional roll.
 - **Incarnon evolutions**: per-weapon perk trees scraped from the wiki, with the parsed
-  stat bonuses applied (flat base damage included).
+  stat bonuses applied (flat base damage included). Variants (Prime/Wraith/Vandal...)
+  inherit the tree of their base weapon, which is how the game works.
+- **AoE falloff**: the game's own `{start, end, reduction}` per attack, so a Bramma at
+  4 m from the blast does what it does in game.
 - **Melee combo**: the 2x-12x multiplier ladder, combo-scaling mods (Blood Rush,
   Weeping Wounds) and heavy attacks — normal attacks are deliberately *not* multiplied.
 - **Damage over time** from status procs (Slash, Heat, Toxin, Electricity, Gas, Blast)
@@ -113,11 +117,12 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
   invulnerability, which the calculator cannot know. Elemental Ward and Provoke do not
   buff weapon damage, so they are intentionally absent.
 - Umbral set bonuses, Archon Shards and Helminth invigorations for Ability Strength.
-- Stances and stance damage multipliers.
-- Area-of-effect falloff, punch-through multi-hits, and per-pellet proc variance.
+- **Stances**: stance damage multipliers are per-combo-hit execution, not a build
+  property, and the wiki keeps them in prose. Out of scope by design.
+- Punch-through multi-hits and per-pellet proc variance (everything is an expectation).
 - Incarnon perks that are mechanics rather than stats (they are stored as text, not applied).
-- 47 of the 69 Incarnon weapons have no evolution data yet: the wiki only keeps it on
-  "X Incarnon Genesis" pages, which incarnon-native weapons (Phenmor, Laetum...) do not have.
+- 15 of the 69 weapons whose data mentions an Incarnon mode have no evolution table;
+  with variant inheritance 54 are covered, and the remainder look like export noise.
 - 17% of weapon mods are only partially understood — mostly pure utility
   (beam range, dodge speed, combo efficiency). They are reported as
   `unsupportedMods` and the result is flagged as a lower bound rather than silently

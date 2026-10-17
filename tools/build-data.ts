@@ -245,10 +245,18 @@ function buildModes(weapon: Loose, base: WeaponStats): WeaponMode[] {
     stats.critMultiplier = Number(attack.crit_mult ?? 1);
     stats.statusChance = Number(attack.status_chance ?? 0) / 100;
     stats.fireRate = Number(attack.speed ?? base.fireRate);
+    const falloff = attack.falloff && typeof attack.falloff === 'object'
+      ? {
+          start: Number(attack.falloff.start ?? 0),
+          end: Number(attack.falloff.end ?? 0),
+          reduction: Number(attack.falloff.reduction ?? 0),
+        }
+      : undefined;
     modes.push({
       name: String(attack.name ?? 'Attack'),
       stats,
       trigger: typeof attack.shot_type === 'string' ? attack.shot_type : null,
+      ...(falloff && falloff.end > 0 ? { falloff } : {}),
     });
   }
   return modes;
@@ -470,9 +478,40 @@ function buildRivenStats(): Record<string, Record<string, number>> {
 
 // ---------------------------------------------------------------- incarnons
 
-function buildIncarnons(): Record<string, any[]> {
-  const raw = readJsonFile('incarnon-stats.json');
-  console.log(`incarnons: ${Object.keys(raw).length} weapon(s)`);
+/**
+ * An Incarnon Genesis installs on the base weapon *and* its variants, so a Prime/Wraith/
+ * Vandal/Prisma weapon inherits the tree of its base version. This is why 44 of the 69
+ * Incarnon-capable weapons have no page of their own.
+ */
+const VARIANT_PREFIXES = [/^Mk1-/, /^Prisma /, /^Telos /, /^Rakta /, /^Synoid /, /^Dex /, /^Kuva /];
+const VARIANT_SUFFIXES = [/ Prime$/, / Wraith$/, / Vandal$/, / Prisma$/, / Umbra$/];
+
+function baseWeaponName(name: string): string | null {
+  let base = name;
+  for (const re of VARIANT_PREFIXES) base = base.replace(re, '');
+  for (const re of VARIANT_SUFFIXES) base = base.replace(re, '');
+  return base !== name ? base.trim() : null;
+}
+
+function buildIncarnons(weapons: Record<string, WeaponData>): Record<string, any[]> {
+  const raw: Record<string, any[]> = { ...readJsonFile('incarnon-stats.json') };
+  let inherited = 0;
+  for (const weapon of Object.values(weapons)) {
+    if (raw[weapon.name]) continue;
+    if (!weapon.modes.some((mode) => /incarnon/i.test(mode.name))) continue;
+    let candidate = baseWeaponName(weapon.name);
+    while (candidate) {
+      if (raw[candidate]) {
+        raw[weapon.name] = raw[candidate].map((option: Loose) => ({ ...option, inheritedFrom: candidate }));
+        inherited++;
+        break;
+      }
+      const next = baseWeaponName(candidate);
+      if (next === candidate) break;
+      candidate = next;
+    }
+  }
+  console.log(`incarnons: ${Object.keys(raw).length} weapon(s) (${inherited} inherited from a base variant)`);
   return raw;
 }
 
@@ -503,17 +542,18 @@ function main(): void {
   const unmatched: string[] = [];
   const { modifiers, healthTypes } = buildDamageTypes();
 
+  const weapons = buildWeapons();
   const snapshot: Snapshot = {
     version: 1,
     generatedAt: new Date().toISOString(),
     gameVersion: '',
-    weapons: buildWeapons(),
+    weapons,
     mods: buildMods(unmatched),
     arcanes: buildArcanes(),
     warframes: buildWarframes(),
     abilities: buildAbilities(),
     rivenStats: buildRivenStats(),
-    incarnons: buildIncarnons(),
+    incarnons: buildIncarnons(weapons),
     enemies: buildEnemies(healthTypes),
     modifiers,
     healthTypes,

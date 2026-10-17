@@ -7,7 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveBuild, type Build } from '../src/engine/build.ts';
+import { falloffFactor, resolveBuild, type Build } from '../src/engine/build.ts';
 import { armorDamageReduction, scaleEnemy } from '../src/engine/enemy.ts';
 import { hitEnemy } from '../src/engine/damage.ts';
 import { parseModEffects } from '../src/mods/parse.ts';
@@ -514,4 +514,44 @@ test('Incarnon flat base damage is added and scaled by damage mods', () => {
   const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: ['Serration'], incarnon: ['EVO2:0'] });
   // 140 x 2.65 (Serration) + 51 x 2.65 (flat base damage, also multiplied) = 506.15
   close(resolved.damage.projectileTotal, (140 + 51) * 2.65);
+});
+
+test('AoE falloff is linear between start and end and clamps outside', () => {
+  const falloff = { start: 0, end: 8, reduction: 0.9 };
+  close(falloffFactor(falloff, 0), 1);
+  close(falloffFactor(falloff, 4), 1 - 0.9 * 0.5);
+  close(falloffFactor(falloff, 8), 0.1);
+  close(falloffFactor(falloff, 20), 0.1); // beyond max range the floor applies
+  const inner = { start: 2, end: 6, reduction: 0.5 };
+  close(falloffFactor(inner, 1), 1); // inside the full-damage radius
+});
+
+test('AoE distance replaces the radial portion of the arsenal damage', () => {
+  // Arsenal block = direct 100 + radial 900; the radial mode carries the falloff.
+  const direct = 100;
+  const radial = 900;
+  const weaponWithAoe = weapon({ impact: direct + radial });
+  weaponWithAoe.modes = [
+    { name: 'Radial Attack', stats: stats({ impact: radial }), trigger: null, falloff: { start: 0, end: 10, reduction: 0.9 } },
+  ];
+  const snap = snapshot([weaponWithAoe], []);
+  const centre = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], aoeDistance: 0 });
+  const edge = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], aoeDistance: 5 });
+  close(centre.damage.projectileTotal, direct + radial);
+  // Halfway: radial keeps 1 - 0.45 of its damage.
+  close(edge.damage.projectileTotal, direct + radial * (1 - 0.9 * 0.5));
+});
+
+test('Incarnon options can be picked by name or by tier index', () => {
+  const snap = snapshot([weapon({ toxin: 100 })], []);
+  snap.incarnons = {
+    'Test Weapon': [
+      { tier: 'EVO2', name: 'Skillful Chase', effects: [{ target: 'multishot', op: 'add', value: 0.5, raw: '+50% Multishot' }], text: [] },
+      { tier: 'EVO2', name: 'Lone Blade', effects: [{ target: 'critChance', op: 'add', value: 1, raw: '+100% Critical Chance' }], text: [] },
+    ],
+  };
+  const byName = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], incarnon: ['EVO2:Lone Blade'] });
+  const byIndex = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], incarnon: ['EVO2:0'] });
+  close(byName.critChance, 0.2 * 2);
+  close(byIndex.multishot, 1.5);
 });

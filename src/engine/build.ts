@@ -27,6 +27,7 @@ import {
   type Snapshot,
   type WeaponData,
   type WeaponMode,
+  type WeaponStats,
 } from '../types.ts';
 import { normalizeName } from '../data.ts';
 import { abilityStrengthFromMods, buffById, buffEffects } from './buffs.ts';
@@ -56,6 +57,12 @@ export interface Build {
   riven?: RivenSpec;
   /** Status debuffs on the target, in DotContext terms (viralStacks, corrosiveStacks). */
   debuffs?: { viralStacks?: number; corrosiveStacks?: number };
+  /**
+   * Distance to the centre of the blast, in metres, for AoE weapons. The arsenal stat
+   * block counts the radial hit at its centre, so this replaces that portion with the
+   * falloff-reduced one.
+   */
+  aoeDistance?: number;
   /** Melee combo counter (hits), which drives the combo multiplier. */
   comboHits?: number;
   /** True when the attack is a heavy attack (the combo multiplier applies to damage). */
@@ -167,6 +174,13 @@ interface Collected {
   warnings: string[];
 }
 
+/** Damage multiplier at `distance` metres from the blast centre (wiki: Damage Falloff). */
+export function falloffFactor(falloff: { start: number; end: number; reduction: number }, distance: number): number {
+  if (distance <= falloff.start) return 1;
+  if (distance >= falloff.end) return Math.max(0, 1 - falloff.reduction);
+  return 1 - falloff.reduction * ((distance - falloff.start) / (falloff.end - falloff.start));
+}
+
 /** Reads a weapon mode's stats, falling back to the arsenal block. */
 export function statsForMode(weapon: WeaponData, modeName?: string): { stats: WeaponData['stats']; mode: WeaponMode | null } {
   if (modeName) {
@@ -181,8 +195,30 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   const weapon = snapshot.weapons[build.weapon];
   if (!weapon) throw new Error(`unknown weapon: ${build.weapon}`);
 
-  const { stats, mode } = statsForMode(weapon, build.mode);
+  let aoeWarning: string | null = null;
+  const resolvedMode = statsForMode(weapon, build.mode);
   const conditions = build.conditions ?? {};
+  let stats = resolvedMode.stats;
+  const mode = resolvedMode.mode;
+
+  // AoE: the arsenal block counts the radial hit at the blast centre. Swap that portion
+  // for the falloff-reduced value at the requested distance.
+  const aoeDistance = build.aoeDistance;
+  if (aoeDistance !== undefined && aoeDistance >= 0) {
+    const radial = weapon.modes.find((candidate) => candidate.falloff);
+    if (radial && radial.falloff) {
+      const factor = falloffFactor(radial.falloff, aoeDistance);
+      const adjusted: WeaponStats = { ...stats };
+      for (const type of DAMAGE_TYPES) {
+        const component = radial.stats[type] ?? 0;
+        if (component === 0) continue;
+        adjusted[type] = (stats[type] ?? 0) - component + component * factor;
+      }
+      stats = adjusted;
+    } else {
+      aoeWarning = `no AoE falloff data for ${weapon.name}`;
+    }
+  }
 
   // ------------------------------------------------------------ gather effects
   const collected: Collected = {
@@ -209,6 +245,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     incompatible: string[];
   }
   const sources: Source[] = [];
+  if (aoeWarning) collected.warnings.push(aoeWarning);
   const equipped: string[] = [];
   const rivenLines: string[] = [];
 
@@ -269,13 +306,15 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     const options = snapshot.incarnons[weapon.name] ?? [];
     if (!options.length) collected.warnings.push(`no Incarnon data for ${weapon.name}`);
     for (const choice of build.incarnon) {
-      const [maybeTier, maybeIndex] = choice.split(':');
-      const chosen = options.find((option) => normalizeName(option.name) === normalizeName(choice))
-        ?? options.find(
-          (option) =>
-            normalizeName(option.tier) === normalizeName(maybeTier) &&
-            (maybeIndex === undefined || String(options.filter((o) => o.tier === option.tier).indexOf(option)) === maybeIndex),
-        );
+      // Accepts "EVO2", "EVO2:1" (option index) and "EVO2:Lone Blade" (option name).
+      const separator = choice.indexOf(':');
+      const tierPart = separator >= 0 ? choice.slice(0, separator) : null;
+      const restPart = separator >= 0 ? choice.slice(separator + 1) : choice;
+      const sameTier = options.filter((option) => !tierPart || normalizeName(option.tier) === normalizeName(tierPart));
+
+      let chosen = sameTier.find((option) => normalizeName(option.name) === normalizeName(restPart));
+      if (!chosen && /^\d+$/.test(restPart)) chosen = sameTier[Number(restPart)];
+      if (!chosen && !tierPart) chosen = options.find((option) => normalizeName(option.name) === normalizeName(choice));
       if (!chosen) {
         collected.warnings.push(`unknown Incarnon option: ${choice}`);
         continue;

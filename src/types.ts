@@ -109,6 +109,11 @@ export interface WeaponMode {
   trigger: string | null;
   /** Average area-of-effect radius in meters, when the mode explodes. */
   aoeRadius?: number;
+  /**
+   * Damage falloff for an AoE attack: full damage inside `start` metres, dropping
+   * linearly by `reduction` (fraction) until `end` metres.
+   */
+  falloff?: { start: number; end: number; reduction: number };
   /** Damage of the AoE part, kept separately from the direct hit. */
   aoeDamage?: number;
 }

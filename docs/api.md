@@ -59,6 +59,7 @@ Weapon arcanes whose slot fits the weapon, with max rank and description.
   "debuffs": { "viralStacks": 10, "corrosiveStacks": 4 },
   "incarnon": ["EVO2:0", "EVO4:1"],
   "comboHits": 220,
+  "aoeDistance": 4,
   "heavyAttack": false,
   "mods": [{ "name": "Serration" }, { "name": "Vital Sense", "rank": 3 }],
   "enemy": "Bombard",
@@ -76,6 +77,7 @@ Weapon arcanes whose slot fits the weapon, with max rank and description.
 - `buffs`: registry ids from `GET /api/buffs`; `abilityStrength` is a percentage (100 = unmodded).
 - `riven` is resolved against the weapon's own disposition; `roll` (0.9-1.1) and `rank` (0-8) are optional.
 - `incarnon` picks evolution tiers (`"EVO2:0"` = first option of tier EVO2; see `GET /api/incarnons`).
+- `aoeDistance` (metres) applies the weapon's own AoE falloff; omitted means blast centre.
 - `comboHits` drives the melee combo multiplier; `heavyAttack` applies it to damage.
 - `debuffs` are status stacks kept up on the target: Viral amplifies health damage, Corrosive strips armour.
 - `conditions` toggles conditional mods: `onKill` (stacks), `onWeakPointHit`,

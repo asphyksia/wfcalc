@@ -62,6 +62,7 @@ function calculate(body: any) {
     abilityStrength: body.abilityStrength ? Number(body.abilityStrength) : undefined,
     frameMods: Array.isArray(body.frameMods) ? body.frameMods : [],
     incarnon: Array.isArray(body.incarnon) ? body.incarnon : [],
+    aoeDistance: body.aoeDistance !== undefined ? Number(body.aoeDistance) : undefined,
     comboHits: body.comboHits ? Number(body.comboHits) : undefined,
     heavyAttack: Boolean(body.heavyAttack),
     riven: body.riven ?? undefined,
