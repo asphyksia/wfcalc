@@ -1,0 +1,4 @@
+node_modules/
+data/raw/
+data/snapshot.json
+docs/unmatched-mods.txt

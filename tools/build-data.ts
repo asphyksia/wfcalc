@@ -1,0 +1,414 @@
+/**
+ * Builds data/snapshot.json from data/raw/.
+ *
+ * Master data sources, in order of authority:
+ *  - WARFRAME Wiki Lua modules: mod list + descriptions + upgrade axes,
+ *    damage-type modifier matrix, warframe stats.
+ *  - WFCD/warframe-items JSON (game export): per-rank mod stats, weapon stat
+ *    blocks, enemy health pools, arcanes.
+ *
+ * The wiki is the master for anything that has an `InternalName`, because WFCD
+ * contains duplicate entries (flawed/spectre variants share a name) and a few
+ * misnamed rows. WFCD supplies the numbers the game actually uses.
+ *
+ * Run: node tools/build-data.ts
+ */
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { parseLuaModule } from './parse-lua.ts';
+import { parseModEffects } from '../src/mods/parse.ts';
+import {
+  DAMAGE_TYPES,
+  type ArcaneData,
+  type DamageType,
+  type Effect,
+  type EnemyData,
+  type HealthPool,
+  type ModData,
+  type Snapshot,
+  type WarframeData,
+  type WeaponData,
+  type WeaponMode,
+  type WeaponStats,
+} from '../src/types.ts';
+
+const ROOT = new URL('..', import.meta.url).pathname;
+const RAW = join(ROOT, 'data/raw');
+const OUT = join(ROOT, 'data/snapshot.json');
+
+type Loose = Record<string, any>;
+
+const readJson = (file: string): any[] => JSON.parse(readFileSync(join(RAW, file), 'utf8'));
+const readLua = (file: string): any => parseLuaModule(readFileSync(join(RAW, file), 'utf8'));
+
+/** Lua tables produce `{ "1": x, "2": y }`; turn that into a real array. */
+function luaArray(value: Loose | undefined): any[] {
+  if (!value || typeof value !== 'object') return [];
+  return Object.keys(value)
+    .filter((k) => /^\d+$/.test(k))
+    .sort((a, b) => Number(a) - Number(b))
+    .map((k) => value[k]);
+}
+
+// ---------------------------------------------------------------- modifiers
+
+function buildDamageTypes(): { modifiers: Record<string, Record<string, number>>; healthTypes: Record<string, HealthPool['category']> } {
+  const module = readLua('module-damagetypes.lua');
+  const modifiers: Record<string, Record<string, number>> = {};
+  const healthTypes: Record<string, HealthPool['category']> = {};
+
+  for (const [name, entry] of Object.entries<Loose>(module.Health ?? {})) {
+    const category = String(entry.Type ?? 'Health').toLowerCase() as HealthPool['category'];
+    healthTypes[name] = category === 'armor' ? 'armor' : category === 'shield' ? 'shield' : category === 'object' ? 'object' : 'health';
+    for (const pair of luaArray(entry.Positives)) {
+      const [element, pct] = luaArray(pair);
+      const key = element.toLowerCase();
+      (modifiers[key] ??= {})[name] = pct;
+    }
+    for (const pair of luaArray(entry.Negatives)) {
+      const [element, pct] = luaArray(pair);
+      const key = element.toLowerCase();
+      (modifiers[key] ??= {})[name] = -pct;
+    }
+  }
+  // Modifiers not mentioned are 0; keep the table sparse and default to 0 at runtime.
+  return { modifiers, healthTypes };
+}
+
+// --------------------------------------------------------------------- mods
+
+/** WFCD mod rows indexed by their internal name, which is what the wiki stores too. */
+function indexWfcdMods(): Map<string, Loose> {
+  const index = new Map<string, Loose>();
+  for (const mod of readJson('wfcd-Mods.json')) {
+    if (typeof mod.uniqueName === 'string') index.set(mod.uniqueName, mod);
+  }
+  return index;
+}
+
+function buildMods(unmatchedReport: string[]): Record<string, ModData> {
+  const module = readLua('module-mods.lua');
+  const wfcd = indexWfcdMods();
+  const out: Record<string, ModData> = {};
+
+  // Set membership: Sets = { "Set Name" = { "Mod A", "Mod B" } } or { Mods = {...} }.
+  const setOf = new Map<string, string>();
+  for (const [setName, members] of Object.entries<Loose>(module.Sets ?? {})) {
+    const list = Array.isArray(members) ? members : luaArray(members.Mods ?? members);
+    for (const member of list) if (typeof member === 'string') setOf.set(member, setName);
+  }
+
+  let partialCount = 0;
+  for (const [name, entry] of Object.entries<Loose>(module.Mods ?? {})) {
+    const internal = typeof entry.InternalName === 'string' ? entry.InternalName : '';
+    const source = internal ? wfcd.get(internal) : undefined;
+
+    // Per-rank stat strings: WFCD if we have them, else the wiki's max-rank description.
+    const ranks: string[][] = Array.isArray(source?.levelStats) && source!.levelStats.length
+      ? source!.levelStats.map((l: Loose) => (Array.isArray(l.stats) ? l.stats : []))
+      : [[String(entry.Description ?? '')].filter(Boolean)];
+
+    const parsed = parseModEffects(ranks);
+    const partial = parsed.unmatched.length > 0;
+    if (partial) {
+      partialCount++;
+      for (const line of parsed.unmatched) unmatchedReport.push(`${name}\t${line}`);
+    }
+
+    const classes = [entry.Type, entry.Class].filter((c): c is string => typeof c === 'string');
+    const mod: ModData = {
+      id: name,
+      name,
+      category: typeof entry.Class === 'string' && ['Galvanized', 'Riven', 'Primed', 'Umbra'].includes(entry.Class) ? entry.Class : String(entry.Type ?? ''),
+      classes,
+      polarity: typeof entry.Polarity === 'string' ? entry.Polarity.toLowerCase() : null,
+      rarity: typeof entry.Rarity === 'string' ? entry.Rarity : null,
+      baseDrain: Number(entry.BaseDrain ?? 0),
+      maxRank: Number(entry.MaxRank ?? 0),
+      description: String(entry.Description ?? '').replace(/\r\n?/g, '\n').trim(),
+      effects: parsed.effects,
+      partial,
+      incompatible: luaArray(entry.Incompatible).filter((x): x is string => typeof x === 'string'),
+      set: setOf.get(name) ?? null,
+      upgradeTypes: luaArray(entry.UpgradeTypes).filter((x): x is string => typeof x === 'string'),
+      isAugment: Boolean(source?.isAugment) || /Augment/i.test(String(entry.Class ?? '')),
+      isRiven: /Riven/i.test(name) || /Riven/i.test(String(source?.type ?? '')),
+      conclave: Boolean(entry.Conclave),
+    };
+    out[name] = mod;
+  }
+
+  console.log(`mods: ${Object.keys(out).length} (${partialCount} partial, ${((100 * partialCount) / Object.keys(out).length).toFixed(0)}%)`);
+  return out;
+}
+
+// ------------------------------------------------------------------ weapons
+
+const CATEGORY_FILES: Array<[file: string, category: string]> = [
+  ['wfcd-Primary.json', 'primary'],
+  ['wfcd-Secondary.json', 'secondary'],
+  ['wfcd-Melee.json', 'melee'],
+  ['wfcd-Arch-Gun.json', 'archgun'],
+  ['wfcd-Arch-Melee.json', 'archmelee'],
+  ['wfcd-SentinelWeapons.json', 'sentinel'],
+];
+
+/**
+ * Which mod-compatibility classes a weapon accepts. The game has families
+ * (Rifle covers rifles, launchers, sniper rifles and bows) and specialisations
+ * (a Sniper mod only fits sniper rifles).
+ */
+function modClassesFor(category: string, type: string): string[] {
+  switch (category) {
+    case 'primary':
+      if (type === 'Shotgun') return ['Shotgun'];
+      if (type === 'Bow') return ['Rifle', 'Bow'];
+      if (type === 'Sniper') return ['Rifle', 'Sniper'];
+      return ['Rifle'];
+    case 'secondary':
+      return ['Pistol'];
+    case 'melee':
+      return ['Melee'];
+    case 'archgun':
+      return ['Archgun'];
+    case 'archmelee':
+      return ['Archmelee'];
+    case 'sentinel':
+      return ['Companion', 'Robotic', 'Sentinel'];
+    default:
+      return [];
+  }
+}
+
+function emptyStats(): WeaponStats {
+  const stats = {} as WeaponStats;
+  for (const t of DAMAGE_TYPES) stats[t] = 0;
+  stats.critChance = 0;
+  stats.critMultiplier = 1;
+  stats.statusChance = 0;
+  stats.fireRate = 1;
+  stats.multishot = 1;
+  stats.magazineSize = 0;
+  stats.reloadTime = 0;
+  return stats;
+}
+
+/** Reads a WFCD `damage` dictionary (arsenal damage per type). */
+function statsFromDamage(damage: Loose | undefined, base: WeaponStats, damagePerShot?: number[]): WeaponStats {
+  const stats: WeaponStats = { ...base };
+  for (const t of DAMAGE_TYPES) stats[t] = 0;
+  if (damage) {
+    for (const [key, value] of Object.entries(damage)) {
+      if (key === 'total' || typeof value !== 'number') continue;
+      if (key in stats) stats[key as DamageType] = value;
+    }
+  }
+  // `damagePerShot` is the same data as a fixed-order array; use it only as a fallback.
+  if (!damage && Array.isArray(damagePerShot)) {
+    damagePerShot.slice(0, 12).forEach((value, i) => {
+      const key = DAMAGE_TYPES[i];
+      if (key && typeof value === 'number') stats[key] = value;
+    });
+  }
+  return stats;
+}
+
+/** Builds the arsenal stat block for a weapon. */
+function baseStats(weapon: Loose): WeaponStats {
+  const stats = statsFromDamage(weapon.damage, emptyStats(), weapon.damagePerShot);
+  stats.critChance = Number(weapon.criticalChance ?? 0);
+  stats.critMultiplier = Number(weapon.criticalMultiplier ?? 1);
+  stats.statusChance = Number(weapon.procChance ?? 0);
+  stats.fireRate = Number(weapon.fireRate ?? 1);
+  stats.multishot = Number(weapon.multishot ?? 1);
+  stats.magazineSize = Number(weapon.magazineSize ?? 0);
+  stats.reloadTime = Number(weapon.reloadTime ?? 0);
+  return stats;
+}
+
+/**
+ * Alternative fire modes from WFCD `attacks`. That array mixes two very different
+ * things: parts of a single trigger pull (Kuva Bramma: impact direct + blast radial)
+ * and genuinely different modes (Soma Prime: normal + Incarnon). We keep them as
+ * separate, selectable modes and never add them up, because the arsenal total
+ * already includes the parts of the main shot.
+ */
+function buildModes(weapon: Loose, base: WeaponStats): WeaponMode[] {
+  const attacks: Loose[] = Array.isArray(weapon.attacks) ? weapon.attacks : [];
+  const modes: WeaponMode[] = [];
+  for (const attack of attacks) {
+    const stats = statsFromDamage(attack.damage, base);
+    stats.critChance = Number(attack.crit_chance ?? 0) / 100;
+    stats.critMultiplier = Number(attack.crit_mult ?? 1);
+    stats.statusChance = Number(attack.status_chance ?? 0) / 100;
+    stats.fireRate = Number(attack.speed ?? base.fireRate);
+    modes.push({
+      name: String(attack.name ?? 'Attack'),
+      stats,
+      trigger: typeof attack.shot_type === 'string' ? attack.shot_type : null,
+    });
+  }
+  return modes;
+}
+
+function buildWeapons(): Record<string, WeaponData> {
+  const out: Record<string, WeaponData> = {};
+  for (const [file, category] of CATEGORY_FILES) {
+    for (const weapon of readJson(file)) {
+      const name = String(weapon.name ?? '').trim();
+      const type = String(weapon.type ?? '');
+      if (!name) continue;
+      // Zaw/Kitgun components are crafting parts, not weapons.
+      if (/Component$/.test(type) || /Component$/.test(name) || /Blueprint$/.test(name)) continue;
+      // Skip the hidden duplicate rows WFCD emits for amp scaffolds etc.
+      if (out[name]) continue;
+
+      const stats = baseStats(weapon);
+      const modes = buildModes(weapon, stats);
+      out[name] = {
+        id: name,
+        name,
+        category,
+        type,
+        masteryRank: Number(weapon.masteryReq ?? 0),
+        disposition: Number(weapon.disposition ?? 1),
+        polarities: Array.isArray(weapon.polarities) ? weapon.polarities.map((p: unknown) => String(p).toLowerCase()) : [],
+        exilusPolarity: typeof weapon.exilusPolarity === 'string' ? weapon.exilusPolarity.toLowerCase() : null,
+        modClasses: modClassesFor(category, type),
+        stats,
+        modes,
+        hasRivenSlot: category !== 'sentinel',
+      };
+    }
+  }
+  console.log(`weapons: ${Object.keys(out).length}`);
+  return out;
+}
+
+// ------------------------------------------------------------------ enemies
+
+const FACTION_NAMES: Record<string, string> = {
+  corpus: 'corpus',
+  grineer: 'grineer',
+  infestation: 'infested',
+  infested: 'infested',
+  orokin: 'orokin',
+  corrupted: 'orokin',
+  sentient: 'sentient',
+  stalker: 'stalker',
+  neutral: 'neutral',
+  tenno: 'tenno',
+  predator: 'infested',
+  prey: 'infested',
+  warframe: 'tenno',
+  orbiter: 'neutral',
+};
+
+function buildEnemies(healthTypes: Record<string, HealthPool['category']>): Record<string, EnemyData> {
+  const out: Record<string, EnemyData> = {};
+  for (const enemy of readJson('wfcd-Enemy.json')) {
+    const name = String(enemy.name ?? '').trim();
+    if (!name || out[name]) continue;
+
+    const pools: HealthPool[] = [];
+    for (const entry of enemy.resistances ?? []) {
+      const type = String(entry.type ?? '');
+      if (!type || type === 'None') continue;
+      const amount = Number(entry.amount ?? 0);
+      if (!(amount > 0)) continue;
+      pools.push({ type, category: healthTypes[type] ?? 'health', amount });
+    }
+
+    out[name] = {
+      id: name,
+      name,
+      faction: FACTION_NAMES[String(enemy.type ?? '').toLowerCase()] ?? null,
+      kind: String(enemy.type ?? '') || null,
+      baseLevel: 1,
+      health: Number(enemy.health ?? 0),
+      shield: Number(enemy.shield ?? 0),
+      armor: Number(enemy.armor ?? 0),
+      pools,
+      // Treasurer and Hounds are documented exceptions to Toxin's shield bypass.
+      toxinBypassesShields: !/^(Treasurer|Hound)$/i.test(name),
+    };
+  }
+  console.log(`enemies: ${Object.keys(out).length}`);
+  return out;
+}
+
+// ------------------------------------------------------- arcanes, warframes
+
+function buildArcanes(): Record<string, ArcaneData> {
+  const out: Record<string, ArcaneData> = {};
+  for (const arcane of readJson('wfcd-Arcanes.json')) {
+    const name = String(arcane.name ?? '').trim();
+    if (!name || out[name]) continue;
+    const ranks: string[][] = Array.isArray(arcane.levelStats)
+      ? arcane.levelStats.map((l: Loose) => (Array.isArray(l.stats) ? l.stats : []))
+      : [];
+    const parsed = ranks.length ? parseModEffects(ranks) : { effects: [] as Effect[], unmatched: [] };
+    out[name] = {
+      id: name,
+      name,
+      category: String(arcane.type ?? ''),
+      rarity: typeof arcane.rarity === 'string' ? arcane.rarity : null,
+      maxRank: ranks.length,
+      description: ranks.length ? String(ranks[ranks.length - 1].join(' / ')) : '',
+      effects: parsed.effects,
+      slot: null,
+    };
+  }
+  console.log(`arcanes: ${Object.keys(out).length}`);
+  return out;
+}
+
+function buildWarframes(): Record<string, WarframeData> {
+  const out: Record<string, WarframeData> = {};
+  for (const frame of readJson('wfcd-Warframes.json')) {
+    const name = String(frame.name ?? '').trim();
+    if (!name || out[name]) continue;
+    out[name] = {
+      id: name,
+      name,
+      health: Number(frame.health ?? 0),
+      shield: Number(frame.shield ?? 0),
+      armor: Number(frame.armor ?? 0),
+      energy: Number(frame.power ?? 0),
+      sprintSpeed: Number(frame.sprintSpeed ?? 0),
+      abilities: Array.isArray(frame.abilities) ? frame.abilities.map((a: Loose) => String(a.name ?? '')) : [],
+    };
+  }
+  console.log(`warframes: ${Object.keys(out).length}`);
+  return out;
+}
+
+// --------------------------------------------------------------------- main
+
+function main(): void {
+  const unmatched: string[] = [];
+  const { modifiers, healthTypes } = buildDamageTypes();
+
+  const snapshot: Snapshot = {
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    gameVersion: '',
+    weapons: buildWeapons(),
+    mods: buildMods(unmatched),
+    arcanes: buildArcanes(),
+    warframes: buildWarframes(),
+    enemies: buildEnemies(healthTypes),
+    modifiers,
+    healthTypes,
+  };
+
+  mkdirSync(join(ROOT, 'data'), { recursive: true });
+  writeFileSync(OUT, JSON.stringify(snapshot));
+  writeFileSync(join(ROOT, 'docs/unmatched-mods.txt'), unmatched.join('\n').replace(/\t/g, ' | ') + '\n');
+
+  const bytes = readFileSync(OUT).length;
+  console.log(`\nsnapshot: ${(bytes / 1024 / 1024).toFixed(1)}MB -> data/snapshot.json`);
+  console.log(`partial mods listed in docs/unmatched-mods.txt (${unmatched.length} lines)`);
+}
+
+main();

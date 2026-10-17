@@ -1,0 +1,10 @@
+#!/bin/sh
+# wfcalc launcher: `wfcalc calc "Kuva Bramma" ...` or `wfcalc serve`
+set -e
+SELF=$(readlink -f "$0")
+DIR=$(CDPATH= cd -- "$(dirname -- "$SELF")/.." && pwd)
+if [ "$1" = "serve" ] || [ "$1" = "web" ]; then
+  shift
+  exec node "$DIR/src/server.ts" "$@"
+fi
+exec node "$DIR/src/cli.ts" "$@"

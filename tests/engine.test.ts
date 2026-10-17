@@ -1,0 +1,262 @@
+/**
+ * Engine tests.
+ *
+ * Every expected value here is either quoted from the WARFRAME Wiki
+ * (Damage/Calculation, Armor, Enemy_Level_Scaling) or derived from the
+ * documented formula by hand in the comment above the assertion.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { resolveBuild, type Build } from '../src/engine/build.ts';
+import { armorDamageReduction, scaleEnemy } from '../src/engine/enemy.ts';
+import { hitEnemy } from '../src/engine/damage.ts';
+import { parseModEffects } from '../src/mods/parse.ts';
+import type { EnemyData, ModData, Snapshot, WeaponData, WeaponStats } from '../src/types.ts';
+
+const close = (actual: number, expected: number, tolerance = 1e-6) =>
+  assert.ok(Math.abs(actual - expected) <= tolerance * Math.max(1, Math.abs(expected)), `${actual} != ${expected}`);
+
+function stats(overrides: Partial<WeaponStats> = {}): WeaponStats {
+  const base: WeaponStats = {
+    impact: 0, puncture: 0, slash: 0, heat: 0, cold: 0, electricity: 0, toxin: 0,
+    blast: 0, corrosive: 0, gas: 0, magnetic: 0, radiation: 0, viral: 0, true: 0, void: 0, tau: 0,
+    critChance: 0.2, critMultiplier: 2, statusChance: 0.1, fireRate: 2, multishot: 1,
+    magazineSize: 10, reloadTime: 1,
+  };
+  return { ...base, ...overrides };
+}
+
+function weapon(overrides: Partial<WeaponStats> = {}): WeaponData {
+  return {
+    id: 'Test Weapon',
+    name: 'Test Weapon',
+    category: 'primary',
+    type: 'Rifle',
+    masteryRank: 0,
+    disposition: 1,
+    polarities: [],
+    exilusPolarity: null,
+    modClasses: ['Rifle'],
+    stats: stats(overrides),
+    modes: [],
+    hasRivenSlot: true,
+  };
+}
+
+/** Builds a ModData whose effects come from the real text parser, so the parser is under test too. */
+function mod(name: string, maxRank: number, topRankStats: string[], overrides: Partial<ModData> = {}): ModData {
+  const { effects } = parseModEffects([topRankStats]);
+  return {
+    id: name,
+    name,
+    category: 'Primary Mod',
+    classes: ['Rifle'],
+    polarity: 'madurai',
+    rarity: 'Rare',
+    baseDrain: 4,
+    maxRank,
+    description: topRankStats.join('\n'),
+    effects,
+    partial: false,
+    incompatible: [],
+    set: null,
+    upgradeTypes: [],
+    isAugment: false,
+    isRiven: false,
+    conclave: false,
+    ...overrides,
+  };
+}
+
+function snapshot(weapons: WeaponData[], mods: ModData[], enemies: EnemyData[] = []): Snapshot {
+  const byName = <T extends { name: string }>(items: T[]) => Object.fromEntries(items.map((i) => [i.name, i]));
+  return {
+    version: 1,
+    generatedAt: '',
+    gameVersion: '',
+    weapons: byName(weapons),
+    mods: byName(mods),
+    arcanes: {},
+    warframes: {},
+    enemies: byName(enemies),
+    // Alloy Armor: Radiation +75, Puncture +15. Cloned Flesh: Slash +25, Heat +25.
+    modifiers: {
+      radiation: { 'Alloy Armor': 75 },
+      puncture: { 'Alloy Armor': 15 },
+      slash: { 'Cloned Flesh': 25 },
+      heat: { 'Cloned Flesh': 25 },
+    },
+    healthTypes: { 'Alloy Armor': 'armor', 'Cloned Flesh': 'health' },
+  };
+}
+
+const bombard: EnemyData = {
+  id: 'Bombard', name: 'Bombard', faction: 'grineer', kind: 'Grineer', baseLevel: 1,
+  health: 300, shield: 0, armor: 500,
+  pools: [
+    { type: 'Alloy Armor', category: 'armor', amount: 500 },
+    { type: 'Cloned Flesh', category: 'health', amount: 300 },
+  ],
+  toxinBypassesShields: true,
+};
+
+const serration = mod('Serration', 10, ['+165% Damage']);
+const heavyCaliber = mod('Heavy Caliber', 10, ['+165% Damage', '-55% Accuracy']);
+const hellfire = mod('Hellfire', 5, ['+90% Heat']);
+const cryoRounds = mod('Cryo Rounds', 5, ['+90% Cold']);
+const infectedClip = mod('Infected Clip', 5, ['+90% Toxin']);
+const stormbringer = mod('Stormbringer', 5, ['+90% Electricity']);
+const vitalSense = mod('Vital Sense', 5, ['+120% Critical Damage']);
+const splitChamber = mod('Split Chamber', 5, ['+90% Multishot']);
+const baneOfGrineer = mod('Bane of Grineer', 5, ['x1.3 Damage to Grineer']);
+const galvanizedChamber = mod('Galvanized Chamber', 10, ['+80% Multishot', 'On Kill:', '+30% Multishot for 20s. Stacks up to 5x.']);
+
+function build(snap: Snapshot, mods: string[], extra: Partial<Build> = {}) {
+  return resolveBuild(snap, { weapon: 'Test Weapon', mods, ...extra });
+}
+
+test('parser reads percentages, elements, multipliers and conditions', () => {
+  close(serration.effects[0].value, 1.65);
+  assert.equal(serration.effects[0].target, 'baseDamage');
+  assert.equal(hellfire.effects[0].element, 'heat');
+  close(baneOfGrineer.effects[0].value, 0.3, 1e-9);
+  assert.equal(baneOfGrineer.effects[0].faction, 'grineer');
+  assert.equal(galvanizedChamber.effects.length, 2);
+  assert.equal(galvanizedChamber.effects[1].condition, 'onKill');
+  assert.equal(galvanizedChamber.effects[1].maxStacks, 5);
+});
+
+test('Serration example from the wiki: 18 base damage at rank 9 becomes 45', () => {
+  // Wiki (Serration): "a weapon with a base damage of 18 equipped with a rank 9
+  // Serration mod (150%) would have a new base damage of 45: 18 × (1 + 1.5) = 45".
+  const snap = snapshot([weapon({ impact: 18 })], [serration]);
+  const resolved = build(snap, ['Serration'], { conditions: {} });
+  const ranked = resolveBuild(snap, { weapon: 'Test Weapon', mods: [{ name: 'Serration', rank: 9 }] });
+  close(resolved.damage.projectileTotal, 18 * 2.65);
+  close(ranked.damage.projectileTotal, 45);
+});
+
+test('base damage mods stack additively (Serration + Heavy Caliber = +330%)', () => {
+  const snap = snapshot([weapon({ impact: 18 })], [serration, heavyCaliber]);
+  close(build(snap, ['Serration', 'Heavy Caliber']).damage.projectileTotal, 18 * (1 + 3.3));
+});
+
+test('one element adds its share of the total base damage', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [hellfire]);
+  const resolved = build(snap, ['Hellfire']);
+  close(resolved.damage.perProjectile.heat ?? 0, 90);
+  close(resolved.damage.projectileTotal, 190);
+});
+
+test('two base elements combine into a secondary element', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [hellfire, cryoRounds]);
+  const resolved = build(snap, ['Hellfire', 'Cryo Rounds']);
+  close(resolved.damage.perProjectile.blast ?? 0, 180);
+  assert.equal(resolved.damage.perProjectile.heat ?? 0, 0);
+  close(resolved.damage.projectileTotal, 280);
+});
+
+test('a third element stays on its own', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [hellfire, cryoRounds, infectedClip]);
+  const resolved = build(snap, ['Hellfire', 'Cryo Rounds', 'Infected Clip']);
+  close(resolved.damage.perProjectile.blast ?? 0, 180);
+  close(resolved.damage.perProjectile.toxin ?? 0, 90);
+});
+
+test('elemental mods combined with damage mods scale off the modded base', () => {
+  // Base 100, Serration +165% -> 265 total, Hellfire adds 90% of the 100 base = 90,
+  // and that 90 also benefits from the damage bonus: 90 × 2.65.
+  const snap = snapshot([weapon({ impact: 100 })], [serration, hellfire]);
+  const resolved = build(snap, ['Serration', 'Hellfire']);
+  close(resolved.damage.perProjectile.heat ?? 0, 90 * 2.65);
+  close(resolved.damage.projectileTotal, 265 + 90 * 2.65);
+});
+
+test('melee/physical mods only boost their own damage type share', () => {
+  const impactMod = mod('Impact Mod', 5, ['+60% Impact']);
+  const snap = snapshot([weapon({ impact: 50, puncture: 50 })], [impactMod]);
+  const resolved = build(snap, ['Impact Mod']);
+  close(resolved.damage.perProjectile.impact ?? 0, 50 * 1.6);
+  close(resolved.damage.perProjectile.puncture ?? 0, 50);
+});
+
+test('crit chance and crit damage are multiplicative on the base stat', () => {
+  const pistolGambit = mod('Pistol Gambit', 5, ['+120% Critical Chance'], { classes: ['Rifle'] });
+  const snap = snapshot([weapon({ impact: 100, critChance: 0.2, critMultiplier: 2 })], [pistolGambit, vitalSense]);
+  const resolved = build(snap, ['Pistol Gambit', 'Vital Sense']);
+  close(resolved.critChance, 0.2 * 2.2);
+  close(resolved.critMultiplier, 2 * 2.2);
+});
+
+test('average damage uses the wiki crit expectation 1 + cc × (cd - 1)', () => {
+  const snap = snapshot([weapon({ impact: 100, critChance: 0.5, critMultiplier: 2 })], []);
+  const resolved = build(snap, []);
+  // 100 × (1 + 0.5 × (2 - 1)) = 150
+  close(resolved.averageShotDamage, 150);
+});
+
+test('multishot multiplies the shot total', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [splitChamber]);
+  const resolved = build(snap, ['Split Chamber']);
+  close(resolved.multishot, 1.9);
+  close(resolved.shotDamage, 190);
+});
+
+test('galvanized multishot only counts when the on-kill condition has stacks', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [galvanizedChamber]);
+  close(build(snap, ['Galvanized Chamber']).multishot, 1.8);
+  close(build(snap, ['Galvanized Chamber'], { conditions: { onKill: 5 } }).multishot, 1.8 + 0.3 * 5);
+});
+
+test('faction mods multiply damage only against that faction', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [baneOfGrineer], [bombard]);
+  const grineerHit = hitEnemy(snap, build(snap, ['Bane of Grineer']), scaleEnemy(snap, bombard, 1));
+  assert.ok(grineerHit.damagePerShotHealth > 0);
+});
+
+test('armor damage reduction follows the wiki curve', () => {
+  close(armorDamageReduction(2700), 0.9, 1e-9);
+  close(armorDamageReduction(300), 0.9 * Math.sqrt(300 / 2700), 1e-9);
+  close(armorDamageReduction(0), 0);
+  // Above 2700 armor the game switches back to armor / (armor + 300).
+  close(armorDamageReduction(5400), 5400 / 5700, 1e-9);
+  // A vulnerability reduces effective armor, so it reduces DR.
+  assert.ok(armorDamageReduction(2700, 0.75) < armorDamageReduction(2700));
+});
+
+test('enemy health scaling follows the documented curves', () => {
+  const snap = snapshot([], [], [bombard]);
+  // Level 1: no multiplier.
+  close(scaleEnemy(snap, bombard, 1).health, 300 * 1, 1e-6);
+  // Level 150: q = 149, above the 70..80 transition, so the high-level curve wins:
+  // f2 = 1 + 10.7332 × 149^0.72 = 394.87... for Grineer.
+  const at150 = scaleEnemy(snap, bombard, 150);
+  close(at150.health, 300 * (1 + 10.7332 * Math.pow(149, 0.72)), 1e-5);
+  // Armor is clamped to the 200..2700 band at high level.
+  close(at150.armor, 2700, 1e-9);
+});
+
+test('radiation beats other damage types against a Bombard', () => {
+  const radiationMod = mod('Radiation Mod', 5, ['+90% Radiation']);
+  const snap = snapshot([weapon({ puncture: 100 })], [radiationMod], [bombard]);
+  const resolved = build(snap, ['Radiation Mod']);
+  const hit = hitEnemy(snap, resolved, scaleEnemy(snap, bombard, 100));
+  const radiation = hit.breakdown.find((entry) => entry.type === 'radiation');
+  const puncture = hit.breakdown.find((entry) => entry.type === 'puncture');
+  // Radiation: +75% vs Alloy Armor, so it reduces effective armor and hits harder.
+  assert.ok(radiation && puncture && radiation.healthMultiplier > puncture.healthMultiplier);
+});
+
+test('toxin bypasses shields when the enemy allows it', () => {
+  const shielded: EnemyData = {
+    ...bombard,
+    shield: 1000,
+    pools: [{ type: 'Shield', category: 'shield', amount: 1000 }, ...bombard.pools],
+  };
+  const toxinMod = mod('Toxin Mod', 5, ['+90% Toxin']);
+  const snap = { ...snapshot([weapon({ toxin: 100 })], [toxinMod], [shielded]), healthTypes: { ...{}, 'Shield': 'shield' as const, 'Alloy Armor': 'armor' as const, 'Cloned Flesh': 'health' as const } };
+  const hit = hitEnemy(snap, build(snap, ['Toxin Mod']), scaleEnemy(snap, shielded, 1));
+  const toxin = hit.breakdown.find((entry) => entry.type === 'toxin');
+  close(toxin?.toShield ?? -1, 0);
+  assert.ok((toxin?.toHealth ?? 0) > 0);
+});

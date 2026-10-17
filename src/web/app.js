@@ -1,0 +1,359 @@
+/**
+ * wfcalc web UI. Vanilla JS, no build step: the server serves this file directly.
+ * All damage maths happens server-side through POST /api/calc, which keeps the
+ * browser in sync with the CLI by construction.
+ */
+
+const MAX_SLOTS = 8;
+
+const ELEMENT_COLORS = {
+  impact: '#8b93a8',
+  puncture: '#a08a6a',
+  slash: '#c0504d',
+  heat: '#f0793a',
+  cold: '#5bbcec',
+  electricity: '#7f7fdc',
+  toxin: '#9fc03a',
+  blast: '#c6502a',
+  corrosive: '#93c203',
+  gas: '#7fb04a',
+  magnetic: '#7f8fd0',
+  radiation: '#c8b23c',
+  viral: '#4aa88a',
+  true: '#dcdcdc',
+  void: '#b07fd0',
+  tau: '#d0a05b',
+};
+
+const state = {
+  weapon: '',
+  mods: [], // [{ name, rank }]
+  enemy: 'Bombard',
+  level: 100,
+  mode: '',
+  conditions: {},
+  headshot: false,
+};
+
+const $ = (id) => document.getElementById(id);
+
+async function getJson(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url}: ${response.status}`);
+  return response.json();
+}
+
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
+
+/** ---------- state <-> URL ---------- */
+
+function saveToUrl() {
+  const payload = btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+  history.replaceState(null, '', `#${payload}`);
+}
+
+function loadFromUrl() {
+  if (!location.hash || location.hash.length < 2) return false;
+  try {
+    Object.assign(state, JSON.parse(decodeURIComponent(escape(atob(location.hash.slice(1))))));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** ---------- data loading ---------- */
+
+let allMods = [];
+
+async function loadStaticLists() {
+  const [weapons, enemies] = await Promise.all([getJson('/api/weapons'), getJson('/api/enemies')]);
+  $('weapon-list').innerHTML = weapons.map((w) => `<option value="${w.name}">${w.type}</option>`).join('');
+  $('enemy-list').innerHTML = enemies
+    .map((e) => `<option value="${e.name}">${e.faction ?? ''} hp${e.health}</option>`)
+    .join('');
+}
+
+async function loadModsForWeapon() {
+  if (!state.weapon) return;
+  allMods = await getJson(`/api/mods?weapon=${encodeURIComponent(state.weapon)}`);
+  renderModList('');
+}
+
+const renderModList = debounce((filter) => {
+  const list = allMods.filter((m) => m.name.toLowerCase().includes(filter));
+  $('mod-list').innerHTML = list
+    .slice(0, 400)
+    .map((m) => `<option value="${m.name}">${(m.description || '').split('\n')[0].slice(0, 48)}</option>`)
+    .join('');
+}, 120);
+
+/** ---------- rendering ---------- */
+
+function renderWeaponMeta(result) {
+  const meta = $('weapon-meta');
+  if (!result?.weapon) {
+    meta.innerHTML = '';
+    $('mode-field').hidden = true;
+    return;
+  }
+  const w = result.weapon;
+  meta.innerHTML = `<span class="chip">${w.type}</span><span class="chip">MR ${w.masteryRank}</span>
+    <span class="chip">${(w.disposition ?? 1).toFixed(1)}★ riven</span>
+    <span class="chip">${w.modClasses.join(' / ')}</span>`;
+  const modes = w.modes ?? [];
+  $('mode-field').hidden = modes.length === 0;
+  if (modes.length) {
+    $('mode-select').innerHTML = ['<option value="">arsenal (default)</option>', ...modes.map((m) => `<option value="${m}">${m}</option>`)].join('');
+    $('mode-select').value = state.mode;
+  }
+}
+
+function renderSlots() {
+  const container = $('slots');
+  container.innerHTML = '';
+  state.mods.forEach((mod, index) => {
+    const info = allMods.find((m) => m.name === mod.name);
+    const maxRank = info?.maxRank ?? 0;
+    const row = document.createElement('div');
+    row.className = 'slot';
+    row.innerHTML = `
+      <input class="mod-name" list="mod-list" value="${mod.name.replace(/"/g, '&quot;')}" data-index="${index}" />
+      <input class="rank" type="range" min="0" max="${maxRank}" value="${mod.rank ?? maxRank}" data-index="${index}" title="mod rank" />
+      <span class="rank-value">R${mod.rank ?? maxRank}</span>
+      <button class="remove" data-index="${index}" title="remove">×</button>`;
+    container.appendChild(row);
+  });
+  if (state.mods.length < MAX_SLOTS) {
+    const add = document.createElement('button');
+    add.className = 'add-slot';
+    add.textContent = '+ add mod';
+    add.onclick = () => {
+      state.mods.push({ name: '', rank: undefined });
+      renderSlots();
+    };
+    container.appendChild(add);
+  }
+  $('mod-count').textContent = state.mods.filter((m) => m.name).length;
+
+  container.querySelectorAll('.mod-name').forEach((input) => {
+    input.addEventListener('input', (event) => {
+      const index = Number(event.target.dataset.index);
+      state.mods[index].name = event.target.value;
+      state.mods[index].rank = undefined;
+      renderModList(event.target.value.toLowerCase());
+      recalc();
+    });
+    input.addEventListener('change', () => {
+      renderSlots();
+      recalc();
+    });
+  });
+  container.querySelectorAll('.rank').forEach((input) => {
+    input.addEventListener('input', (event) => {
+      const index = Number(event.target.dataset.index);
+      state.mods[index].rank = Number(event.target.value);
+      event.target.parentElement.querySelector('.rank-value').textContent = `R${event.target.value}`;
+      recalc();
+    });
+  });
+  container.querySelectorAll('.remove').forEach((button) => {
+    button.onclick = () => {
+      state.mods.splice(Number(button.dataset.index), 1);
+      renderSlots();
+      recalc();
+    };
+  });
+}
+
+const fmt = (value, digits = 0) =>
+  value === null || value === undefined || !Number.isFinite(value)
+    ? '—'
+    : value.toLocaleString('en-US', { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+const pct = (value) => `${(value * 100).toFixed(value < 0.1 ? 2 : 1)}%`;
+
+function renderResults(result) {
+  if (result.error) {
+    $('stats').innerHTML = `<p class="error">${result.error}</p>`;
+    return;
+  }
+  const critMultiplier = 1 + result.critChance * (result.critMultiplier - 1);
+  const target = result.target;
+
+  $('stats').innerHTML = `
+    <div class="card"><span>damage / projectile</span><b>${fmt(result.projectileTotal, 1)}</b></div>
+    <div class="card"><span>damage / shot</span><b>${fmt(result.averageShotDamage, 0)}</b></div>
+    <div class="card"><span>crit</span><b>${pct(result.critChance)} ×${fmt(result.critMultiplier, 2)}</b><small>avg ×${critMultiplier.toFixed(2)}</small></div>
+    <div class="card"><span>status</span><b>${pct(result.statusChance)}</b><small>${fmt(result.statusChance * result.multishot, 2)} procs/shot</small></div>
+    <div class="card"><span>multishot</span><b>×${fmt(result.multishot, 2)}</b><small>${fmt(result.fireRate, 2)} shots/s</small></div>
+    <div class="card"><span>burst dps</span><b>${fmt(result.burstDps, 0)}</b></div>
+    <div class="card"><span>sustained dps</span><b>${fmt(result.sustainedDps, 0)}</b><small>reload ${fmt(result.reloadTime, 2)}s</small></div>
+    ${target ? `<div class="card accent"><span>time to kill lv${target.level}</span><b>${target.timeToKill === null ? '—' : fmt(target.timeToKill, 2) + 's'}</b><small>${fmt(target.shotsToKill, 1)} shots</small></div>` : ''}
+  `;
+
+  $('damage-bars').innerHTML = result.elements
+    .sort((a, b) => b.share - a.share)
+    .map(
+      (element) => `
+      <div class="bar-row">
+        <span class="bar-label">${element.type}</span>
+        <div class="bar"><i style="width:${(element.share * 100).toFixed(1)}%;background:${ELEMENT_COLORS[element.type] ?? '#888'}"></i></div>
+        <span class="bar-value">${fmt(result.damage[element.type], 1)} <small>${pct(element.share)}</small></span>
+      </div>`,
+    )
+    .join('');
+
+  if (target) {
+    $('target-report').innerHTML = `
+      <div class="meta">
+        <span class="chip">${target.name}</span>
+        <span class="chip">${fmt(target.health)} hp</span>
+        ${target.shield ? `<span class="chip">${fmt(target.shield)} shields</span>` : ''}
+        ${target.armor ? `<span class="chip">${fmt(target.armor)} armor</span>` : ''}
+        ${target.pools.map((p) => `<span class="chip subtle">${p.type}</span>`).join('')}
+      </div>
+      <table class="breakdown">
+        <thead><tr><th>type</th><th>raw</th><th>vs health</th><th>dmg to health</th><th>procs</th></tr></thead>
+        <tbody>
+        ${target.breakdown
+          .slice()
+          .sort((a, b) => b.toHealth - a.toHealth)
+          .map(
+            (entry) => `<tr>
+              <td><i class="dot" style="background:${ELEMENT_COLORS[entry.type] ?? '#888'}"></i>${entry.type}</td>
+              <td>${fmt(entry.raw, 1)}</td>
+              <td>×${entry.healthMultiplier.toFixed(2)}</td>
+              <td>${fmt(entry.toHealth, 1)}</td>
+              <td>${pct(entry.procShare)}</td>
+            </tr>`,
+          )
+          .join('')}
+        </tbody>
+      </table>`;
+  } else {
+    $('target-report').innerHTML = '';
+  }
+
+  const notes = [...result.warnings];
+  if (result.unsupportedMods.length) notes.push(`Unknown mod effects (numbers are a lower bound): ${result.unsupportedMods.join(', ')}`);
+  if (result.inactiveConditions.length) notes.push(`${result.inactiveConditions.length} conditional effect(s) inactive — raise the stacks to activate`);
+  if (result.weapon.mode) notes.push(`Using fire mode: ${result.weapon.mode}`);
+  $('notes').innerHTML = notes.map((note) => `<p>· ${note}</p>`).join('');
+}
+
+/** ---------- calculation ---------- */
+
+let calculationId = 0;
+
+async function recalc() {
+  saveToUrl();
+  const id = ++calculationId;
+  const mods = state.mods.filter((m) => m.name);
+  const result = await fetch('/api/calc', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ ...state, mods }),
+  }).then((r) => r.json());
+  if (id !== calculationId) return; // a newer request is in flight
+  renderWeaponMeta(result);
+  renderResults(result);
+  if (result.target) {
+    $('enemy-meta').innerHTML = `<span class="chip">${fmt(result.target.health)} hp</span>
+      <span class="chip">${fmt(result.target.armor)} armor</span>${result.target.shield ? `<span class="chip">${fmt(result.target.shield)} shields</span>` : ''}`;
+  }
+}
+
+/** ---------- events ---------- */
+
+function bindEvents() {
+  $('weapon-input').addEventListener('change', async (event) => {
+    const name = event.target.value;
+    if (name === state.weapon) return;
+    state.weapon = name;
+    state.mods = [];
+    allMods = [];
+    await loadModsForWeapon();
+    renderSlots();
+    recalc();
+  });
+
+  $('mod-filter').addEventListener('input', (event) => renderModList(event.target.value.toLowerCase()));
+
+  $('mode-select').addEventListener('change', (event) => {
+    state.mode = event.target.value;
+    recalc();
+  });
+
+  $('enemy-input').addEventListener('change', (event) => {
+    state.enemy = event.target.value;
+    recalc();
+  });
+
+  $('level-input').addEventListener('input', (event) => {
+    state.level = Number(event.target.value);
+    $('level-value').textContent = state.level;
+    recalc();
+  });
+
+  $('headshot').addEventListener('change', (event) => {
+    state.headshot = event.target.checked;
+    recalc();
+  });
+
+  const conditionInput = (id, key) => {
+    $(id).addEventListener('change', (event) => {
+      const value = event.target.type === 'checkbox' ? event.target.checked : Number(event.target.value);
+      if (value) state.conditions[key] = value;
+      else delete state.conditions[key];
+      recalc();
+    });
+  };
+  conditionInput('onkill', 'onKill');
+  conditionInput('status-types', 'statusTypes');
+  conditionInput('aiming', 'aiming');
+
+  $('share').addEventListener('click', async () => {
+    saveToUrl();
+    try {
+      await navigator.clipboard.writeText(location.href);
+      $('share').textContent = 'copied';
+      setTimeout(() => ($('share').textContent = 'copy link'), 1200);
+    } catch {
+      prompt('Copy this link', location.href);
+    }
+  });
+}
+
+/** Restores the widget values from state (used after loading a shared link). */
+function syncInputsFromState() {
+  $('weapon-input').value = state.weapon;
+  $('enemy-input').value = state.enemy;
+  $('level-input').value = String(state.level);
+  $('level-value').textContent = String(state.level);
+  $('headshot').checked = Boolean(state.headshot);
+  $('onkill').value = String(state.conditions.onKill ?? 0);
+  $('status-types').value = String(state.conditions.statusTypes ?? 1);
+  $('aiming').checked = Boolean(state.conditions.aiming);
+}
+
+async function main() {
+  loadFromUrl();
+  await loadStaticLists();
+  bindEvents();
+  syncInputsFromState();
+  if (state.weapon) {
+    await loadModsForWeapon();
+    renderSlots();
+  } else {
+    $('stats').innerHTML = '<p class="hint">Pick a weapon to start.</p>';
+  }
+  recalc();
+}
+
+main();

@@ -1,0 +1,25 @@
+{
+  "name": "wfcalc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline Warframe damage calculator: build weapons, mods, rivens and check damage against real enemies.",
+  "bin": {
+    "wfcalc": "./src/cli.ts"
+  },
+  "engines": {
+    "node": ">=23"
+  },
+  "scripts": {
+    "update": "node tools/fetch.ts && node tools/build-data.ts",
+    "serve": "node src/server.ts",
+    "calc": "node src/cli.ts",
+    "check": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts",
+    "coverage": "node tools/coverage.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "@types/node": "^24.0.0"
+  }
+}

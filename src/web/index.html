@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>wfcalc</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <h1>wfcalc</h1>
+  <span class="hint">offline damage calculator</span>
+  <button id="share" title="Copy a link with this build">copy link</button>
+</header>
+
+<main>
+  <section class="panel" id="weapon-panel">
+    <label class="field">
+      <span>Weapon</span>
+      <input id="weapon-input" list="weapon-list" placeholder="Kuva Bramma" autocomplete="off" />
+    </label>
+    <datalist id="weapon-list"></datalist>
+    <div id="weapon-meta" class="meta"></div>
+    <label class="field" id="mode-field" hidden>
+      <span>Fire mode</span>
+      <select id="mode-select"></select>
+    </label>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Mods <span id="mod-count" class="badge">0</span></h2>
+      <input id="mod-filter" placeholder="filter…" autocomplete="off" />
+    </div>
+    <div id="slots" class="slots"></div>
+    <datalist id="mod-list"></datalist>
+    <div id="suggestions" class="suggestions"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Target</h2></div>
+    <label class="field">
+      <span>Enemy</span>
+      <input id="enemy-input" list="enemy-list" placeholder="Bombard" autocomplete="off" />
+    </label>
+    <datalist id="enemy-list"></datalist>
+    <label class="field">
+      <span>Level <b id="level-value">100</b></span>
+      <input id="level-input" type="range" min="1" max="200" value="100" />
+    </label>
+    <div class="toggles">
+      <label><input type="checkbox" id="headshot" /> weak point hit</label>
+      <label class="stack">On kill stacks <input type="number" id="onkill" min="0" max="10" value="0" /></label>
+      <label class="stack">Status types <input type="number" id="status-types" min="1" max="12" value="1" /></label>
+      <label><input type="checkbox" id="aiming" /> aiming</label>
+    </div>
+    <div id="enemy-meta" class="meta"></div>
+  </section>
+
+  <section class="panel wide" id="results">
+    <div class="panel-head"><h2>Result</h2></div>
+    <div id="stats" class="stats"></div>
+    <div id="damage-bars" class="bars"></div>
+    <div id="target-report"></div>
+    <div id="notes" class="notes"></div>
+  </section>
+</main>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
