@@ -22,6 +22,7 @@ import { loadSnapshot, findEnemy, findMod, findWeapon, modsForWeapon } from './d
 import { resolveBuild, type Build, type BuildMod } from './engine/build.ts';
 import { scaleEnemy } from './engine/enemy.ts';
 import { hitEnemy } from './engine/damage.ts';
+import { BUFFS, availableBuffs } from './engine/buffs.ts';
 import type { Snapshot } from './types.ts';
 
 interface Args {
@@ -80,9 +81,17 @@ function buildFromArgs(snapshot: Snapshot, args: Args, mods: string[]): Build {
   if (!weapon) {
     throw new Error(`weapon not found: ${weaponQuery}${suggestions.length ? ` (did you mean: ${suggestions.join(', ')}?)` : ''}`);
   }
+  const buffs = flagAll(args, 'buff')
+    .flatMap((entry) => entry.split(','))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
   return {
     weapon: weapon.name,
     mods,
+    arcanes: flagAll(args, 'arcane').map(parseModArg),
+    buffs,
+    abilityStrength: flag(args, 'strength') ? Number(flag(args, 'strength')) : undefined,
     mode: flag(args, 'mode'),
     conditions: parseConditions(args),
     headshot: args.flags.has('headshot'),
@@ -141,6 +150,8 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
           fireRate: resolved.fireRate,
           shotsToKill: hit.shotsToKill,
           timeToKill: hit.timeToKill,
+          factionMultiplier: hit.factionMultiplier,
+          activeBuffs: resolved.activeBuffs,
           warnings: resolved.warnings,
           unsupportedMods: resolved.unsupportedMods,
           inactiveConditions: resolved.inactiveConditions,
@@ -172,6 +183,8 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
     `  target       hp ${num(scaled.health)}  shields ${num(scaled.shield)}  armor ${num(scaled.armor)}` +
       `   -> ${num(hit.shotsToKill)} shots${hit.timeToKill !== null ? `, ${num(hit.timeToKill, 2)}s` : ''}`,
   );
+  if (hit.factionMultiplier !== 1) console.log(`  faction      x${hit.factionMultiplier.toFixed(2)} vs ${enemy.faction ?? 'unknown'}`);
+  if (resolved.activeBuffs.length) console.log(`  buffs        ${resolved.activeBuffs.join(', ')} @ ${build.abilityStrength ?? 100}% strength`);
   if (hit.bestType) {
     console.log(`  best type    ${hit.bestType.type} ×${hit.bestType.multiplier.toFixed(2)}`);
   }
@@ -224,6 +237,27 @@ function main(): void {
       console.log(`\n${list.length} enemy(ies)`);
       break;
     }
+    case 'buffs': {
+      for (const buff of availableBuffs(snapshot)) {
+        const definition = BUFFS.find((b) => b.id === buff.id)!;
+        const ability = snapshot.abilities[definition.ability];
+        console.log(
+          `${buff.id.padEnd(18)} ${buff.frame.padEnd(10)} ${String(ability.value ?? '-').padStart(5)}  ` +
+            `${definition.kind.padEnd(18)}${buff.augments ? '(augment)' : ''}  ${definition.note ?? ''}`,
+        );
+      }
+      console.log(`\n${BUFFS.length} buff(s) modelled. Use --buff <id> --strength <percent>.`);
+      break;
+    }
+    case 'arcanes': {
+      const query = (args.positional[1] ?? args.positional[0] ?? '').toLowerCase();
+      const list = Object.values(snapshot.arcanes).filter((a) => a.slot && a.slot !== 'warframe' && a.name.toLowerCase().includes(query));
+      for (const arcane of list.sort((a, b) => a.name.localeCompare(b.name))) {
+        console.log(`${arcane.name.padEnd(26)} ${String(arcane.slot).padEnd(10)} R${arcane.maxRank}  ${arcane.description.slice(0, 60)}`);
+      }
+      console.log(`\n${list.length} weapon arcane(s)`);
+      break;
+    }
     case 'calc': {
       report(snapshot, args, flagAll(args, 'mod').map(parseModArg), 'build');
       break;
@@ -250,12 +284,16 @@ function main(): void {
 
   wfcalc weapons [query]                search weapons
   wfcalc mods <weapon> [query]          mods that fit a weapon
+  wfcalc arcanes [query]                weapon arcanes
+  wfcalc buffs                          warframe buffs modelled
   wfcalc enemies [query]                search enemies
   wfcalc calc <weapon> [options]        damage report
   wfcalc compare <weapon> --vs a,b      compare setups
+  wfcalc serve                          web UI + JSON API (see docs/api.md)
 
-Options: --mod NAME[:R<rank>] (repeatable), --enemy NAME, --level N, --faction NAME,
-         --mode "Name", --stacks onKill=5, --status-types N, --headshot, --json`);
+Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
+         --strength 284  --enemy NAME  --level N  --faction NAME  --mode "Name"
+         --stacks onKill=5  --status-types N  --headshot  --json`);
   }
 }
 

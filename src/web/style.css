@@ -168,3 +168,10 @@ table.breakdown td { padding: 4px 6px; border-bottom: 1px solid color-mix(in srg
   main { grid-template-columns: 1fr; padding: 10px; }
   .slot { grid-template-columns: 1fr 70px 32px 26px; }
 }
+
+/* Frame buffs: dense checkbox grid, two columns on wide screens. */
+.buffs { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 4px 10px; }
+.buffs label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.buffs label small { color: var(--panel-2); }
+.buffs input:checked + span { color: var(--text); }
+.buffs .frame { color: color-mix(in srgb, var(--muted) 70%, transparent); font-size: 10px; }

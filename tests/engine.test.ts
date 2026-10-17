@@ -11,7 +11,8 @@ import { resolveBuild, type Build } from '../src/engine/build.ts';
 import { armorDamageReduction, scaleEnemy } from '../src/engine/enemy.ts';
 import { hitEnemy } from '../src/engine/damage.ts';
 import { parseModEffects } from '../src/mods/parse.ts';
-import type { EnemyData, ModData, Snapshot, WeaponData, WeaponStats } from '../src/types.ts';
+import { buffEffects, buffById } from '../src/engine/buffs.ts';
+import type { AbilityData, ArcaneData, EnemyData, ModData, Snapshot, WeaponData, WeaponStats } from '../src/types.ts';
 
 const close = (actual: number, expected: number, tolerance = 1e-6) =>
   assert.ok(Math.abs(actual - expected) <= tolerance * Math.max(1, Math.abs(expected)), `${actual} != ${expected}`);
@@ -68,7 +69,12 @@ function mod(name: string, maxRank: number, topRankStats: string[], overrides: P
   };
 }
 
-function snapshot(weapons: WeaponData[], mods: ModData[], enemies: EnemyData[] = []): Snapshot {
+function snapshot(
+  weapons: WeaponData[],
+  mods: ModData[],
+  enemies: EnemyData[] = [],
+  extras: { abilities?: AbilityData[]; arcanes?: ArcaneData[] } = {},
+): Snapshot {
   const byName = <T extends { name: string }>(items: T[]) => Object.fromEntries(items.map((i) => [i.name, i]));
   return {
     version: 1,
@@ -76,8 +82,10 @@ function snapshot(weapons: WeaponData[], mods: ModData[], enemies: EnemyData[] =
     gameVersion: '',
     weapons: byName(weapons),
     mods: byName(mods),
-    arcanes: {},
+    arcanes: byName(extras.arcanes ?? []),
     warframes: {},
+    // Abilities are keyed by ability name (AbilityData has no `name` field).
+    abilities: Object.fromEntries((extras.abilities ?? []).map((a) => [a.ability, a])),
     enemies: byName(enemies),
     // Alloy Armor: Radiation +75, Puncture +15. Cloned Flesh: Slash +25, Heat +25.
     modifiers: {
@@ -259,4 +267,128 @@ test('toxin bypasses shields when the enemy allows it', () => {
   const toxin = hit.breakdown.find((entry) => entry.type === 'toxin');
   close(toxin?.toShield ?? -1, 0);
   assert.ok((toxin?.toHealth ?? 0) > 0);
+});
+
+/** Minimal ability entry: one labelled stat, like the wiki infobox gives us. */
+function ability(name: string, frame: string, value: number, label = 'value'): AbilityData {
+  return { ability: name, frame, page: name, kind: 'ability', value, segments: [{ label, max: value }], duration: 30, range: 25 };
+}
+
+function arcane(name: string, slot: string, maxRank: number, topRankStats: string[]): ArcaneData {
+  const { effects } = parseModEffects([topRankStats]);
+  return { id: name, name, category: `${slot} Arcane`, rarity: 'Rare', maxRank, description: topRankStats.join(' '), effects, slot };
+}
+
+const grineer = bombard;
+const corpusEnemy: EnemyData = {
+  ...bombard, id: 'Corpus Tech', name: 'Corpus Tech', faction: 'corpus',
+  pools: [{ type: 'Cloned Flesh', category: 'health', amount: 300 }],
+};
+
+test('faction mods multiply damage only against their faction', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [baneOfGrineer], [grineer, corpusEnemy]);
+  const resolved = build(snap, ['Bane of Grineer']);
+  const vsGrineer = hitEnemy(snap, resolved, scaleEnemy(snap, grineer, 1));
+  const vsCorpus = hitEnemy(snap, resolved, scaleEnemy(snap, corpusEnemy, 1));
+  close(vsGrineer.factionMultiplier, 1.3);
+  close(vsCorpus.factionMultiplier, 1);
+});
+
+test('Roar is a faction bonus that applies to every faction and scales with strength', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [], [grineer, corpusEnemy], {
+    abilities: [ability('Roar', 'Rhino', 50)],
+  });
+  const at100 = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], buffs: ['roar'] });
+  const at200 = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], buffs: ['roar'], abilityStrength: 200 });
+  close(at100.factionBonus.all ?? 0, 0.5);
+  close(at200.factionBonus.all ?? 0, 1.0);
+  // Roar multiplies on top of damage mods, and hits Grineer and Corpus alike.
+  const hit = hitEnemy(snap, at100, scaleEnemy(snap, corpusEnemy, 1));
+  close(hit.factionMultiplier, 1.5);
+});
+
+test('Eclipse adds to the damage bucket and stacks additively with Serration', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [serration], [], {
+    abilities: [ability('Eclipse', 'Mirage', 200, 'damage bonus')],
+  });
+  const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: ['Serration'], buffs: ['eclipse'] });
+  // +165% (Serration) and +200% (Eclipse) share the damage bucket: 100 x (1 + 3.65).
+  close(resolved.damage.projectileTotal, 465);
+});
+
+test('elemental infusions add their damage type proportionally to base damage', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [], [], {
+    abilities: [ability("Xata's Whisper", 'Xaku', 26), ability('Shock Trooper', 'Volt', 100, 'damage')],
+  });
+  const voidResolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], buffs: ['xatas-whisper'] });
+  close(voidResolved.damage.perProjectile.void ?? 0, 26);
+
+  const electricResolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], buffs: ['shock-trooper'] });
+  close(electricResolved.damage.perProjectile.electricity ?? 0, 100);
+});
+
+test('Toxic Lash adds Toxin that participates in elemental combination', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [cryoRounds], [], {
+    abilities: [ability('Toxic Lash', 'Saryn', 30, 'added gun damage')],
+  });
+  const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: ['Cryo Rounds'], buffs: ['toxic-lash'] });
+  // Cold 90 + Toxin 30 combine into Viral 120.
+  close(resolved.damage.perProjectile.viral ?? 0, 120);
+  close(resolved.damage.perProjectile.toxin ?? 0, 0);
+});
+
+test('Accelerant multiplies only Heat damage', () => {
+  const snap = snapshot([weapon({ heat: 100, slash: 100 })], [], [], {
+    abilities: [ability('Accelerant', 'Ember', 2.5, 'damage multiplier')],
+  });
+  const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], buffs: ['accelerant'] });
+  close(resolved.damage.perProjectile.heat ?? 0, 250);
+  close(resolved.damage.perProjectile.slash ?? 0, 100);
+});
+
+test('Sonar raises the weak-point multiplier', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [], [], {
+    abilities: [ability('Sonar', 'Banshee', 5), ability('Eclipse', 'Mirage', 0, 'damage bonus')],
+  });
+  const withoutBuff = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], headshot: true });
+  const withSonar = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], headshot: true, buffs: ['sonar'] });
+  // Base weak point x2, crit expectation x1.2 (20% cc, x2 cd) -> 240.
+  close(withoutBuff.averageShotDamage, 240);
+  // Sonar replaces the x2 weak-point multiplier with x5: 100 x 5 x 1.2 = 600.
+  close(withSonar.averageShotDamage, 600);
+});
+
+test('weapon arcanes apply with their stack condition', () => {
+  const merciless = arcane('Primary Merciless', 'primary', 5, ['On Kill:', '+30% Damage for 4s. Stacks up to 12x.']);
+  const snap = snapshot([weapon({ impact: 100 })], [], [], { arcanes: [merciless] });
+  const idle = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], arcanes: ['Primary Merciless'] });
+  const stacked = resolveBuild(snap, {
+    weapon: 'Test Weapon', mods: [], arcanes: ['Primary Merciless'], conditions: { onKill: 5 },
+  });
+  close(idle.damage.projectileTotal, 100);
+  close(stacked.damage.projectileTotal, 100 * (1 + 0.3 * 5));
+});
+
+test('an arcane in the wrong slot only warns', () => {
+  const meleeArcane = arcane('Melee Exposure', 'melee', 5, ['Gain 60% Corrosive Damage on Melee strikes for 25s.']);
+  const snap = snapshot([weapon({ impact: 100 })], [], [], { arcanes: [meleeArcane] });
+  const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], arcanes: ['Melee Exposure'], conditions: { onAbilityCast: 1 } });
+  assert.ok(resolved.warnings.some((warning) => warning.includes('melee arcane')));
+});
+
+test('buff registry resolves the curated values from the dataset', () => {
+  const snap = snapshot([], [], [], {
+    abilities: [
+      ability('Roar', 'Rhino', 50),
+      ability('Eclipse', 'Mirage', 75, 'damage reduction'),
+      ability('Vex Armor', 'Chroma', 275, 'fury max damage bonus'),
+    ],
+  });
+  const roar = buffById('roar')!;
+  close(buffEffects(snap, roar, 150)[0].value, 0.75);
+  // Eclipse must pick the "damage bonus" stat, not the damage reduction one.
+  const eclipse = buffById('eclipse')!;
+  close(buffEffects(snap, eclipse, 100)[0].value, 0.75);
+  const vex = buffById('vex-armor')!;
+  close(buffEffects(snap, vex, 100)[0].value, 2.75);
 });

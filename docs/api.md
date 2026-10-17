@@ -28,11 +28,24 @@ Mods that fit the weapon, with max rank, polarity and description.
 `partial: true` means the calculator only understood part of the mod's effects; the
 damage result is a lower bound.
 
+## `GET /api/buffs`
+
+```json
+[{ "id": "roar", "ability": "Roar", "frame": "Rhino", "augments": false }]
+```
+
+## `GET /api/arcanes?weapon=Torid`
+
+Weapon arcanes whose slot fits the weapon, with max rank and description.
+
 ## `POST /api/calc`
 
 ```json
 {
   "weapon": "Kuva Bramma",
+  "arcanes": [{ "name": "Primary Merciless", "rank": 5 }],
+  "buffs": ["roar", "toxic-lash"],
+  "abilityStrength": 284,
   "mods": [{ "name": "Serration" }, { "name": "Vital Sense", "rank": 3 }],
   "enemy": "Bombard",
   "level": 150,
@@ -45,6 +58,8 @@ damage result is a lower bound.
 - `mods`: order matters — it is the slot order the game uses for elemental combination.
 - `rank` is optional; omitted means max rank.
 - `mode` is optional; omitted means the arsenal stat block.
+- `arcanes`: weapon arcanes; the slot must match the weapon category.
+- `buffs`: registry ids from `GET /api/buffs`; `abilityStrength` is a percentage (100 = unmodded).
 - `conditions` toggles conditional mods: `onKill` (stacks), `onWeakPointHit`,
   `onWeakPointKill`, `onReload`, `aiming`, `sliding`, `holstered`, `statusTypes` (count).
 

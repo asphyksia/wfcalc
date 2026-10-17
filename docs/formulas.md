@@ -123,13 +123,46 @@ The alternative model (armour modifier as a plain damage multiplier) gives visib
 different rankings against high-armour Grineer, so this is the first thing to
 re-verify in game if numbers ever look off.
 
-## 5. Time to kill
+## 5. Warframe buffs and arcanes
+
+Buff numbers come from each ability's wiki infobox (`tools/fetch-abilities.ts`), at max
+rank. Ability Strength is a percentage (`--strength 284`), and every buff value is
+`base × strength / 100`.
+
+Buffs are classified by **how they enter the damage formula**, which the wikitext
+describes in prose and therefore lives in a curated registry (`src/engine/buffs.ts`):
+
+| Kind | Meaning | Examples |
+|---|---|---|
+| `damage` | Shares the damage-mod bucket with Serration | Eclipse +200%, Vex Armor +275%, Resupply +25% |
+| `faction` | Faction damage bonus, multiplicative with everything, applied against the target's faction | Roar +50% |
+| `element` | Adds a damage type worth N% of base damage; participates in elemental combination | Toxic Lash +30% Toxin, Nourish +250% Viral, Xata's Whisper +26% Void, the elemental augments +100% |
+| `elementMultiplier` | Multiplies one existing damage type | Accelerant ×2.5 Heat |
+| `speed` | Fire rate / attack speed | Warcry +50% |
+| `weakPoint` | Replaces the weak-point multiplier (default ×2) | Sonar ×5 |
+
+Notes:
+
+- Roar is documented as "considered Faction Damage Bonus, additive with other sources of
+  Faction Damage, multiplicative with other types of bonus of damage", so it lands in the
+  same bucket as Bane of Grineer and is applied *after* armour.
+- Sonar's ×5 is a replacement, not a multiplier on the base ×2 (which would be ×10).
+- Elemental infusions add to base damage *after* damage mods, exactly like an elemental
+  mod, so `Serration + Toxic Lash` scales the Toxin too.
+- Weapon arcanes are parsed from the same text format as mods and obey their stack
+  conditions (`--stacks onKill=5`). Arcane slots are enforced (a Melee arcane on a rifle
+  gives a warning, not a silent wrong answer).
+
+## 6. Time to kill
 
 Shields are chewed through first, then health, using the per-shot damage against each
 pool. Toxin damage bypasses shields (except Treasurer and Hounds). Time comes from
 the sustained fire rate, which accounts for the magazine and reload cycle.
 
 ## Known approximations
+
+- Buff uptime is not modelled: a buff is either on or off. "Fury at maximum" means the
+  value assuming full ramp-up.
 
 - Quantization (`1/32` of base damage) is **not** applied: it shifts things by well
   under 1% except for the Shattering Impact edge case.

@@ -37,6 +37,8 @@ Interactive UI: `wfcalc serve` → <http://127.0.0.1:7777>.
 | `wfcalc compare <weapon> --vs a,b --vs c,d` | Same build, different mod choices |
 | `wfcalc weapons [query]` | Search the 622 weapons |
 | `wfcalc mods <weapon> [query]` | Mods that fit that weapon |
+| `wfcalc arcanes [query]` | Weapon arcanes |
+| `wfcalc buffs` | Warframe buffs the calculator models |
 | `wfcalc enemies [query]` | Search the 479 enemies |
 | `wfcalc serve [--port 7777]` | Local web UI + JSON API |
 | `wfcalc update` | Re-download sources and rebuild the snapshot |
@@ -46,6 +48,9 @@ Interactive UI: `wfcalc serve` → <http://127.0.0.1:7777>.
 | Option | Meaning |
 |---|---|
 | `--mod NAME` / `--mod NAME:R5` | Equip a mod, optionally under-levelled |
+| `--arcane NAME[:R5]` | Equip a weapon arcane (Primary Merciless, Melee Exposure...) |
+| `--buff roar,eclipse` | Activate Warframe buffs (see `wfcalc buffs`) |
+| `--strength 284` | Caster's Ability Strength in percent (default 100) |
 | `--enemy NAME`, `--level N` | Target and level (default Bombard at 100) |
 | `--faction grineer` | Shorthand for a benchmark enemy of that faction |
 | `--mode "Incarnon Form"` | Use an alternative fire mode |
@@ -72,7 +77,12 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
 
 - Arsenal damage formula: base damage, physical (IPS) mods, elemental mods and their
   **combination order**, multishot, crit chance/damage, status chance.
-- Faction damage mods, conditional mods (on-kill, aiming, weak-point) with stacks.
+- Faction damage mods and **Roar**, applied multiplicatively against the matching faction.
+- Weapon arcanes (Primary Merciless, Melee Exposure, Cascadia Flare...) with their stacks.
+- **Warframe buffs**: Roar, Eclipse, Vex Armor, Xata's Whisper, Toxic Lash, Nourish, the
+  elemental augments (Shock Trooper, Freeze Force, Fireball Frenzy, Smite Infusion,
+  Venom Dose), Warcry, Accelerant, Sonar and Resupply — scaled by Ability Strength.
+- Conditional mods (on-kill, aiming, weak-point) with stacks.
 - Enemy level scaling (the current two-curve smoothstep for health/shields, the
   single armor curve, the 200–2700 armor clamp).
 - Damage-type modifiers per health **and** armor type, armor damage reduction,
@@ -81,7 +91,9 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
 
 ## What it does not model yet
 
-- Warframe abilities, buffs and arcanes applied to the weapon (phase 2).
+- Warframe mods feeding Ability Strength automatically (pass `--strength` instead),
+  and buffs outside the curated registry (Harrow's Covenant, Elemental Ward,
+  Provoke, Amp: their infoboxes list several sub-stats and need hand-mapping).
 - Rivens with custom rolls (the disposition is in the data, the roll generator is not).
 - Status damage over time (slash/heat ticks), Incarnon evolution trees, stances and
   melee combo multipliers.
@@ -106,7 +118,8 @@ tools/fetch.ts      download upstream sources into data/raw/
 tools/parse-lua.ts  parser for the wiki's Lua data modules
 tools/build-data.ts normalise everything into data/snapshot.json
 src/mods/parse.ts   mod text -> typed effects (the long-tail part)
-src/engine/         build resolution, enemy scaling, damage
+src/engine/         build resolution, buffs, enemy scaling, damage
+tools/fetch-abilities.ts  ability/augment numbers from the wiki infoboxes
 src/cli.ts          CLI
 src/server.ts       local API + static web UI
 src/web/            the UI (vanilla JS, no build step)

@@ -41,6 +41,8 @@ export interface EnemyHit {
   shotsToKill: number;
   /** Seconds to kill, accounting for reloads. */
   timeToKill: number | null;
+  /** Faction damage multiplier that was applied to this target (1 when none). */
+  factionMultiplier: number;
   /** Highest single-type damage multiplier found (useful to sanity check element choice). */
   bestType: { type: DamageType; multiplier: number } | null;
   warnings: string[];
@@ -62,6 +64,11 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
   const crit = Math.max(1, build.critMultiplier);
   const critMultiplier = 1 + build.critChance * (crit - 1);
   const totalRaw = build.damage.projectileTotal || 1;
+
+  // Faction damage bonus (Bane mods, Roar): multiplicative with everything else and
+  // only against the matching faction. `all` is Roar, which applies to every faction.
+  const factionKey = (scaled.enemy.faction ?? '').toLowerCase();
+  const factionMultiplier = 1 + (build.factionBonus[factionKey] ?? 0) + (build.factionBonus.all ?? 0);
 
   const breakdown: TypeBreakdown[] = [];
   let perProjectileShield = 0;
@@ -93,13 +100,14 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
   }
 
   // Toxin that bypasses shields still eats health while shields are up.
-  const bypassProjectile = breakdown
-    .filter((entry) => entry.type === 'toxin' && scaled.enemy.toxinBypassesShields)
-    .reduce((sum, entry) => sum + entry.toHealth, 0);
+  const bypassProjectile =
+    breakdown
+      .filter((entry) => entry.type === 'toxin' && scaled.enemy.toxinBypassesShields)
+      .reduce((sum, entry) => sum + entry.toHealth, 0) * factionMultiplier;
 
   const shots = build.multishot;
-  const damagePerShotShield = perProjectileShield * critMultiplier * shots;
-  const damagePerShotHealth = perProjectileHealth * critMultiplier * shots;
+  const damagePerShotShield = perProjectileShield * critMultiplier * shots * factionMultiplier;
+  const damagePerShotHealth = perProjectileHealth * critMultiplier * shots * factionMultiplier;
 
   // Sequential kill: shields first (while the bypassing part already chews health), then health.
   let remainingShield = scaled.shield;
@@ -141,6 +149,7 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
     damagePerShotHealth,
     shotsToKill,
     timeToKill,
+    factionMultiplier,
     bestType,
     warnings,
   };

@@ -15,6 +15,7 @@ import { loadSnapshot, findEnemy, findWeapon, modsForWeapon } from './data.ts';
 import { resolveBuild, type Build } from './engine/build.ts';
 import { scaleEnemy } from './engine/enemy.ts';
 import { hitEnemy, statusProcs } from './engine/damage.ts';
+import { availableBuffs } from './engine/buffs.ts';
 
 const WEB_ROOT = new URL('./web/', import.meta.url).pathname;
 const args = process.argv.slice(2);
@@ -56,6 +57,9 @@ function calculate(body: any) {
   const build: Build = {
     weapon: weapon.name,
     mods: Array.isArray(body.mods) ? body.mods : [],
+    arcanes: Array.isArray(body.arcanes) ? body.arcanes : [],
+    buffs: Array.isArray(body.buffs) ? body.buffs : [],
+    abilityStrength: body.abilityStrength ? Number(body.abilityStrength) : undefined,
     mode: body.mode || undefined,
     conditions: body.conditions ?? {},
     headshot: Boolean(body.headshot),
@@ -95,6 +99,8 @@ function calculate(body: any) {
     reloadTime: resolved.reloadTime,
     magazineSize: resolved.magazineSize,
     burstDps: resolved.burstDps,
+    factionBonus: resolved.factionBonus,
+    activeBuffs: resolved.activeBuffs,
     sustainedDps: resolved.sustainedDps,
     elements: resolved.elements,
     procs: statusProcs(resolved),
@@ -136,6 +142,26 @@ const server = createServer(async (req, res) => {
           rarity: m.rarity,
           set: m.set,
         }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      return json(res, 200, list);
+    }
+    if (url.pathname === '/api/buffs') {
+      return json(res, 200, availableBuffs(snapshot));
+    }
+    if (url.pathname === '/api/arcanes') {
+      const weaponName = url.searchParams.get('weapon') ?? '';
+      const { item } = findWeapon(snapshot, weaponName);
+      const slots: Record<string, string[]> = {
+        primary: ['primary', 'bow', 'shotgun'],
+        secondary: ['secondary'],
+        melee: ['melee'],
+        archgun: ['primary'],
+        archmelee: ['melee'],
+      };
+      const allowed = item ? (slots[item.category] ?? []) : ['primary', 'secondary', 'melee', 'bow', 'shotgun'];
+      const list = Object.values(snapshot.arcanes)
+        .filter((arcane) => arcane.slot && allowed.includes(arcane.slot))
+        .map((arcane) => ({ name: arcane.name, slot: arcane.slot, maxRank: arcane.maxRank, description: arcane.description }))
         .sort((a, b) => a.name.localeCompare(b.name));
       return json(res, 200, list);
     }

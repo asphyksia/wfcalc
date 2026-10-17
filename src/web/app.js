@@ -28,6 +28,9 @@ const ELEMENT_COLORS = {
 const state = {
   weapon: '',
   mods: [], // [{ name, rank }]
+  arcanes: [], // [{ name, rank }]
+  buffs: [], // registry ids, e.g. ['roar', 'toxic-lash']
+  abilityStrength: 100,
   enemy: 'Bombard',
   level: 100,
   mode: '',
@@ -71,9 +74,16 @@ function loadFromUrl() {
 /** ---------- data loading ---------- */
 
 let allMods = [];
+let allBuffs = [];
 
 async function loadStaticLists() {
-  const [weapons, enemies] = await Promise.all([getJson('/api/weapons'), getJson('/api/enemies')]);
+  const [weapons, enemies, buffs] = await Promise.all([
+    getJson('/api/weapons'),
+    getJson('/api/enemies'),
+    getJson('/api/buffs'),
+  ]);
+  allBuffs = buffs;
+  renderBuffList();
   $('weapon-list').innerHTML = weapons.map((w) => `<option value="${w.name}">${w.type}</option>`).join('');
   $('enemy-list').innerHTML = enemies
     .map((e) => `<option value="${e.name}">${e.faction ?? ''} hp${e.health}</option>`)
@@ -82,8 +92,33 @@ async function loadStaticLists() {
 
 async function loadModsForWeapon() {
   if (!state.weapon) return;
-  allMods = await getJson(`/api/mods?weapon=${encodeURIComponent(state.weapon)}`);
+  const [mods, arcanes] = await Promise.all([
+    getJson(`/api/mods?weapon=${encodeURIComponent(state.weapon)}`),
+    getJson(`/api/arcanes?weapon=${encodeURIComponent(state.weapon)}`),
+  ]);
+  allMods = mods;
   renderModList('');
+  $('arcane-list').innerHTML = arcanes
+    .map((a) => `<option value="${a.name}">${(a.description || '').split('\n')[0].slice(0, 44)}</option>`)
+    .join('');
+}
+
+/** Checkbox per modelled Warframe buff. */
+function renderBuffList() {
+  $('buff-list').innerHTML = allBuffs
+    .map(
+      (buff) => `<label>
+        <input type="checkbox" value="${buff.id}" ${state.buffs.includes(buff.id) ? 'checked' : ''} />
+        <span>${buff.ability}${buff.augments ? ' †' : ''} <span class="frame">${buff.frame}</span></span>
+      </label>`,
+    )
+    .join('');
+  $('buff-list').querySelectorAll('input').forEach((input) => {
+    input.addEventListener('change', () => {
+      state.buffs = [...$('buff-list').querySelectorAll('input:checked')].map((el) => el.value);
+      recalc();
+    });
+  });
 }
 
 const renderModList = debounce((filter) => {
@@ -194,6 +229,8 @@ function renderResults(result) {
     <div class="card"><span>multishot</span><b>×${fmt(result.multishot, 2)}</b><small>${fmt(result.fireRate, 2)} shots/s</small></div>
     <div class="card"><span>burst dps</span><b>${fmt(result.burstDps, 0)}</b></div>
     <div class="card"><span>sustained dps</span><b>${fmt(result.sustainedDps, 0)}</b><small>reload ${fmt(result.reloadTime, 2)}s</small></div>
+    ${result.activeBuffs?.length ? `<div class="card"><span>buffs</span><b>${result.activeBuffs.length}</b><small>${result.activeBuffs.join(', ')}</small></div>` : ''}
+    ${target && target.factionMultiplier && Math.abs(target.factionMultiplier - 1) > 0.001 ? `<div class="card"><span>faction</span><b>×${target.factionMultiplier.toFixed(2)}</b><small>${target.faction ?? ''}</small></div>` : ''}
     ${target ? `<div class="card accent"><span>time to kill lv${target.level}</span><b>${target.timeToKill === null ? '—' : fmt(target.timeToKill, 2) + 's'}</b><small>${fmt(target.shotsToKill, 1)} shots</small></div>` : ''}
   `;
 
@@ -265,7 +302,7 @@ async function recalc() {
   const result = await fetch('/api/calc', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ...state, mods }),
+    body: JSON.stringify({ ...state, mods, arcanes: state.arcanes.filter((a) => a.name) }),
   }).then((r) => r.json());
   if (id !== calculationId) return; // a newer request is in flight
   renderWeaponMeta(result);
@@ -291,6 +328,18 @@ function bindEvents() {
   });
 
   $('mod-filter').addEventListener('input', (event) => renderModList(event.target.value.toLowerCase()));
+
+  $('arcane-input').addEventListener('change', (event) => {
+    const name = event.target.value.trim();
+    state.arcanes = name ? [{ name }] : [];
+    recalc();
+  });
+
+  $('strength-input').addEventListener('input', (event) => {
+    state.abilityStrength = Number(event.target.value);
+    $('strength-value').textContent = `${state.abilityStrength}%`;
+    recalc();
+  });
 
   $('mode-select').addEventListener('change', (event) => {
     state.mode = event.target.value;
@@ -347,6 +396,9 @@ function syncInputsFromState() {
   $('onkill').value = String(state.conditions.onKill ?? 0);
   $('status-types').value = String(state.conditions.statusTypes ?? 1);
   $('aiming').checked = Boolean(state.conditions.aiming);
+  $('arcane-input').value = state.arcanes?.[0]?.name ?? '';
+  $('strength-input').value = String(state.abilityStrength ?? 100);
+  $('strength-value').textContent = `${state.abilityStrength ?? 100}%`;
 }
 
 async function main() {

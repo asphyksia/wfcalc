@@ -61,6 +61,17 @@ Cloudflare. Do not use it.
 10. **Mod text needs to be split before parsing**: on newlines, on ` and ` followed by a
     number, and on "+X% Critical Chance and Damage".
 
+11. **Ability pages have two layouts.** Abilities use `{{AbilityU10.x | strength = 10 / 15 / 25 / 50 % }}`;
+    augments (Shock Trooper, Freeze Force...) use an `emodtable` whose **column order differs per
+    mod** (Freeze Force lists Range before Damage). Column headers must be read; positions cannot
+    be trusted.
+
+12. **`Module:Ability/data` builds its per-frame index at runtime** (`table.insert(AbilityData["Warframe"]...)`),
+    which a data-only parser cannot execute. Group the flat `Ability` table by its `Powersuit` field instead.
+
+13. **"Stacks up to 240%" is a cap, not a stack count.** Divide by the per-stack value
+    (`Melee Exposure`: 240 / 60 = 4 stacks). The parser does this when the cap is a percentage.
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully

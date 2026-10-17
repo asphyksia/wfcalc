@@ -29,6 +29,7 @@ import {
   type WeaponMode,
 } from '../types.ts';
 import { normalizeName } from '../data.ts';
+import { buffById, buffEffects } from './buffs.ts';
 
 export interface BuildMod {
   name: string;
@@ -42,6 +43,12 @@ export type Conditions = Record<string, number | boolean>;
 export interface Build {
   weapon: string;
   mods: Array<string | BuildMod>;
+  /** Weapon arcanes (Primary Merciless, Melee Exposure...). */
+  arcanes?: Array<string | BuildMod>;
+  /** Active Warframe buffs by registry id (roar, eclipse, toxic-lash...). */
+  buffs?: string[];
+  /** Caster's Ability Strength as a percentage (100 = unmodded). */
+  abilityStrength?: number;
   /** Which fire mode to use; defaults to the arsenal mode. */
   mode?: string;
   /** Active conditions for conditional mods. */
@@ -76,6 +83,10 @@ export interface ResolvedBuild {
   sustainedDps: number;
   /** Burst DPS (no reload). */
   burstDps: number;
+  /** Faction damage multipliers by faction key, plus `all` for Roar-style bonuses. */
+  factionBonus: Record<string, number>;
+  /** Active buffs, for display. */
+  activeBuffs: string[];
   /** Elemental bonuses as they were combined, for display. */
   elements: Array<{ type: DamageType; share: number }>;
   /** Mods whose effects are not fully understood, so the result is a lower bound. */
@@ -118,6 +129,7 @@ interface Collected {
   byTarget: Map<string, number>;
   elementBonuses: Array<{ element: BaseElement; amount: number }>;
   faction: Map<string, number>;
+  elementMultipliers: Map<DamageType, number>;
   conversions: Array<{ from: BaseElement; to: DamageType; share: number }>;
   inactive: string[];
   unsupported: string[];
@@ -146,17 +158,34 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     byTarget: new Map(),
     elementBonuses: [],
     faction: new Map(),
+    elementMultipliers: new Map(),
     conversions: [],
     inactive: [],
     unsupported: [],
     warnings: [],
   };
 
+  // One uniform view of every effect source: mods, weapon arcanes and Warframe buffs.
+  // Buff values are already resolved at the caster's Ability Strength, so they have
+  // maxRank 0 and never get rank-scaled.
+  interface Source {
+    name: string;
+    maxRank: number;
+    rank?: number;
+    effects: Effect[];
+    partial: boolean;
+    incompatible: string[];
+  }
+  const sources: Source[] = [];
   const equipped: string[] = [];
+
+  const resolveMod = (wanted: string) =>
+    snapshot.mods[wanted] ?? snapshot.mods[Object.keys(snapshot.mods).find((k) => normalizeName(k) === normalizeName(wanted)) ?? ''];
+
   for (const entry of build.mods) {
     const wanted = typeof entry === 'string' ? entry : entry.name;
     const rank = typeof entry === 'string' ? undefined : entry.rank;
-    const mod = snapshot.mods[wanted] ?? snapshot.mods[Object.keys(snapshot.mods).find((k) => normalizeName(k) === normalizeName(wanted)) ?? ''];
+    const mod = resolveMod(wanted);
     if (!mod) {
       collected.warnings.push(`mod not found: ${wanted}`);
       continue;
@@ -164,20 +193,69 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     const fits = mod.classes.some((c) => weapon.modClasses.some((w) => w.toLowerCase() === c.toLowerCase()))
       || mod.classes.some((c) => ['Mod', 'Antique', 'Primary', 'Secondary'].includes(c));
     if (!fits) collected.warnings.push(`${mod.name} does not fit a ${weapon.type} (${weapon.modClasses.join('/')})`);
-
     if (mod.incompatible.some((other) => equipped.includes(other))) {
       collected.warnings.push(`${mod.name} cannot be equipped with ${mod.incompatible.filter((o) => equipped.includes(o)).join(', ')}`);
     }
     equipped.push(mod.name);
-    if (mod.partial) collected.unsupported.push(mod.name);
+    sources.push({ name: mod.name, maxRank: mod.maxRank, rank, effects: mod.effects, partial: mod.partial, incompatible: mod.incompatible });
+  }
 
-    for (const effect of mod.effects) {
+  // Weapon arcanes: the slot has to match the weapon (Primary/Secondary/Melee/Bow/Shotgun).
+  const arcaneSlots: Record<string, string[]> = {
+    primary: ['primary', 'bow', 'shotgun'],
+    secondary: ['secondary'],
+    melee: ['melee'],
+    archgun: ['primary'],
+    archmelee: ['melee'],
+  };
+  for (const entry of build.arcanes ?? []) {
+    const wanted = typeof entry === 'string' ? entry : entry.name;
+    const rank = typeof entry === 'string' ? undefined : entry.rank;
+    const arcane = snapshot.arcanes[wanted]
+      ?? snapshot.arcanes[Object.keys(snapshot.arcanes).find((k) => normalizeName(k) === normalizeName(wanted)) ?? ''];
+    if (!arcane) {
+      collected.warnings.push(`arcane not found: ${wanted}`);
+      continue;
+    }
+    const allowed = arcaneSlots[weapon.category] ?? [];
+    if (arcane.slot && !allowed.includes(arcane.slot)) {
+      collected.warnings.push(`${arcane.name} is a ${arcane.slot} arcane and does not fit a ${weapon.category} weapon`);
+    }
+    sources.push({ name: arcane.name, maxRank: arcane.maxRank, rank, effects: arcane.effects, partial: false, incompatible: [] });
+  }
+
+  // Warframe buffs from the registry.
+  const activeBuffs: string[] = [];
+  for (const id of build.buffs ?? []) {
+    const definition = buffById(id);
+    if (!definition) {
+      collected.warnings.push(`unknown buff: ${id}`);
+      continue;
+    }
+    const effects = buffEffects(snapshot, definition, build.abilityStrength ?? 100);
+    if (!effects.length) {
+      collected.warnings.push(`${definition.ability}: no numbers in the dataset, buff ignored`);
+      continue;
+    }
+    activeBuffs.push(definition.ability);
+    sources.push({ name: definition.ability, maxRank: 0, effects, partial: false, incompatible: [] });
+  }
+
+  for (const source of sources) {
+    if (source.partial) collected.unsupported.push(source.name);
+    for (const effect of source.effects) {
       const stacks = conditionStacks(effect, conditions);
       if (stacks === 0) {
-        collected.inactive.push(`${mod.name}: ${effect.raw}`);
+        collected.inactive.push(`${source.name}: ${effect.raw}`);
         continue;
       }
-      const value = effectValue(effect, mod, rank) * stacks;
+      const rankFraction = source.maxRank > 0 ? rankScale({ maxRank: source.maxRank } as ModData, source.rank) : 1;
+      const value = effect.value * rankFraction * stacks;
+      if (effect.op === 'mult' && effect.target === 'elementMultiplier' && effect.element) {
+        // "x2.5 Heat damage" (Accelerant): multiplies that damage type only.
+        collected.elementMultipliers.set(effect.element, (collected.elementMultipliers.get(effect.element) ?? 1) * (1 + value));
+        continue;
+      }
       switch (effect.op) {
         case 'convert':
           if (effect.convertsTo && effect.element) {
@@ -195,7 +273,8 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
               // "+60% Impact" boosts that physical type alone, not the whole base.
               collected.byTarget.set(effect.element, (collected.byTarget.get(effect.element) ?? 0) + value);
             } else {
-              // An element the weapon may not have innately (e.g. "+90% Radiation"): adds on top.
+              // An element the weapon may not have innately (e.g. "+90% Radiation",
+              // Xata's Whisper's Void, Nourish's Viral): adds on top of the total.
               const key = `element:${effect.element}`;
               collected.byTarget.set(key, (collected.byTarget.get(key) ?? 0) + value);
             }
@@ -287,6 +366,11 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     damage[type as DamageType] = (damage[type as DamageType] ?? 0) + (amount as number);
   }
 
+  // Elemental multipliers (Accelerant's "x2.5 Heat damage") act on the finished types.
+  for (const [element, multiplier] of collected.elementMultipliers) {
+    if (multiplier !== 1 && (damage[element] ?? 0) > 0) damage[element] = (damage[element] ?? 0) * multiplier;
+  }
+
   const projectileTotal = Object.values(damage).reduce((sum, value) => sum + (value ?? 0), 0);
 
   // ------------------------------------------------------------------- crit etc.
@@ -300,7 +384,11 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
 
   const crit = Math.max(1, critMultiplier);
   const averageCritMultiplier = 1 + critChance * (crit - 1);
-  const headshotMultiplier = build.headshot ? 2 : 1;
+  // Weak-point multiplier: x2 by default. Sonar-style effects replace it (its x5 is a
+  // total, not a x10), while "+weak point damage" mods multiply on top. Only counts on
+  // weak-point hits.
+  const weakPointOverride = collected.byTarget.get('weakPointOverride') ?? 0;
+  const headshotMultiplier = build.headshot ? Math.max(2, weakPointOverride) * (1 + bonus('headshotMultiplier')) : 1;
 
   const shotDamage = projectileTotal * multishot * headshotMultiplier;
   const averageShotDamage = shotDamage * averageCritMultiplier;
@@ -329,6 +417,8 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     averageShotDamage,
     burstDps,
     sustainedDps,
+    factionBonus: Object.fromEntries(collected.faction),
+    activeBuffs,
     elements,
     unsupportedMods: collected.unsupported,
     inactiveConditions: collected.inactive,

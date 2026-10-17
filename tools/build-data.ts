@@ -19,6 +19,7 @@ import { parseLuaModule } from './parse-lua.ts';
 import { parseModEffects } from '../src/mods/parse.ts';
 import {
   DAMAGE_TYPES,
+  type AbilityData,
   type ArcaneData,
   type DamageType,
   type Effect,
@@ -39,6 +40,7 @@ const OUT = join(ROOT, 'data/snapshot.json');
 type Loose = Record<string, any>;
 
 const readJson = (file: string): any[] => JSON.parse(readFileSync(join(RAW, file), 'utf8'));
+const readJsonFile = (file: string): any => JSON.parse(readFileSync(join(RAW, file), 'utf8'));
 const readLua = (file: string): any => parseLuaModule(readFileSync(join(RAW, file), 'utf8'));
 
 /** Lua tables produce `{ "1": x, "2": y }`; turn that into a real array. */
@@ -339,6 +341,23 @@ function buildEnemies(healthTypes: Record<string, HealthPool['category']>): Reco
 
 // ------------------------------------------------------- arcanes, warframes
 
+/** Which equipment slot an arcane fits, from its wiki category. */
+function arcaneSlot(category: string): string | null {
+  const map: Record<string, string> = {
+    'Primary Arcane': 'primary',
+    'Secondary Arcane': 'secondary',
+    'Melee Arcane': 'melee',
+    'Bow Arcane': 'bow',
+    'Shotgun Arcane': 'shotgun',
+    'Kitgun Arcane': 'kitgun',
+    'Zaw Arcane': 'zaw',
+    'Warframe Arcane': 'warframe',
+    'Amp Arcane': 'amp',
+    'Operator Arcane': 'operator',
+  };
+  return map[category] ?? null;
+}
+
 function buildArcanes(): Record<string, ArcaneData> {
   const out: Record<string, ArcaneData> = {};
   for (const arcane of readJson('wfcd-Arcanes.json')) {
@@ -353,10 +372,11 @@ function buildArcanes(): Record<string, ArcaneData> {
       name,
       category: String(arcane.type ?? ''),
       rarity: typeof arcane.rarity === 'string' ? arcane.rarity : null,
-      maxRank: ranks.length,
+      // WFCD ships one levelStats entry per rank, so max rank is length - 1.
+      maxRank: Math.max(0, ranks.length - 1),
       description: ranks.length ? String(ranks[ranks.length - 1].join(' / ')) : '',
       effects: parsed.effects,
-      slot: null,
+      slot: arcaneSlot(String(arcane.type ?? '')),
     };
   }
   console.log(`arcanes: ${Object.keys(out).length}`);
@@ -383,6 +403,27 @@ function buildWarframes(): Record<string, WarframeData> {
   return out;
 }
 
+// ----------------------------------------------------------------- abilities
+
+function buildAbilities(): Record<string, AbilityData> {
+  const raw = readJsonFile('ability-stats.json');
+  const out: Record<string, AbilityData> = {};
+  for (const entry of raw) {
+    out[entry.ability] = {
+      ability: entry.ability,
+      frame: entry.frame,
+      page: entry.page,
+      kind: entry.kind,
+      value: entry.value,
+      segments: (entry.segments ?? []).map((segment: Loose) => ({ label: String(segment.label), max: segment.max })),
+      duration: entry.duration ?? null,
+      range: entry.range ?? null,
+    };
+  }
+  console.log(`abilities: ${Object.keys(out).length}`);
+  return out;
+}
+
 // --------------------------------------------------------------------- main
 
 function main(): void {
@@ -397,6 +438,7 @@ function main(): void {
     mods: buildMods(unmatched),
     arcanes: buildArcanes(),
     warframes: buildWarframes(),
+    abilities: buildAbilities(),
     enemies: buildEnemies(healthTypes),
     modifiers,
     healthTypes,

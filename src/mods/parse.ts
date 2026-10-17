@@ -189,9 +189,10 @@ export function readNumber(text: string): NumberMatch | null {
 function stripQualifiers(text: string): string {
   return text
     .replace(/\s*for \d+(?:\.\d+)?\s*s(?:econds)?\.?/gi, '')
-    .replace(/\s*stacks? up to \d+\s*x?\.?/gi, '')
+    .replace(/\s*stacks? up to \d+\s*(?:x|%)?\.?/gi, '')
     .replace(/\s*per (?:status type|status|unique status|status effect)(?: affecting the target)?/gi, '')
     .replace(/\s*multishot cannot be modified\.?/gi, '')
+    .replace(/\s*on (?:your )?(?:next shot|next attack|melee strikes?|strikes?)\b/gi, '')
     .replace(/\s*when (?:aiming|sliding|holstered|airborne|blocking)\b/gi, '')
     .replace(/\s*while (?:aiming|aim gliding|sliding|airborne|blocking|holstered)\b/gi, '')
     .replace(/\s*\([^)]*\)\s*$/g, '')
@@ -258,6 +259,11 @@ export function isNoise(line: string): boolean {
 export function splitStatLines(stats: string[]): string[] {
   return stats
     .flatMap((s) => cleanStatText(s).split('\n'))
+    // Arcanes pack the condition inline: "On Weak Point Hit: Gain +300% damage".
+    .flatMap((s) => {
+      const inline = /^((?:On|When|While|After)\b[^:]{0,40}?):\s*(.+)$/i.exec(s);
+      return inline ? [`${inline[1]}:`, inline[2]] : [s];
+    })
     // "+40% Weapon Recoil and +40% Accuracy" is two effects on a single line.
     .flatMap((s) => s.split(/\s+and\s+(?=[+-]?\d)/))
     // "+25% Critical Chance and Damage" means both stats.
@@ -266,6 +272,9 @@ export function splitStatLines(stats: string[]): string[] {
       return both ? [`${both[1]} Critical Chance${both[2]}`, `${both[1]} Critical Damage${both[2]}`] : [s];
     })
     .map((s) => s.replace(/^and\s+/i, ''))
+    // Arcanes phrase effects as "Gain +60% Corrosive Damage" or "21% chance for +45% Critical Chance".
+    .map((s) => s.replace(/^gain\s+/i, ''))
+    .map((s) => s.replace(/^\d+(?:[.,]\d+)?%\s+chance\s+(?:for|to gain)\s+/i, ''))
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
 }
@@ -306,7 +315,12 @@ export function parseModEffects(ranks: string[][]): ParsedStats {
     if (inlineKey) condition = condition ? `${condition}+${inlineKey}` : inlineKey;
     if (!condition && /^damage on first shot/i.test(num.rest)) condition = 'firstShot';
     const perStatusType = /\bper (?:status type|status|unique status|status effect)/i.test(num.rest);
-    const stacks = /\bstacks? up to (\d+)\s*x?\b/i.exec(num.rest);
+    // "Stacks up to 240%" is a cap on the total, "Stacks up to 5x" is a stack count.
+    const stacks = /stacks? up to (\d+)\s*(x|%)?/i.exec(num.rest);
+    let maxStacks = stacks ? Number(stacks[1]) : undefined;
+    if (stacks && stacks[2] === '%' && num.unit === '%' && num.value > 0) {
+      maxStacks = Math.max(1, Math.round(Number(stacks[1]) / num.value));
+    }
 
     const effect: Effect = {
       ...mapped,
@@ -315,7 +329,7 @@ export function parseModEffects(ranks: string[][]): ParsedStats {
     };
     if (condition) effect.condition = condition;
     if (header?.maxStacks) effect.maxStacks = header.maxStacks;
-    if (stacks) effect.maxStacks = Number(stacks[1]);
+    if (maxStacks !== undefined) effect.maxStacks = maxStacks;
     if (perStatusType) effect.perStatusType = true;
     if (num.unit === null) effect.flat = true;
     if (mapped.op === 'convert') effect.value = Math.abs(effect.value);

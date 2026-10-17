@@ -168,8 +168,8 @@ export interface Effect {
   target: EffectTarget;
   /** Damage type, when the target is an element ('heat', 'viral'...) or a physical type. */
   element?: DamageType;
-  /** Faction, when the target is a faction damage bonus. */
-  faction?: Faction;
+  /** Faction, when the target is a faction damage bonus. `all` = every faction (Roar). */
+  faction?: Faction | 'all';
   op: EffectOp;
   /** Fraction, e.g. 1.65 for +165%. Faction bonuses store x-1. */
   value: number;
@@ -239,6 +239,25 @@ export interface WarframeData {
   abilities: string[];
 }
 
+/** One labelled stat from an ability or augment infobox, at max rank. */
+export interface AbilityStat {
+  label: string;
+  max: number | null;
+}
+
+/** Numbers for an ability that can buff a weapon. Mechanics live in src/engine/buffs.ts. */
+export interface AbilityData {
+  ability: string;
+  frame: string;
+  page: string;
+  kind: 'ability' | 'augment';
+  /** Max-rank buff value (first stat of the infobox). */
+  value: number | null;
+  segments: AbilityStat[];
+  duration: number | null;
+  range: number | null;
+}
+
 export interface Snapshot {
   version: number;
   generatedAt: string;
@@ -247,6 +266,8 @@ export interface Snapshot {
   mods: Record<string, ModData>;
   arcanes: Record<string, ArcaneData>;
   warframes: Record<string, WarframeData>;
+  /** Ability numbers used by the buff registry (Roar, Eclipse, elemental augments...). */
+  abilities: Record<string, AbilityData>;
   enemies: Record<string, EnemyData>;
   /** damage type -> health type -> percentage points */
   modifiers: ModifierTable;
