@@ -361,6 +361,11 @@ export function splitStatLines(stats: string[]): string[] {
       return both ? [`${both[1]} Critical Chance${both[2]}`, `${both[1]} Critical Damage${both[2]}`] : [s];
     })
     .map((s) => s.replace(/^and\s+/i, ''))
+    // "Non-Critical hits deal +240% damage" -> "+240% Non-Critical damage" (number first).
+    .map((s) => {
+      const nonCrit = /^non[- ]critical hits deal ([+-]?\d+(?:[.,]\d+)?)%/i.exec(s);
+      return nonCrit ? `${nonCrit[1]}% Non-Critical damage` : s;
+    })
     // Arcanes phrase effects as "Gain +60% Corrosive Damage" or "21% chance for +45% Critical Chance".
     .map((s) => s.replace(/^gain\s+/i, ''))
     .map((s) => s.replace(/^\d+(?:[.,]\d+)?%\s+chance\s+(?:for|to gain)\s+/i, ''))
