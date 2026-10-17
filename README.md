@@ -40,6 +40,7 @@ Interactive UI: `wfcalc serve` → <http://127.0.0.1:7777>.
 | `wfcalc arcanes [query]` | Weapon arcanes |
 | `wfcalc buffs` | Warframe buffs the calculator models |
 | `wfcalc rivens [query]` | Riven attribute ids |
+| `wfcalc incarnon <weapon>` | Incarnon evolution options for a weapon |
 | `wfcalc enemies [query]` | Search the 479 enemies |
 | `wfcalc serve [--port 7777]` | Local web UI + JSON API |
 | `wfcalc update` | Re-download sources and rebuild the snapshot |
@@ -56,6 +57,8 @@ Interactive UI: `wfcalc serve` → <http://127.0.0.1:7777>.
 | `--riven damage,multishot,-zoom` | Riven stats (`-` marks the malus) |
 | `--riven-roll 1.05` / `--riven-rank 6` | Riven random roll (0.9-1.1) and rank |
 | `--viral 10`, `--corrosive 10` | Status stacks kept up on the target |
+| `--incarnon "EVO2:0,EVO4:1"` | Incarnon evolutions per tier (see `wfcalc incarnon`) |
+| `--combo-hits 220` / `--heavy` | Melee combo counter and heavy attack |
 | `--enemy NAME`, `--level N` | Target and level (default Bombard at 100) |
 | `--faction grineer` | Shorthand for a benchmark enemy of that faction |
 | `--mode "Incarnon Form"` | Use an alternative fire mode |
@@ -94,6 +97,10 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
   Toxin shield bypass.
 - **Rivens** with real values: wiki base table × the weapon's own disposition × the
   bonus/malus weights × an optional roll.
+- **Incarnon evolutions**: per-weapon perk trees scraped from the wiki, with the parsed
+  stat bonuses applied (flat base damage included).
+- **Melee combo**: the 2x-12x multiplier ladder, combo-scaling mods (Blood Rush,
+  Weeping Wounds) and heavy attacks — normal attacks are deliberately *not* multiplied.
 - **Damage over time** from status procs (Slash, Heat, Toxin, Electricity, Gas, Blast)
   including the faction double-dip, plus **Viral** and **Corrosive** stacks on the target.
 - Forced procs (Hunter Munitions, Internal Bleeding) and Status Damage mods.
@@ -106,8 +113,11 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
   invulnerability, which the calculator cannot know. Elemental Ward and Provoke do not
   buff weapon damage, so they are intentionally absent.
 - Umbral set bonuses, Archon Shards and Helminth invigorations for Ability Strength.
-- Incarnon evolution trees, stances and melee combo multipliers.
+- Stances and stance damage multipliers.
 - Area-of-effect falloff, punch-through multi-hits, and per-pellet proc variance.
+- Incarnon perks that are mechanics rather than stats (they are stored as text, not applied).
+- 47 of the 69 Incarnon weapons have no evolution data yet: the wiki only keeps it on
+  "X Incarnon Genesis" pages, which incarnon-native weapons (Phenmor, Laetum...) do not have.
 - 17% of weapon mods are only partially understood — mostly pure utility
   (beam range, dodge speed, combo efficiency). They are reported as
   `unsupportedMods` and the result is flagged as a lower bound rather than silently
@@ -131,6 +141,7 @@ tools/build-data.ts normalise everything into data/snapshot.json
 src/mods/parse.ts   mod text -> typed effects (the long-tail part)
 src/engine/         build resolution, buffs, enemy scaling, damage
 tools/fetch-abilities.ts  ability/augment numbers from the wiki infoboxes
+tools/fetch-incarnon.ts   Incarnon evolution trees per weapon
 src/cli.ts          CLI
 src/server.ts       local API + static web UI
 src/web/            the UI (vanilla JS, no build step)

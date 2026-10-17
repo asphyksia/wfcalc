@@ -62,6 +62,7 @@ function mod(name: string, maxRank: number, topRankStats: string[], overrides: P
     description: topRankStats.join('\n'),
     effects,
     partial: false,
+    outOfScopeLines: [],
     incompatible: [],
     set: null,
     upgradeTypes: [],
@@ -98,6 +99,7 @@ function snapshot(
       heat: { 'Cloned Flesh': 25 },
     },
     healthTypes: { 'Alloy Armor': 'armor', 'Cloned Flesh': 'health' },
+    incarnons: {},
     rivenStats: {
       rifle: { Damage: 1.65, Multishot: 0.9, 'Critical Chance': 1.4999, 'Critical Damage': 1.19997, Zoom: 0.5999 },
       shotgun: { Damage: 1.647 },
@@ -472,4 +474,44 @@ test('ability strength is derived from Warframe mods', () => {
   const snap = snapshot([], [intensify, blindRage]);
   const strength = abilityStrengthFromMods(snap, ['Intensify', 'Blind Rage']);
   close(strength.strength, 100 * (1 + 0.3 + 0.99));
+});
+
+test('melee combo multiplier follows the wiki ladder and caps at 12x', () => {
+  const snap = snapshot([weapon({ slash: 100 })], []);
+  const at = (hits: number) => resolveBuild(snap, { weapon: 'Test Weapon', mods: [], comboHits: hits }).comboMultiplier;
+  close(at(0), 1);
+  close(at(19), 1);
+  close(at(20), 2);
+  close(at(40), 3);
+  close(at(220), 12);
+  close(at(400), 12); // capped
+});
+
+test('combo-scaling mods multiply their bonus by (multiplier - 1)', () => {
+  const bloodRush = mod('Blood Rush', 5, ['+40% Critical Chance stacks with Combo Multiplier'], { classes: ['Melee'] });
+  const snap = snapshot([weapon({ slash: 100, critChance: 0.2 })], [bloodRush]);
+  const noCombo = resolveBuild(snap, { weapon: 'Test Weapon', mods: ['Blood Rush'] });
+  const fullCombo = resolveBuild(snap, { weapon: 'Test Weapon', mods: ['Blood Rush'], comboHits: 220 });
+  close(noCombo.critChance, 0.2); // 1x combo: no bonus at all
+  close(fullCombo.critChance, 0.2 * (1 + 0.4 * 11)); // 12x: +440%
+});
+
+test('only heavy attacks get the combo damage multiplier', () => {
+  const snap = snapshot([weapon({ slash: 100 })], []);
+  const normal = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], comboHits: 120 });
+  const heavy = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], comboHits: 120, heavyAttack: true });
+  close(normal.shotDamage, 100);
+  close(heavy.shotDamage, 100 * 7); // 120 hits -> 7x
+});
+
+test('Incarnon flat base damage is added and scaled by damage mods', () => {
+  const snap = snapshot([weapon({ toxin: 140 })], [serration], [], {});
+  snap.incarnons = {
+    'Test Weapon': [
+      { tier: 'EVO2', name: 'Final Fusillade', effects: [{ target: 'baseDamage', op: 'add', value: 51, raw: 'Increase Base Damage by +51', flat: true }], text: [] },
+    ],
+  };
+  const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: ['Serration'], incarnon: ['EVO2:0'] });
+  // 140 x 2.65 (Serration) + 51 x 2.65 (flat base damage, also multiplied) = 506.15
+  close(resolved.damage.projectileTotal, (140 + 51) * 2.65);
 });

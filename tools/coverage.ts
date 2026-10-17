@@ -30,11 +30,15 @@ const partial = (list: ModData[]) => list.filter((m) => m.partial);
 const ratio = (list: ModData[], subset: ModData[]): string =>
   `${subset.length}/${list.length} (${((100 * subset.length) / Math.max(1, list.length)).toFixed(0)}%)`;
 
+const unknown = weaponMods.filter((m) => m.partial);
+const usable = weaponMods.filter((m) => !m.partial);
+
 console.log(`mods total:          ${mods.length}`);
 console.log(`weapon-relevant:     ${weaponMods.length}`);
-console.log(`fully parsed:        ${ratio(weaponMods, weaponMods.filter((m) => !m.partial))}`);
-console.log(`partial:             ${ratio(weaponMods, partial(weaponMods))}`);
-console.log(`non-weapon mods:     ${mods.length - weaponMods.length} (out of scope until warframe buffs land)`);
+console.log(`fully modelled:      ${ratio(weaponMods, usable)}   (every stat line understood)`);
+console.log(`unknown lines:       ${ratio(weaponMods, partial(weaponMods))}   (flagged as a lower bound)`);
+console.log(`non-weapon mods:     ${mods.length - weaponMods.length} (outside weapon damage)`);
+if (unknown.length) console.log(`\nunknown: ${unknown.map((m) => m.name).join(', ')}`);
 
 if (verbose) {
   const lines = readFileSync(join(ROOT, 'docs/unmatched-mods.txt'), 'utf8').split('\n').filter(Boolean);

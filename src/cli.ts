@@ -116,6 +116,9 @@ function buildFromArgs(snapshot: Snapshot, args: Args, mods: string[]): Build {
       .map((entry) => parseModArg(entry.trim()))
       .filter((entry) => entry.name),
     riven: parseRiven(args),
+    comboHits: flag(args, 'combo-hits') ? Number(flag(args, 'combo-hits')) : undefined,
+    heavyAttack: args.flags.has('heavy'),
+    incarnon: flagAll(args, 'incarnon').flatMap((entry) => entry.split(',')).map((e) => e.trim()).filter(Boolean),
     debuffs: {
       viralStacks: flag(args, 'viral') ? Number(flag(args, 'viral')) : undefined,
       corrosiveStacks: flag(args, 'corrosive') ? Number(flag(args, 'corrosive')) : undefined,
@@ -184,6 +187,8 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
           activeBuffs: resolved.activeBuffs,
           abilityStrength: resolved.abilityStrength,
           riven: resolved.rivenLines,
+          incarnon: resolved.incarnonLines,
+          comboMultiplier: resolved.comboMultiplier,
           warnings: resolved.warnings,
           unsupportedMods: resolved.unsupportedMods,
           inactiveConditions: resolved.inactiveConditions,
@@ -218,6 +223,10 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
   if (hit.factionMultiplier !== 1) console.log(`  faction      x${hit.factionMultiplier.toFixed(2)} vs ${enemy.faction ?? 'unknown'}`);
   if (resolved.activeBuffs.length) console.log(`  buffs        ${resolved.activeBuffs.join(', ')} @ ${num(resolved.abilityStrength)}% strength`);
   if (resolved.rivenLines.length) console.log(`  riven        ${resolved.rivenLines.join(', ')}`);
+  if (resolved.incarnonLines.length) console.log(`  incarnon     ${resolved.incarnonLines.join(' / ')}`);
+  if (resolved.comboMultiplier > 1) {
+    console.log(`  combo        ${num(resolved.comboMultiplier, 1)}x at ${build.comboHits} hits${build.heavyAttack ? ' (heavy attack)' : ''}`);
+  }
   if (hit.dot.length) {
     console.log('  ── status damage ──');
     for (const entry of hit.dot.sort((a, b) => b.dps - a.dps)) {
@@ -280,6 +289,28 @@ function main(): void {
       console.log(`\n${list.length} enemy(ies)`);
       break;
     }
+    case 'incarnon': {
+      const { item, suggestions } = findWeapon(snapshot, args.positional[0] ?? '');
+      if (!item) throw new Error(`weapon not found: ${args.positional[0]} ${suggestions.join(', ')}`);
+      const options = snapshot.incarnons[item.name] ?? [];
+      if (!options.length) {
+        console.log(`no Incarnon evolution data for ${item.name}`);
+        break;
+      }
+      const byTier = new Map<string, typeof options>();
+      for (const option of options) byTier.set(option.tier, [...(byTier.get(option.tier) ?? []), option]);
+      for (const [tier, list] of byTier) {
+        console.log(`${tier}`);
+        list.forEach((option, index) => {
+          const effects = option.effects
+            .map((e) => `${e.target}${e.element ? `:${e.element}` : ''} ${e.flat ? `+${e.value}` : `+${(e.value * 100).toFixed(0)}%`}`)
+            .join(', ');
+          console.log(`  ${index}. ${option.name.padEnd(26)} ${effects || '(mechanic, no stats parsed)'}`);
+        });
+      }
+      console.log(`\nPick with: --incarnon "${[...byTier.keys()].slice(0, 2).map((t) => `${t}:0`).join(',')}"`);
+      break;
+    }
     case 'rivens': {
       const query = (args.positional[0] ?? '').toLowerCase();
       for (const attribute of RIVEN_ATTRIBUTES.filter((a) => a.id.includes(query))) {
@@ -337,6 +368,7 @@ function main(): void {
   wfcalc mods <weapon> [query]          mods that fit a weapon
   wfcalc arcanes [query]                weapon arcanes
   wfcalc buffs                          warframe buffs modelled
+  wfcalc incarnon <weapon>              list Incarnon evolution options
   wfcalc rivens [query]                 riven attribute ids
   wfcalc enemies [query]                search enemies
   wfcalc calc <weapon> [options]        damage report
@@ -345,8 +377,9 @@ function main(): void {
 
 Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
          --strength 284  --frame-mods "Intensify,Blind Rage"  --riven damage,multishot
-         --riven-roll 1.05
+         --incarnon "EVO2:0,EVO4:1"  --riven-roll 1.05
          --viral 10  --corrosive 10  (status debuffs on the target)
+         --combo-hits 220  --heavy   (melee combo multiplier / heavy attack)
          --enemy NAME  --level N  --faction NAME  --mode "Name"
          --stacks onKill=5  --status-types N  --headshot  --json`);
   }

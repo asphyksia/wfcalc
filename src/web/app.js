@@ -33,6 +33,9 @@ const state = {
   frameMods: [], // [{ name, rank }] for the caster's Warframe
   abilityStrength: 100,
   riven: null, // { stats: [], malus }
+  incarnon: [], // ['EVO2:0']
+  comboHits: 0,
+  heavyAttack: false,
   debuffs: { viralStacks: 0, corrosiveStacks: 0 },
   enemy: 'Bombard',
   level: 100,
@@ -248,6 +251,7 @@ function renderResults(result) {
     ${result.activeBuffs?.length ? `<div class="card"><span>buffs</span><b>${result.activeBuffs.length}</b><small>${result.activeBuffs.join(', ')}</small></div>` : ''}
     ${target && target.factionMultiplier && Math.abs(target.factionMultiplier - 1) > 0.001 ? `<div class="card"><span>faction</span><b>×${target.factionMultiplier.toFixed(2)}</b><small>${target.faction ?? ''}</small></div>` : ''}
     ${dotDps > 0 ? `<div class="card"><span>status dps</span><b>${fmt(dotDps, 0)}</b><small>${dot.length} type(s)</small></div>` : ''}
+    ${result.comboMultiplier > 1 ? `<div class="card"><span>combo</span><b>${result.comboMultiplier.toFixed(1)}x</b><small>${state.comboHits} hits</small></div>` : ''}
     ${target ? `<div class="card accent"><span>time to kill lv${target.level}</span><b>${target.timeToKill === null ? '—' : fmt(target.timeToKill, 2) + 's'}</b><small>${fmt(target.shotsToKill, 1)} shots</small></div>` : ''}
   `;
 
@@ -298,6 +302,7 @@ function renderResults(result) {
   if (result.unsupportedMods.length) notes.push(`Unknown mod effects (numbers are a lower bound): ${result.unsupportedMods.join(', ')}`);
   if (result.inactiveConditions.length) notes.push(`${result.inactiveConditions.length} conditional effect(s) inactive — raise the stacks to activate`);
   if (result.weapon.mode) notes.push(`Using fire mode: ${result.weapon.mode}`);
+  if (result.incarnon?.length) notes.push(`Incarnon: ${result.incarnon.join(' / ')}`);
   if (dot.length) {
     $('target-report').innerHTML += `
       <table class="breakdown">
@@ -392,6 +397,22 @@ function bindEvents() {
     recalc();
   });
 
+  $('incarnon-input').addEventListener('change', (event) => {
+    state.incarnon = event.target.value.split(',').map((part) => part.trim()).filter(Boolean);
+    recalc();
+  });
+
+  $('combo-input').addEventListener('input', (event) => {
+    state.comboHits = Number(event.target.value);
+    $('combo-value').textContent = String(state.comboHits);
+    recalc();
+  });
+
+  $('heavy').addEventListener('change', (event) => {
+    state.heavyAttack = event.target.checked;
+    recalc();
+  });
+
   $('riven-input').addEventListener('change', (event) => {
     state.riven = parseRivenInput(event.target.value);
     recalc();
@@ -450,6 +471,10 @@ function syncInputsFromState() {
   $('strength-value').textContent = `${state.abilityStrength ?? 100}%`;
   $('framemods-input').value = (state.frameMods ?? []).map((mod) => mod.name).join(', ');
   $('riven-input').value = state.riven ? [...state.riven.stats, state.riven.malus ? `-${state.riven.malus}` : ''].filter(Boolean).join(',') : '';
+  $('incarnon-input').value = (state.incarnon ?? []).join(',');
+  $('combo-input').value = String(state.comboHits ?? 0);
+  $('combo-value').textContent = String(state.comboHits ?? 0);
+  $('heavy').checked = Boolean(state.heavyAttack);
   $('viral').value = String(state.debuffs?.viralStacks ?? 0);
   $('corrosive').value = String(state.debuffs?.corrosiveStacks ?? 0);
 }

@@ -56,6 +56,15 @@ export interface Build {
   riven?: RivenSpec;
   /** Status debuffs on the target, in DotContext terms (viralStacks, corrosiveStacks). */
   debuffs?: { viralStacks?: number; corrosiveStacks?: number };
+  /** Melee combo counter (hits), which drives the combo multiplier. */
+  comboHits?: number;
+  /** True when the attack is a heavy attack (the combo multiplier applies to damage). */
+  heavyAttack?: boolean;
+  /**
+   * Chosen Incarnon evolutions, as `"EVO2:Final Fusillade"`, `"evo4:1"` or just the
+   * option name. Tiers that are not listed stay unselected.
+   */
+  incarnon?: string[];
   /** Which fire mode to use; defaults to the arsenal mode. */
   mode?: string;
   /** Active conditions for conditional mods. */
@@ -96,6 +105,10 @@ export interface ResolvedBuild {
   activeBuffs: string[];
   /** Riven stat lines as rolled, for display. */
   rivenLines: string[];
+  /** Chosen Incarnon evolutions, for display. */
+  incarnonLines: string[];
+  /** Melee combo multiplier in effect (1 when no combo). */
+  comboMultiplier: number;
   /** Total Status Damage bonus (multiplies DoT ticks). */
   statusDamageBonus: number;
   /** Status effects forced by mods (Hunter Munitions and friends). */
@@ -199,6 +212,12 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   const equipped: string[] = [];
   const rivenLines: string[] = [];
 
+  // Melee combo multiplier: 1x below 20 hits, then 2x at 20 and +1x every 20 hits, capped at 12x.
+  // Per the wiki it does NOT scale normal attacks; it scales heavy attacks and
+  // combo-scaling mods (Blood Rush, Weeping Wounds).
+  const comboHits = Math.max(0, build.comboHits ?? 0);
+  const comboMultiplier = comboHits < 20 ? 1 : Math.min(12, 2 + Math.floor((comboHits - 20) / 20));
+
   const resolveMod = (wanted: string) =>
     snapshot.mods[wanted] ?? snapshot.mods[Object.keys(snapshot.mods).find((k) => normalizeName(k) === normalizeName(wanted)) ?? ''];
 
@@ -244,6 +263,34 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     sources.push({ name: arcane.name, maxRank: arcane.maxRank, rank, effects: arcane.effects, partial: false, incompatible: [] });
   }
 
+  // Incarnon evolutions: only weapons with a tree in the dataset have options.
+  const incarnonLines: string[] = [];
+  if (build.incarnon?.length) {
+    const options = snapshot.incarnons[weapon.name] ?? [];
+    if (!options.length) collected.warnings.push(`no Incarnon data for ${weapon.name}`);
+    for (const choice of build.incarnon) {
+      const [maybeTier, maybeIndex] = choice.split(':');
+      const chosen = options.find((option) => normalizeName(option.name) === normalizeName(choice))
+        ?? options.find(
+          (option) =>
+            normalizeName(option.tier) === normalizeName(maybeTier) &&
+            (maybeIndex === undefined || String(options.filter((o) => o.tier === option.tier).indexOf(option)) === maybeIndex),
+        );
+      if (!chosen) {
+        collected.warnings.push(`unknown Incarnon option: ${choice}`);
+        continue;
+      }
+      incarnonLines.push(`${chosen.tier} ${chosen.name}`);
+      sources.push({
+        name: `Incarnon: ${chosen.name}`,
+        maxRank: 0,
+        effects: chosen.effects as Effect[],
+        partial: false,
+        incompatible: [],
+      });
+    }
+  }
+
   // Riven: values depend on the weapon's disposition, so it is resolved per weapon.
   if (build.riven) {
     const riven = rivenEffects(snapshot, weapon, build.riven);
@@ -285,7 +332,9 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
         continue;
       }
       const rankFraction = source.maxRank > 0 ? rankScale({ maxRank: source.maxRank } as ModData, source.rank) : 1;
-      const value = effect.value * rankFraction * stacks;
+      // Combo-scaling mods scale with (multiplier - 1): at 12x, Blood Rush is +40% x 11.
+      const comboFactor = effect.scalesWithCombo ? Math.max(0, comboMultiplier - 1) : 1;
+      const value = effect.value * rankFraction * stacks * comboFactor;
       if (effect.op === 'mult' && effect.target === 'elementMultiplier' && effect.element) {
         // "x2.5 Heat damage" (Accelerant): multiplies that damage type only.
         collected.elementMultipliers.set(effect.element, (collected.elementMultipliers.get(effect.element) ?? 1) * (1 + value));
@@ -313,6 +362,9 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
               const key = `element:${effect.element}`;
               collected.byTarget.set(key, (collected.byTarget.get(key) ?? 0) + value);
             }
+          } else if (effect.target === 'baseDamage' && effect.flat) {
+            // Incarnon-style flat base damage: "+51 Base Damage".
+            collected.byTarget.set('baseDamageFlat', (collected.byTarget.get('baseDamageFlat') ?? 0) + value);
           } else if (effect.target === 'forcedProc' && effect.element) {
             // Hunter Munitions wording: the proc only happens on critical hits.
             collected.forcedProcs.push({
@@ -333,9 +385,13 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
 
   const bonus = (target: string): number => collected.byTarget.get(target) ?? 0;
 
+
   // ---------------------------------------------------------------- base damage
   const baseTotal = DAMAGE_TYPES.reduce((sum, type) => sum + (stats[type] ?? 0), 0);
   const damageBonus = 1 + bonus('baseDamage');
+  // Flat base damage (Incarnon perks: "Increase Base Damage by +51") is spread over the
+  // weapon's existing damage distribution, like any other base damage.
+  const flatBase = collected.byTarget.get('baseDamageFlat') ?? 0;
 
   // Physical types keep their distribution and get their own bonuses.
   const damage: Partial<Record<DamageType, number>> = {};
@@ -408,6 +464,18 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     damage[type as DamageType] = (damage[type as DamageType] ?? 0) + (amount as number);
   }
 
+  // Flat base damage is added on top, spread over the weapon's damage distribution.
+  if (flatBase > 0) {
+    const distributed = flatBase * damageBonus;
+    const weights = Object.entries(damage).filter(([, amount]) => (amount ?? 0) > 0);
+    const weightTotal = weights.reduce((sum, [, amount]) => sum + (amount ?? 0), 0);
+    if (weightTotal > 0) {
+      for (const [type, amount] of weights) {
+        damage[type as DamageType] = (amount ?? 0) + distributed * ((amount ?? 0) / weightTotal);
+      }
+    }
+  }
+
   // Elemental multipliers (Accelerant's "x2.5 Heat damage") act on the finished types.
   for (const [element, multiplier] of collected.elementMultipliers) {
     if (multiplier !== 1 && (damage[element] ?? 0) > 0) damage[element] = (damage[element] ?? 0) * multiplier;
@@ -425,14 +493,20 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   const magazineSize = Math.max(1, (stats.magazineSize ?? 1) * (1 + bonus('magazine')));
 
   const crit = Math.max(1, critMultiplier);
-  const averageCritMultiplier = 1 + critChance * (crit - 1);
+  // "Non-critical hits deal +240% damage" (Cull the Weak): weighted average over the two cases.
+  const nonCritBonus = bonus('nonCritDamage');
+  const averageCritMultiplier = critChance >= 1
+    ? 1 + critChance * (crit - 1)
+    : (1 - critChance) * (1 + nonCritBonus) + critChance * crit;
   // Weak-point multiplier: x2 by default. Sonar-style effects replace it (its x5 is a
   // total, not a x10), while "+weak point damage" mods multiply on top. Only counts on
   // weak-point hits.
   const weakPointOverride = collected.byTarget.get('weakPointOverride') ?? 0;
   const headshotMultiplier = build.headshot ? Math.max(2, weakPointOverride) * (1 + bonus('headshotMultiplier')) : 1;
 
-  const shotDamage = projectileTotal * multishot * headshotMultiplier;
+  // Heavy attacks spend the combo counter for a damage multiplier (wiki: Melee Combo).
+  const heavyMultiplier = build.heavyAttack ? comboMultiplier : 1;
+  const shotDamage = projectileTotal * multishot * headshotMultiplier * heavyMultiplier;
   const averageShotDamage = shotDamage * averageCritMultiplier;
 
   const burstDps = averageShotDamage * fireRate;
@@ -462,6 +536,8 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     factionBonus: Object.fromEntries(collected.faction),
     activeBuffs,
     rivenLines,
+    incarnonLines,
+    comboMultiplier,
     statusDamageBonus: bonus('statusDamage'),
     forcedProcs: collected.forcedProcs,
     abilityStrength,

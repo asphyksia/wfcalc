@@ -28,6 +28,14 @@ Mods that fit the weapon, with max rank, polarity and description.
 `partial: true` means the calculator only understood part of the mod's effects; the
 damage result is a lower bound.
 
+## `GET /api/incarnons?weapon=Torid`
+
+```json
+[{ "tier": "EVO2", "name": "Final Fusillade",
+   "effects": [{ "target": "baseDamage", "value": 51, "flat": true }],
+   "text": ["Increase Base Damage by +51."] }]
+```
+
 ## `GET /api/buffs`
 
 ```json
@@ -49,6 +57,9 @@ Weapon arcanes whose slot fits the weapon, with max rank and description.
   "frameMods": [{ "name": "Intensify" }],
   "riven": { "stats": ["damage", "multishot"], "malus": "zoom", "roll": 1.05, "rank": 8 },
   "debuffs": { "viralStacks": 10, "corrosiveStacks": 4 },
+  "incarnon": ["EVO2:0", "EVO4:1"],
+  "comboHits": 220,
+  "heavyAttack": false,
   "mods": [{ "name": "Serration" }, { "name": "Vital Sense", "rank": 3 }],
   "enemy": "Bombard",
   "level": 150,
@@ -64,6 +75,8 @@ Weapon arcanes whose slot fits the weapon, with max rank and description.
 - `arcanes`: weapon arcanes; the slot must match the weapon category.
 - `buffs`: registry ids from `GET /api/buffs`; `abilityStrength` is a percentage (100 = unmodded).
 - `riven` is resolved against the weapon's own disposition; `roll` (0.9-1.1) and `rank` (0-8) are optional.
+- `incarnon` picks evolution tiers (`"EVO2:0"` = first option of tier EVO2; see `GET /api/incarnons`).
+- `comboHits` drives the melee combo multiplier; `heavyAttack` applies it to damage.
 - `debuffs` are status stacks kept up on the target: Viral amplifies health damage, Corrosive strips armour.
 - `conditions` toggles conditional mods: `onKill` (stacks), `onWeakPointHit`,
   `onWeakPointKill`, `onReload`, `aiming`, `sliding`, `holstered`, `statusTypes` (count).

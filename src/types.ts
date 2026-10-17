@@ -179,6 +179,8 @@ export interface Effect {
   condition?: string;
   /** True when the effect scales with the number of status types on the target. */
   perStatusType?: boolean;
+  /** True when the value multiplies by the melee combo multiplier (Blood Rush, Weeping Wounds). */
+  scalesWithCombo?: boolean;
   /** True when the value is a flat amount (e.g. ``+1.2 Punch Through``), not a fraction. */
   flat?: boolean;
   /** Maximum stacks of a stacking effect. */
@@ -204,8 +206,10 @@ export interface ModData {
   description: string;
   /** Effects at max rank. Per-rank scaling is `value * rank / maxRank` for linear mods. */
   effects: Effect[];
-  /** True when the effect set is only partially understood (shown as a warning in UIs). */
+  /** True when some lines could not be mapped and are not known utility. */
   partial: boolean;
+  /** Lines that are real effects this model cannot use (movement, healing, slide attacks). */
+  outOfScopeLines: string[];
   /** Mods that cannot be equipped together with this one. */
   incompatible: string[];
   /** Mod set this mod belongs to, if any. */
@@ -260,6 +264,24 @@ export interface AbilityData {
   range: number | null;
 }
 
+/** One choice inside an Incarnon evolution tier. */
+export interface IncarnonOption {
+  tier: string;
+  name: string;
+  /** Effects the parser could map; perks that are mechanics keep their text only. */
+  effects: Array<{
+    target: string;
+    element?: DamageType;
+    faction?: Faction;
+    op: string;
+    value: number;
+    raw: string;
+    flat?: boolean;
+  }>;
+  /** Perk text as the wiki writes it, for display. */
+  text: string[];
+}
+
 export interface Snapshot {
   version: number;
   generatedAt: string;
@@ -276,6 +298,8 @@ export interface Snapshot {
    * Percentages are already fractions; multipliers and flat values are as written.
    */
   rivenStats: Record<string, Record<string, number>>;
+  /** Incarnon evolution trees by weapon name. */
+  incarnons: Record<string, IncarnonOption[]>;
   enemies: Record<string, EnemyData>;
   /** damage type -> health type -> percentage points */
   modifiers: ModifierTable;

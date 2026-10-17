@@ -130,6 +130,7 @@ function buildMods(unmatchedReport: string[]): Record<string, ModData> {
       description: String(entry.Description ?? '').replace(/\r\n?/g, '\n').trim(),
       effects: parsed.effects,
       partial,
+      outOfScopeLines: parsed.outOfScope,
       incompatible: luaArray(entry.Incompatible).filter((x): x is string => typeof x === 'string'),
       set: setOf.get(name) ?? null,
       upgradeTypes: luaArray(entry.UpgradeTypes).filter((x): x is string => typeof x === 'string'),
@@ -467,6 +468,14 @@ function buildRivenStats(): Record<string, Record<string, number>> {
   return table;
 }
 
+// ---------------------------------------------------------------- incarnons
+
+function buildIncarnons(): Record<string, any[]> {
+  const raw = readJsonFile('incarnon-stats.json');
+  console.log(`incarnons: ${Object.keys(raw).length} weapon(s)`);
+  return raw;
+}
+
 // ----------------------------------------------------------------- abilities
 
 function buildAbilities(): Record<string, AbilityData> {
@@ -504,6 +513,7 @@ function main(): void {
     warframes: buildWarframes(),
     abilities: buildAbilities(),
     rivenStats: buildRivenStats(),
+    incarnons: buildIncarnons(),
     enemies: buildEnemies(healthTypes),
     modifiers,
     healthTypes,

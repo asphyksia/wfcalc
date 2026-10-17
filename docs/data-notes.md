@@ -84,6 +84,14 @@ Cloudflare. Do not use it.
     per mote). Read every occurrence and keep the `<br>` separators, or the motes collapse
     into one unparseable stat.
 
+17. **Incarnon trees are prose in a per-weapon table.** The rows alternate perk names (bolded,
+    sometimes a bare percentage) with bullet lists; one bullet can hold several stats. Only
+    "X Incarnon Genesis" pages exist, so incarnon-native weapons have no data.
+
+18. **`Non-Critical hits deal +240% damage` breaks the "number first" assumption**: the number
+    is in the middle of the sentence. Same for "Increase Base Damage by +51". Both need a
+    "… by <number>" fallback before giving up on a line.
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully

@@ -61,6 +61,9 @@ function calculate(body: any) {
     buffs: Array.isArray(body.buffs) ? body.buffs : [],
     abilityStrength: body.abilityStrength ? Number(body.abilityStrength) : undefined,
     frameMods: Array.isArray(body.frameMods) ? body.frameMods : [],
+    incarnon: Array.isArray(body.incarnon) ? body.incarnon : [],
+    comboHits: body.comboHits ? Number(body.comboHits) : undefined,
+    heavyAttack: Boolean(body.heavyAttack),
     riven: body.riven ?? undefined,
     debuffs: body.debuffs ?? {},
     mode: body.mode || undefined,
@@ -106,6 +109,8 @@ function calculate(body: any) {
     activeBuffs: resolved.activeBuffs,
     abilityStrength: resolved.abilityStrength,
     riven: resolved.rivenLines,
+    incarnon: resolved.incarnonLines,
+    comboMultiplier: resolved.comboMultiplier,
     sustainedDps: resolved.sustainedDps,
     elements: resolved.elements,
     procs: statusProcs(resolved),
@@ -149,6 +154,12 @@ const server = createServer(async (req, res) => {
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
       return json(res, 200, list);
+    }
+    if (url.pathname === '/api/incarnons') {
+      const weaponName = url.searchParams.get('weapon') ?? '';
+      const { item } = findWeapon(snapshot, weaponName);
+      if (!item) return json(res, 404, { error: `weapon not found: ${weaponName}` });
+      return json(res, 200, snapshot.incarnons[item.name] ?? []);
     }
     if (url.pathname === '/api/buffs') {
       return json(res, 200, availableBuffs(snapshot));

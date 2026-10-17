@@ -64,8 +64,10 @@ const FACTION_BY_NAME: Record<string, Faction> = {
 
 export interface ParsedStats {
   effects: Effect[];
-  /** Lines that could not be mapped; an empty list means full coverage. */
+  /** Lines that could not be mapped and are not known utility. */
   unmatched: string[];
+  /** Real effects that this model cannot use (movement, healing, slide attacks...). */
+  outOfScope: string[];
 }
 
 type Mapped = Pick<Effect, 'target' | 'element' | 'faction' | 'op' | 'convertsTo'>;
@@ -85,6 +87,7 @@ const TARGET_RULES: Array<[RegExp, Mapped]> = [
 
   [/^(?:critical chance|crit chance)$/, { target: 'critChance', op: 'add' }],
   [/^(?:critical damage|critical multiplier|crit damage)$/, { target: 'critDamage', op: 'add' }],
+  [/^non[- ]critical hits deal$|^non[- ]critical damage$/, { target: 'nonCritDamage', op: 'add' }],
   [/^ability strength$/, { target: 'abilityStrength', op: 'add' }],
   [/^ability duration$/, { target: 'abilityDuration', op: 'add' }],
   [/^ability range$/, { target: 'abilityRange', op: 'add' }],
@@ -102,6 +105,13 @@ const TARGET_RULES: Array<[RegExp, Mapped]> = [
   [/^recoil$/, { target: 'recoil', op: 'add' }],
   [/^zoom$/, { target: 'zoom', op: 'add' }],
   [/^(?:combo duration|combo count chance)$/, { target: 'comboCount', op: 'add' }],
+  [/^initial combo$/, { target: 'initialCombo', op: 'add' }],
+  [/^heavy attack efficiency$/, { target: 'heavyAttackEfficiency', op: 'add' }],
+  [/^melee damage on heavy attack$/, { target: 'heavyAttackDamage', op: 'add' }],
+  [/^melee range$|^range$/, { target: 'range', op: 'add' }],
+  [/^throw damage$/, { target: 'throwDamage', op: 'add' }],
+  [/^beam range$/, { target: 'beamRange', op: 'add' }],
+  [/^status chance on lifted enemies$/, { target: 'statusChance', op: 'add' }],
   [/^(?:weak point damage|headshot damage|to headshot multiplier|weak point critical chance)$/, { target: 'headshotMultiplier', op: 'add' }],
   [/^finisher damage$/, { target: 'finisherDamage', op: 'add' }],
   [/^(?:slam attack damage|heavy attack damage)$/, { target: 'heavyAttackDamage', op: 'add' }],
@@ -133,6 +143,12 @@ export function mapTarget(rest: string): Mapped | null {
   if (converted) {
     const element = ELEMENT_BY_NAME[converted[1].toLowerCase()];
     if (element) return { target: 'convertedDamage', op: 'convert', convertsTo: element };
+  }
+  // Claw augments: "Convert all base Physical Damage to Slash Damage".
+  const physicalConversion = /^convert all base physical damage to (\w+) damage$/i.exec(text);
+  if (physicalConversion) {
+    const element = ELEMENT_BY_NAME[physicalConversion[1].toLowerCase()];
+    if (element) return { target: 'convertedPhysical', op: 'convert', convertsTo: element };
   }
 
   const faction = /damage to (?:the )?(\w+)/i.exec(rest);
@@ -206,6 +222,9 @@ function stripQualifiers(text: string): string {
     .replace(/\s*stacks? up to \d+\s*(?:x|%)?\.?/gi, '')
     .replace(/\s*per (?:status type|status|unique status|status effect)(?: affecting the target)?/gi, '')
     .replace(/\s*multishot cannot be modified\.?/gi, '')
+    // Combo scaling is a multiplier on the value, handled by the engine; strip the wording.
+    .replace(/\s*(?:stacks? with|per) combo multiplier\b/gi, '')
+    .replace(/\s*per combo count\b/gi, '')
     .replace(/\s*on (?:your )?(?:next shot|next attack|melee strikes?|strikes?)\b/gi, '')
     .replace(/\s*when (?:aiming|sliding|holstered|airborne|blocking)\b/gi, '')
     .replace(/\s*while (?:aiming|aim gliding|sliding|airborne|blocking|holstered)\b/gi, '')
@@ -257,8 +276,64 @@ const NOISE_RULES: RegExp[] = [
   /^\d+%? magazine reloaded\/s/i,
   /^\d+%? (?:weapon )?recoil and/i,
   /^impact status effects have/i,
+  /^\d+%? from health orbs$/i,
+  /^\d+%? movement speed( when aiming| for \d+s)?$/i,
+  /^\d+%? magazine reloaded\/s/i,
+  /^reduces the chance an enemy will hear gunfire/i,
+  /^\d+\s*(heal rate|bounce|attraction range|parry angle)/i,
+  /^\d+%? (sprint|dodge|revive|fire\/charge) (speed|rate)$/i,
+  /^\d+%? mobility/i,
+  /^\d+%? chance to reduce the stagger/i,
+  /^\d+ health stolen each hit/i,
+  /^blocking taunts/i,
+  /^reset melee combo timer/i,
+  /^fast strikes/i,
+  /^converts? \d+% of energy used/i,
+  /^killing enemies grants allies/i,
+  /^\d+%? additional combo count chance on lifted/i,
+  /^melee attacks knock down enemies/i,
+  /^\d+%? magazine capacity for .* on secondary weapon/i,
+  /^\d+%? fire\/charge rate$/i,
+  /^\d+%? beam range for .*stacks up to/i,
+  /^\d+ initial combo for .*stacks up to/i,
+  /damage block$/i,
+  /^restores? \d+ health/i,
+  /^enemies have a .*chance to drop/i,
+  /^killing enemies reduces/i,
+  /^secondaries gain/i,
+  /^allies gain/i,
+  /^increases? .* by \d+% for \d+s/i,
+  /^while (crouching|airborne|aiming|sliding|blocking)$/i,
+  /^converts? all elemental damage from these claws/i,
   /finisher attacks after warframe blocks/i,
 ];
+
+/**
+ * Keywords that mark a stat line as out of scope: real game effects that cannot change
+ * weapon damage numbers in this model (movement, healing, slide attacks, block, ...).
+ * Keeping them separate from genuinely unknown lines is what makes the coverage report honest.
+ */
+const OUT_OF_SCOPE_KEYWORDS: RegExp[] = [
+  /movement speed|sprint|dodge|revive speed|mobility/i,
+  /health orb|heal rate|life steal|restores? \d+ health/i,
+  /bounce|attraction range|parry angle/i,
+  /stagger|knockdown|resist/i,
+  /magazine reloaded|holstered reload/i,
+  /slide attack|wall latch|aerial melee|crouching/i,
+  /energy rate|ability efficiency by|ability duration by/i,
+  /reflected|damage block|channeling/i,
+  /canticle|invocation|conclave|fighting form/i,
+  /combo count chance|combo counter|reset melee combo/i,
+  /secondary weapon for|squad begins|allies gain|affinity range/i,
+  /charge rate|fire\/charge/i,
+  /drop a universal orb|universal orb/i,
+];
+
+/** Returns true when a stat line is a real effect that this model cannot use. */
+export function isOutOfScope(line: string): boolean {
+  const text = line.toLowerCase().trim();
+  return OUT_OF_SCOPE_KEYWORDS.some((re) => re.test(text));
+}
 
 /** Returns true when a stat line is known to be irrelevant to damage maths. */
 export function isNoise(line: string): boolean {
@@ -302,6 +377,7 @@ export function splitStatLines(stats: string[]): string[] {
 export function parseModEffects(ranks: string[][]): ParsedStats {
   const effects: Effect[] = [];
   const unmatched: string[] = [];
+  const outOfScope: string[] = [];
   const top = splitStatLines(ranks[ranks.length - 1] ?? []);
 
   let header: ConditionInfo | null = null;
@@ -316,8 +392,18 @@ export function parseModEffects(ranks: string[][]): ParsedStats {
     const num = readNumber(line);
     const rest = num ? stripQualifiers(num.rest) : stripQualifiers(line);
     const mapped = mapTarget(rest);
-    if (!num || !mapped) {
-      unmatched.push(line);
+
+    // Conversion mods carry no number: "Convert all base Physical Damage to Slash Damage".
+    if (!num) {
+      if (mapped?.op === 'convert' && mapped.convertsTo) {
+        effects.push({ ...mapped, value: 1, raw: line });
+        continue;
+      }
+      (isOutOfScope(line) ? outOfScope : unmatched).push(line);
+      continue;
+    }
+    if (!mapped) {
+      (isOutOfScope(line) ? outOfScope : unmatched).push(line);
       continue;
     }
 
@@ -344,11 +430,12 @@ export function parseModEffects(ranks: string[][]): ParsedStats {
     if (condition) effect.condition = condition;
     if (header?.maxStacks) effect.maxStacks = header.maxStacks;
     if (maxStacks !== undefined) effect.maxStacks = maxStacks;
+    if (/combo multiplier|combo count/i.test(num.rest)) effect.scalesWithCombo = true;
     if (perStatusType) effect.perStatusType = true;
     if (num.unit === null) effect.flat = true;
     if (mapped.op === 'convert') effect.value = Math.abs(effect.value);
     effects.push(effect);
   }
 
-  return { effects, unmatched };
+  return { effects, unmatched, outOfScope };
 }
