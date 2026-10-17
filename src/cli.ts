@@ -205,7 +205,10 @@ function main(): void {
       const { item, suggestions } = findWeapon(snapshot, args.positional[0] ?? '');
       if (!item) throw new Error(`weapon not found: ${args.positional[0]} ${suggestions.join(', ')}`);
       const query = (args.positional[1] ?? '').toLowerCase();
-      const list = modsForWeapon(snapshot, item).filter((m) => m.name.toLowerCase().includes(query) && !m.conclave);
+      // Search names and descriptions: players look for "multishot", not "Split Chamber".
+      const list = modsForWeapon(snapshot, item).filter(
+        (m) => !m.conclave && (m.name.toLowerCase().includes(query) || m.description.toLowerCase().includes(query) || m.effects.some((e) => e.target.toLowerCase().includes(query))),
+      );
       for (const mod of list.sort((a, b) => a.name.localeCompare(b.name))) {
         console.log(`${mod.name.padEnd(28)} ${String(mod.maxRank).padStart(2)}  ${mod.polarity ?? '-'.padEnd(8)}  ${mod.description.split('\n')[0]}`);
       }

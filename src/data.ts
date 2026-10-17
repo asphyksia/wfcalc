@@ -41,6 +41,7 @@ export function findByName<T extends { name: string }>(
   options: LookupOptions = {},
 ): { item: T | null; suggestions: string[] } {
   const wanted = normalizeName(query);
+  if (!wanted) return { item: null, suggestions: [] }; // empty query matches nothing
   if (items[query]) return { item: items[query], suggestions: [] };
 
   for (const item of Object.values(items)) {
@@ -77,6 +78,8 @@ export function modsForWeapon(snap: Snapshot, weapon: WeaponData): ModData[] {
   const extra = (categoryWildcards[weapon.category] ?? []).map((c) => c.toLowerCase());
 
   return Object.values(snap.mods).filter((mod) =>
+    // Flawed mods are obsolete beginner variants and only clutter the picker.
+    !/^Flawed /.test(mod.name) &&
     mod.classes.some((c) => {
       const key = c.toLowerCase();
       return classes.has(key) || wildcards.has(key) || extra.includes(key);

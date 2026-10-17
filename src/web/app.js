@@ -253,6 +253,13 @@ let calculationId = 0;
 
 async function recalc() {
   saveToUrl();
+  if (!state.weapon) {
+    $('stats').innerHTML = '<p class="hint">Pick a weapon to start.</p>';
+    $('damage-bars').innerHTML = '';
+    $('target-report').innerHTML = '';
+    $('notes').innerHTML = '';
+    return;
+  }
   const id = ++calculationId;
   const mods = state.mods.filter((m) => m.name);
   const result = await fetch('/api/calc', {
