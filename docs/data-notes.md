@@ -186,7 +186,19 @@ Cloudflare. Do not use it.
     each. No other weapon in the sample ever diverges. Melee: 0/56 failing. Over 201 arcane
     slots appear in the sample and none is implicated.
 
-39. Those four are not formula errors: in each, the oracle differs from *both* our data and
+39. **Acceltra is resolved, and the answer is that we are right.** Its oracle status chance is
+    `1 - (1 - 0.06)^1.9 = 0.1109157`, matching Overframe's 0.1109157 to eight decimals: they
+    report the probability of at least one proc **per shot** for that weapon. A sweep over 120
+    builds with multishot > 1 shows the oracle is per-projectile in 112 of them, so this is an
+    Overframe-side inconsistency for that weapon, not a definition we should adopt.
+
+40. **Phantasma Prime: the two data sources disagree on the base.** WFCD says multishot 6, and
+    Overframe's own raw mirror says the beam behaviour has `fireIterations: 5`. Their oracle
+    (11.5) matches neither 6 x 2.1 nor 5 x 2.1, so something else is in play too. Ocucor's
+    oracle is exactly +1.0 over ours while its raw mirror agrees with WFCD. Both need the
+    in-game arsenal to arbitrate.
+
+41. Those four are not formula errors: in each, the oracle differs from *both* our data and
     Overframe's own raw mirror by a suspiciously round amount (Ocucor is exactly +1.0
     multishot), which smells like a per-weapon special mechanic rather than a mapping bug.
     They are left unreconciled on purpose: forcing an override would hide the cause.
