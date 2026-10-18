@@ -39,6 +39,7 @@ const rarityColor = (rarity) => RARITY_COLORS[String(rarity ?? '').toLowerCase()
 const emptyState = () => ({
   weapon: '',
   mods: [], // [{ name, rank }]
+  slotPolarities: [], // per-slot forma polarity override, null = weapon's own
   arcanes: [],
   buffs: [],
   frame: '',
@@ -155,9 +156,21 @@ function showTab(name) {
 
 /** Which polarity a slot accepts: the weapon's own, or the exilus polarity for slot 9. */
 function slotPolarity(index) {
+  const forma = state.slotPolarities?.[index];
+  if (forma) return forma;
   const weapon = weaponData.get(state.weapon);
   if (!weapon) return null;
   return index >= MAX_SLOTS ? weapon.exilusPolarity : (weapon.polarities?.[index] ?? null);
+}
+
+/** Forma polarities cycle in the order the game offers them. */
+const FORMA_ORDER = [null, 'madurai', 'vazarin', 'naramon', 'zenurik', 'unairu'];
+function cycleForma(index) {
+  state.slotPolarities = state.slotPolarities ?? [];
+  const current = state.slotPolarities[index] ?? null;
+  const next = FORMA_ORDER[(FORMA_ORDER.indexOf(current) + 1) % FORMA_ORDER.length];
+  state.slotPolarities[index] = next;
+  renderSlots();
 }
 
 /**
@@ -201,7 +214,8 @@ function renderSlots() {
     // Card layout: a small toolbar (rank + remove) above the name, then the mod's own text.
     row.innerHTML = `
       <div class="slot-top">
-        <span class="polarity" style="color:${polarityColor(slotPolarityName)}">${glyph(slotPolarityName)}</span>
+        <button class="polarity forma${state.slotPolarities?.[index] ? ' applied' : ''}" title="forma: cycle polarity"
+                data-forma="${index}" style="color:${polarityColor(slotPolarityName)}">${glyph(slotPolarityName) || '·'}</button>
         <span class="rank-value">${mod.name ? `R${mod.rank ?? maxRank}` : ''}</span>
         <span class="drain${matches ? ' halved' : ''}">${mod.name && info ? `${matches ? Math.ceil(((info.baseDrain ?? 0) + (mod.rank ?? maxRank)) / 2) : (info.baseDrain ?? 0) + (mod.rank ?? maxRank)}` : ''}</span>
         <span class="mod-share">${mod.name && share ? `+${(share * 100).toFixed(0)}%` : ''}</span>
@@ -259,11 +273,13 @@ function renderSlots() {
   }
   $('mod-count').textContent = state.mods.filter((mod) => mod.name).length;
   const capacity = capacityInfo();
+  const formas = (state.slotPolarities ?? []).filter(Boolean).length;
   const over = capacity.used > capacity.total;
   $('capacity').innerHTML = `<div class="cap-bar${over ? ' over' : ''}">
       <i style="width:${Math.min(100, (capacity.used / capacity.total) * 100).toFixed(0)}%"></i>
     </div>
-    <span class="cap-text${over ? ' over' : ''}">${capacity.used} / ${capacity.total}</span>`;
+    <span class="cap-text${over ? ' over' : ''}">${capacity.used} / ${capacity.total}</span>
+    ${formas ? `<span class="badge" title="forma applied">${formas}F</span>` : ''}`;
   // Dropping a dragged slot outside any card removes it.
   container.ondragover = (event) => {
     if (dragFrom?.kind === 'slot') event.preventDefault();
@@ -280,6 +296,14 @@ function renderSlots() {
   renderLibrary();
 
   // The name is a label (so it can wrap) that becomes the input while editing.
+  // Forma buttons must not start a drag.
+  container.querySelectorAll('[data-forma]').forEach((button) => {
+    button.addEventListener('mousedown', (event) => event.stopPropagation());
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      cycleForma(Number(button.dataset.forma));
+    });
+  });
   container.querySelectorAll('.mod-name').forEach((label) => {
     const edit = () => {
       const index = Number(label.dataset.index);
@@ -362,6 +386,8 @@ function renderLibrary() {
   const JUNK = /^(Ancient Fusion Core|Flawed )/i;
   const list = allMods
     .filter((mod) => !JUNK.test(mod.name))
+    // Conclave mods are PvP-only; they never fit a PvE build.
+    .filter((mod) => !mod.conclave)
     .filter((mod) => !polarity || String(mod.polarity ?? '').toLowerCase() === polarity)
     .filter((mod) => !typeFilter || (mod.classes ?? []).some((name) => String(name).toLowerCase() === typeFilter))
     .filter((mod) => !rarityFilter || String(mod.rarity ?? '').toLowerCase() === rarityFilter)

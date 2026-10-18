@@ -210,6 +210,7 @@ const server = createServer(async (req, res) => {
           rarity: m.rarity,
           set: m.set,
           classes: m.classes,
+          conclave: m.conclave,
           image: imageNameOf(m.name),
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
