@@ -147,9 +147,23 @@ input[type="number"] { padding: 6px 8px; }
 .arcane-slot .field { margin: 0; }
 
 /* ── stats as a label/value list */
-.stat-list { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; row-gap: 0; font-size: 12.5px; }
-.stat-list .k { color: var(--muted); padding: 3px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent); text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stat-list .v { text-align: right; padding: 3px 0; white-space: nowrap; border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent); font-variant-numeric: tabular-nums; }
+/* Fixed proportions: one long value (the crit spread row) must not squeeze every label. */
+.stat-list { display: grid; grid-template-columns: minmax(0, 46%) minmax(0, 54%); column-gap: 10px; row-gap: 0; font-size: 12.5px; align-items: baseline; }
+.stat-list .k {
+  color: var(--muted); padding: 3px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  text-transform: uppercase; font-size: 9px; letter-spacing: 0.02em; line-height: 1.15;
+  /* one line, ellipsis as a safety net; the labels are short enough to fit */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Values are bold and blue-grey, the way the arsenal and Overframe print them: it is what
+   makes a dense stat list read as data instead of text. */
+.stat-list .v {
+  text-align: right; padding: 3px 0; white-space: nowrap;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  font-variant-numeric: tabular-nums;
+  font-size: 13.5px; font-weight: 700; color: #708cbe; line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis;
+}
 .stat-list .k.hl, .stat-list .v.hl { color: var(--accent); }
 .stat-list .section { grid-column: 1 / -1; padding-top: 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 
@@ -294,7 +308,7 @@ details > *:not(summary) { margin-top: 8px; }
 .library-panel .lib-name { font-size: 11.5px; line-height: 1.2; }
 
 /* stats rail reads like a sheet */
-.rail .stat-list { font-size: 11.5px; column-gap: 8px; }
+.rail .stat-list { font-size: 11.5px; column-gap: 12px; }
 .rail h3 { margin: 12px 0 5px; }
 .rail #target-report table.breakdown { font-size: 11px; }
 .rail .meta { gap: 4px; }

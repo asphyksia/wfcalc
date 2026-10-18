@@ -645,8 +645,8 @@ function renderResults(result) {
   // Stats as a dense label/value list, the way the arsenal and Overframe present them.
   const rows = [
     ['section', 'Weapon'],
-    ['Crit chance', pct(result.critChance)],
-    ['Crit damage', `×${fmt(result.critMultiplier, 2)}`],
+    ['Crit ch.', pct(result.critChance)],
+    ['Crit dmg', `×${fmt(result.critMultiplier, 2)}`],
     ['Fire rate', `${fmt(result.fireRate, 2)}/s`],
     ['Magazine', fmt(result.magazineSize)],
     ['Multishot', `×${fmt(result.multishot, 2)}`],
@@ -660,7 +660,7 @@ function renderResults(result) {
   rows.push(['section', 'Result']);
   rows.push(['Avg hit', fmt(result.averageShotDamage, 0)]);
   rows.push(['Burst dps', fmt(result.burstDps, 0)]);
-  rows.push(['Sustained', fmt(result.sustainedDps, 0)]);
+  rows.push(['Sust. dps', fmt(result.sustainedDps, 0)]);
   if (dot.length) rows.push(['Status dps', fmt(dotDps, 0)]);
   if (result.critVariance && result.critVariance.pellets >= 2) {
     rows.push(['Crit spread', `${result.critVariance.expectedCrits.toFixed(1)} of ${result.critVariance.pellets.toFixed(1)} · ${pct(result.critVariance.atLeastOneCrit)} land one`]);
