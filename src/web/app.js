@@ -53,16 +53,23 @@ function modCardMarkup(mod, options = {}) {
   const showShare = options.showShare ?? false;
   const share = options.share ?? 0;
   const stars = Math.min((mod.maxRank ?? 0) + 1, 11);
-  const statLines = (mod.description ?? '').split('\n').slice(1, 3).filter(Boolean);
+  const statLines = (mod.description ?? '').split('\n').filter(Boolean);
+  // Overframe colours the frame by rarity, with a distinct one for Galvanized mods.
+  const rarity = /galvan/i.test(mod.name)
+    ? 'galvanized'
+    : String(mod.rarity ?? 'common').toLowerCase();
   return `
-    <div class="mcard ${String(mod.rarity ?? '').toLowerCase()}" style="--rarity:${rarityColor(mod.rarity)}">
+    <div class="mcard ${rarity}" style="--rarity:${rarityColor(mod.rarity)}">
       ${headline(mod) ? `<span class="mcard-stat">${headline(mod)}</span>` : ''}
       ${showShare && share > 0.005 ? `<span class="mcard-share">+${(share * 100).toFixed(0)}%</span>` : ''}
       <span class="mcard-drain">${mod.baseDrain ?? 0}<i class="polarity" style="color:${polarityColor(mod.polarity)}">${glyph(mod.polarity)}</i></span>
       <figure class="mcard-image">
         ${mod.image ? `<img src="/img/${mod.image}" alt="" loading="lazy" draggable="false" onerror="this.style.display='none'" />` : ''}
       </figure>
-      <div class="mcard-text"><b>${mod.name}</b>${statLines.map((line) => `<span>${line}</span>`).join('')}</div>
+      <div class="mcard-text">
+        <b>${mod.name}</b>
+        ${statLines.slice(1).map((line) => `<span>${line}</span>`).join('')}
+      </div>
       <div class="mcard-compat">${(mod.classes ?? [])[0] ?? ''}</div>
       <div class="mcard-stars">${'★'.repeat(stars)}</div>
       ${equipped ? '<span class="mcard-badge">equipped</span>' : ''}
@@ -464,7 +471,6 @@ function renderSlots() {
       }
     });
   });
-  bindPreview(container);
   container.querySelectorAll('.rank').forEach((input) => {
     input.addEventListener('input', (event) => {
       const index = Number(event.target.dataset.index);
@@ -538,7 +544,6 @@ function renderLibrary() {
     )
     .join('') || '<p class="hint">No mod matches that search.</p>';
 
-  bindPreview($('mod-list'));
   for (const card of $('mod-list').querySelectorAll('.lib-card')) {
     const name = card.dataset.mod;
     card.addEventListener('dragstart', (event) => {

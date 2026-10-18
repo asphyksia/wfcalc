@@ -405,50 +405,105 @@ details > *:not(summary) { margin-top: 8px; }
 .board { align-self: start; }
 .rail .bars { margin-top: 4px; }
 
-/* ── mod card, Overframe-style: artwork + CSS frame ──────────────────── */
+/* ── mod card: Overframe's proportions ───────────────────────────────────
+   18.4rem x 9rem compact, with rarity frame art hanging above and below, expanding to
+   26rem on hover to reveal the full text. This is why theirs always reads complete. */
 .mcard {
-  position: relative; display: flex; flex-direction: column; gap: 2px;
-  border-radius: 7px; padding: 4px 5px 3px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--rarity) 16%, #1d222c), #12151c 62%);
-  border: 1px solid color-mix(in srgb, var(--rarity) 55%, var(--border));
-  box-shadow: inset 0 0 14px -6px var(--rarity), 0 1px 3px rgba(0,0,0,.5);
-  text-align: left; width: 100%;
+  position: relative; width: 184px; height: 90px; margin: 10px 0 16px;
+  display: flex; flex-direction: column; justify-content: center;
+  transition: height .12s ease, transform .12s ease;
+  pointer-events: auto;
 }
-.mcard-image { margin: 0; border-radius: 4px; overflow: hidden; background: #0a0c10; aspect-ratio: 1.55; }
-.mcard-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.mcard-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.mcard-text b { font-size: 11.5px; font-weight: 600; line-height: 1.15; }
-.mcard-text span { font-size: 9.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcard::before, .mcard::after {
+  content: ''; position: absolute; left: 0; width: 184px; z-index: 3; display: block;
+  background-repeat: no-repeat; background-size: 184px auto; pointer-events: none;
+}
+.mcard::before { top: -10px; height: 50px; background-position: top; }
+.mcard::after { bottom: 0; height: 80px; background-position: bottom; }
+
+/* rarity: frame art, body background and text colour, as Overframe does it */
+.mcard.common::before { background-image: url('/frame/BronzeFrameTop.png'); }
+.mcard.common::after { background-image: url('/frame/BronzeFrameBottom.png'); }
+.mcard.common .mcard-text { color: #c79989; }
+.mcard.uncommon::before { background-image: url('/frame/SilverFrameTop.png'); }
+.mcard.uncommon::after { background-image: url('/frame/SilverFrameBottom.png'); }
+.mcard.uncommon .mcard-text { color: #bec0c2; }
+.mcard.rare::before { background-image: url('/frame/GoldFrameTop.png'); }
+.mcard.rare::after { background-image: url('/frame/GoldFrameBottom.png'); }
+.mcard.rare .mcard-text { color: #fbecc4; }
+.mcard.legendary::before { background-image: url('/frame/LegendaryFrameTop.png'); }
+.mcard.legendary::after { background-image: url('/frame/LegendaryFrameBottom.png'); }
+.mcard.legendary .mcard-text { color: #dfdfdf; }
+.mcard.galvanized::before { background-image: url('/frame/GalvanizedFrameTop.png'); z-index: 4; }
+.mcard.galvanized::after { background-image: url('/frame/GalvanizedFrameBottom.png'); }
+.mcard.galvanized .mcard-text { color: #dfdfdf; }
+
+/* the artwork, dark until you look at it */
+.mcard-image { margin: 0; overflow: hidden; position: relative; height: 100%; }
+.mcard-image img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  filter: grayscale(.8) brightness(.45);
+  transition: filter .12s ease;
+}
+.mcard-image::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(transparent 0, color-mix(in srgb, var(--rarity) 26%, transparent) 70%);
+  opacity: .8;
+}
+
+/* badges */
 .mcard-stat {
-  position: absolute; top: 6px; left: 6px; z-index: 2;
-  font-size: 9.5px; font-weight: 700; padding: 1px 4px; border-radius: 4px;
-  background: rgba(8,10,14,.82); color: var(--ok);
+  position: absolute; top: 8px; left: 10px; z-index: 5;
+  font-size: 11.5px; font-weight: 700; padding: 1px 7px; border-radius: 8px;
+  background: rgba(0,0,0,.6); color: #68ce5f; border: 1px solid #68ce5f;
   font-variant-numeric: tabular-nums;
 }
 .mcard-share {
-  position: absolute; top: 6px; left: 50%; transform: translateX(-50%); z-index: 2;
-  font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
-  background: rgba(8,10,14,.82); color: var(--accent);
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 5;
+  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px;
+  background: rgba(0,0,0,.6); color: var(--accent);
 }
 .mcard-drain {
-  position: absolute; top: 5px; right: 5px; z-index: 2;
-  font-size: 9.5px; font-weight: 700; padding: 1px 4px; border-radius: 4px;
-  background: rgba(8,10,14,.82); display: flex; align-items: center; gap: 2px;
-  font-variant-numeric: tabular-nums;
+  position: absolute; top: 8px; right: 6px; z-index: 5;
+  font-size: 11.5px; font-weight: 700; padding: 1px 6px; border-radius: 8px;
+  background: rgba(0,0,0,.6); display: flex; align-items: center; gap: 2px;
 }
-.mcard-drain .polarity { font-size: 9px; }
-.mcard-compat {
-  font-size: 8.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
-  border-top: 1px solid color-mix(in srgb, var(--rarity) 25%, transparent);
-  padding-top: 2px; text-align: center;
-}
-.mcard-stars { font-size: 7px; letter-spacing: 1px; color: var(--rarity); text-align: center; line-height: 1; }
-.mcard-badge { position: absolute; inset: auto 0 0 0; font-size: 8px; text-align: center; color: var(--accent); }
+.mcard-drain .polarity { font-size: 10px; }
 
-/* the slot wrapper no longer needs its own frame around a card */
-.slot.filled { padding: 4px; background: none; border-color: transparent; box-shadow: none; }
-.slot.filled::after { content: none; }
+/* text: only the name shows while compact */
+.mcard-text {
+  position: relative; z-index: 4; text-align: center; line-height: 1.1;
+  padding: 0 6px; text-shadow: #000 1px 1px 0;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.mcard-text b { font-size: 12px; font-weight: 600; }
+.mcard-text span { display: none; font-size: 9.5px; color: #b9c0cc; }
+.mcard-compat, .mcard-stars { opacity: 0; transition: opacity .12s ease; }
+.mcard-compat {
+  position: absolute; bottom: 12px; left: 0; width: 100%; z-index: 5; text-align: center;
+  font-size: 8.5px; text-transform: uppercase; letter-spacing: .08em; color: #cfd6e2;
+}
+.mcard-stars { position: absolute; bottom: 4px; left: 0; width: 100%; z-index: 5; text-align: center; font-size: 6px; letter-spacing: 1px; color: #a6e6ff; }
+.mcard-badge { position: absolute; bottom: -14px; left: 0; width: 100%; text-align: center; font-size: 8px; color: var(--accent); }
+
+/* hover: grow and reveal everything, exactly like theirs */
+.mcard:hover {
+  height: 260px; transform: scale(1.06); z-index: 50;
+}
+.mcard:hover .mcard-image { height: 46%; }
+.mcard:hover .mcard-image img { filter: none; }
+.mcard:hover .mcard-text span { display: block; }
+.mcard:hover .mcard-compat, .mcard:hover .mcard-stars { opacity: 1; }
+
+/* the slot keeps the card centred; the toolbar stays on top of it */
+.slot { align-items: center; justify-content: center; padding: 0; min-height: 108px; overflow: visible; }
+.slot.filled { border-color: transparent; background: none; box-shadow: none; }
 .slot .mcard { cursor: grab; }
-.lib-card { padding: 0; background: none; border: 0; }
-.lib-card .mcard { cursor: grab; }
+.slot-top { position: absolute; top: -6px; left: 0; right: 0; z-index: 6; padding: 0 4px; }
+.slot .mod-name.sr-only { display: none; }
+.lib-card { padding: 0; background: none; border: 0; display: flex; justify-content: center; overflow: hidden; }
+.lib-card .mcard {
+  pointer-events: auto; transform: scale(.82); transform-origin: center; margin: 4px 0 10px;
+}
+.lib-card .mcard:hover { transform: scale(.9); }
+.lib-card.equipped { opacity: .5; }
