@@ -55,3 +55,20 @@ lower-level target. Predicted ratios against a Bombard with pure Radiation:
 | 20 | 932 | 0.74 | 0.82 | 1.29 |
 | 40 | 2022 | 0.61 | 0.39 | 1.07 |
 | 60 | 2700 | 0.55 | 0.17 | 0.96 |
+
+## Damage is truncated per damage type (verified 2026-10)
+
+Unmodded **Soma Prime** against a **Drekar Elite Lancer, level 27** (Alloy Armor 499):
+**8 damage normal, 23 on a yellow crit**.
+
+Our per-type values at that level are 1.00 impact / 3.09 puncture / 4.60 slash. Truncating each
+type gives **1 + 3 + 4 = 8**, exactly what the game shows — so the displayed number is the sum
+of per-type integers, not a rounded total.
+
+The crit is less clean: truncating per type after `x3` gives 25, truncating the total gives 24,
+and the game shows 23. A 4-8% gap that the `1/32` damage quantization described on the wiki
+could account for; it is not a model-level error.
+
+**This does not discriminate the three armour models**: at level 27 they differ by only 5%
+(8.68 / 8.98 / 9.15 before truncation) and all three truncate to 8. To separate them the target
+must have far more armour relative to its health — level 60+ or a Steel Path mission.

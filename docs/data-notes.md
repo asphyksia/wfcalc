@@ -212,6 +212,10 @@ Cloudflare. Do not use it.
     evidence and skipped by calibrate/audit. It also surfaced a real bug: fire modes inherited
     the weapon's multishot, so Phantasma's alt-fire had 6 projectiles instead of 1.
 
+43. **The game truncates damage per damage type before summing.** Unmodded Soma Prime vs a
+    level 27 Drekar Elite Lancer: our per-type 1.00 / 3.09 / 4.60 truncate to 1+3+4 = 8,
+    matching the game exactly, where rounding the total would have shown 9.
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully
