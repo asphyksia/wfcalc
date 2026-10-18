@@ -128,3 +128,31 @@ Two loose ends, stated plainly:
 
 Conclusion: keep `armor-scaling` as the default (it is the best-supported reading, and the only
 one that is never contradicted by more than one number), with the caveat above recorded.
+
+## RESOLVED: the armour model, by exact match
+
+**Soma Prime + Serration + Stormbringer vs a level 102 Bombard: 5 damage normal, 19 on a
+yellow (x3) crit.**
+
+Our per-type values before the display truncates are **1.00 impact / 2.17 puncture / 1.99 slash
+/ 1.97 electricity**, and the game's numbers are reproduced exactly:
+
+```
+normal = Σ floor(raw_i)      = 1 + 2 + 1 + 1 = 5    ✅ game shows 5
+crit   = Σ floor(raw_i x 3)  = 3 + 6 + 5 + 5 = 19   ✅ game shows 19
+```
+
+That single observation confirms four separate things at once:
+
+1. **The armour model**: "modifier scales the armour value" (electricity's -50% vs Alloy Armor
+   lowers the armour, which is why it survives at 1.97 and not 1.43). The alternatives predict
+   4 and 5 for the normal hit and 17 and 19 for the crit — "multiply" is out.
+2. **Per-type truncation, applied after the crit multiplier.**
+3. **The crit multiplier applies per damage type**, not to the summed total.
+4. **The damage pipeline**: Serration x2.65 and Stormbringer's +90% of base damage.
+
+Encoded as `tests/ingame.test.ts` against the real snapshot, so a data drift that breaks any of
+these fails loudly.
+
+The earlier reading of 7 for the same situation was the untruncated sum (7.13) — the game never
+showed that; it is what our engine reports internally before truncation.

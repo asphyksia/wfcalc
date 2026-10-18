@@ -123,7 +123,10 @@ shield hit = damage × (1 + shield_type_modifier)      (armor does not apply)
 
 ### Open question: how does an armour modifier interact with armour?
 
-**Status: four in-game observations now favour the default reading.** "Modifier merely
+**Status: RESOLVED in game.** A level 102 Bombard hit with Soma Prime + Serration +
+Stormbringer shows 5 damage (19 on a crit), which our per-type values reproduce exactly
+(`Σ floor(raw_i) = 5`, `Σ floor(raw_i × 3) = 19`). The default reading is confirmed and
+`tests/ingame.test.ts` pins it. Historical note: "Modifier merely
 multiplies damage" is eliminated (it predicts 3 where the game shows 4, and 6 where it shows
 7). The default fits rows 1, 2 and 4 exactly and row 3 once the display truncates per damage
 type. See [verified-in-game.md](verified-in-game.md) for the table and the two loose ends.
