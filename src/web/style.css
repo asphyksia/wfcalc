@@ -546,6 +546,18 @@ details > *:not(summary) { margin-top: 8px; }
 .mcard:hover { height: calc(var(--card-h) * 2.4); transform: scale(1.04); z-index: 50; }
 .mcard:hover .mcard-image { bottom: 34%; }
 .mcard:hover .mcard-image img { filter: none; }
+/* The rank slider's thumb overhangs its track by a few pixels; without this the last line of
+   a long description sits under it (measured: text bottom 694px, track top 694px). */
+/* The bottom frame plate is 72px tall, so the text has to clear it: measured band top was
+   432px with the text ending at 490px, i.e. the name was sitting inside the metal. */
+.mcard:hover .mcard-text {
+  bottom: 78px; padding: 8px 6px 6px; border-radius: 4px;
+  /* the text sits over the artwork; this keeps it readable on a bright image */
+  background: linear-gradient(transparent, rgba(0,0,0,.55) 18%, rgba(0,0,0,.72));
+}
+/* The frame art is 62% of the card height, so growing the card turned it into a band that
+   covered the name. Pin it to its compact height while the card is expanded. */
+.mcard:hover::before, .mcard:hover::after { height: 72px; }
 .mcard:hover .mcard-text span { display: block; }
 .mcard:hover .mcard-compat, .mcard:hover .mcard-stars { opacity: 1; }
 
