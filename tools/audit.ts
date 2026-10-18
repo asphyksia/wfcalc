@@ -22,6 +22,7 @@ import {
   findWeaponName,
   getBuild,
   listBuilds,
+  loadOracleExceptions,
   loadOverframeDb,
   nonApplicableFields,
   oracleOf,
@@ -39,6 +40,7 @@ const flag = (name: string, fallback: number): number => {
 const sample = flag('sample', 300);
 
 const db = loadOverframeDb();
+const exceptions = loadOracleExceptions();
 const snapshot = loadSnapshot();
 
 const FIELD_LABEL: Record<string, string> = {
@@ -83,7 +85,10 @@ function bestMatch(input: NonNullable<ReturnType<typeof resolveBuildInput>>, ora
     } catch {
       continue;
     }
-    const diffs = diffOracle(oracle, resolved).filter((diff) => !nonApplicableFields(resolved).has(diff.field));
+    const diffs = diffOracle(oracle, resolved)
+      .filter((diff) => !nonApplicableFields(resolved).has(diff.field))
+      // Skip fields where the oracle is wrong and our data is verified in game.
+      .filter((diff) => !exceptions[input.weapon]?.[diff.field]);
     if (!best || diffs.length < best.diffs.length) best = { resolved, diffs };
     if (best.diffs.length === 0) break;
   }
@@ -143,6 +148,11 @@ async function main(): Promise<void> {
     });
   }
 
+  const skippedFields = evaluated.reduce(
+    (sum, entry) => sum + Object.keys(exceptions[entry.weapon] ?? {}).length,
+    0,
+  );
+  if (skippedFields) console.log(`note: ${skippedFields} field comparison(s) skipped — verified oracle errors, see data/oracle-exceptions.json\n`);
   const ok = evaluated.filter((entry) => entry.ok);
   const bad = evaluated.filter((entry) => !entry.ok);
   console.log(`${evaluated.length} builds evaluated: ${ok.length} match, ${bad.length} mismatch (${unresolvable} unresolvable)\n`);

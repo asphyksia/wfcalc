@@ -19,6 +19,7 @@ import {
   nonApplicableFields,
   getBuild,
   listBuilds,
+  loadOracleExceptions,
   loadOverframeDb,
   oracleOf,
   resolveBuildInput,
@@ -37,6 +38,7 @@ const flag = (name: string): string | undefined => {
 const verbose = args.includes('--verbose');
 
 const db = loadOverframeDb();
+const exceptions = loadOracleExceptions();
 const snapshot = loadSnapshot();
 
 const FIELD_LABEL: Record<string, string> = {
@@ -92,7 +94,10 @@ function pickMode(input: NonNullable<ReturnType<typeof resolveBuildInput>>, orac
     } catch {
       continue;
     }
-    const diffs = diffOracle(oracle, resolved).filter((diff) => !nonApplicableFields(resolved).has(diff.field));
+    const diffs = diffOracle(oracle, resolved)
+      .filter((diff) => !nonApplicableFields(resolved).has(diff.field))
+      // Skip fields where the oracle is wrong and our data is verified in game.
+      .filter((diff) => !exceptions[input.weapon]?.[diff.field]);
     if (!best || diffs.length < best.diffs.length) best = { mode, resolved, diffs };
     if (best.diffs.length === 0) break;
   }

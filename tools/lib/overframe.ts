@@ -219,4 +219,23 @@ export function diffOracle(oracle: Oracle, resolved: ReturnType<typeof import('.
   return out;
 }
 
+/**
+ * Fields where Overframe's oracle is demonstrably wrong and our data is verified in game.
+ * Kept in data/oracle-exceptions.json with the evidence, so a green calibration run means
+ * something instead of being gamed by silent overrides.
+ */
+export interface OracleException {
+  ours: number;
+  oracle: number;
+  evidence: string;
+}
+
+export function loadOracleExceptions(): Record<string, Record<string, OracleException>> {
+  const file = join(ROOT, 'data/oracle-exceptions.json');
+  if (!existsSync(file)) return {};
+  const raw = JSON.parse(readFileSync(file, 'utf8'));
+  delete raw._comment;
+  return raw;
+}
+
 export const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));

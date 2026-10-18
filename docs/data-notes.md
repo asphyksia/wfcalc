@@ -206,6 +206,12 @@ Cloudflare. Do not use it.
 40. **Overframe build pages do not contain rivens** (0 riven slots in 250 builds), so riven
     support cannot be validated this way and rests on the unit tests against the wiki table.
 
+42. **In-game verification (docs/verified-in-game.md)** settled the last ambiguities: Ocucor and
+    Phantasma Prime match the arsenal exactly on multishot, crit and status, so the oracle — not
+    our data — was wrong. Their fields are listed in `data/oracle-exceptions.json` with the
+    evidence and skipped by calibrate/audit. It also surfaced a real bug: fire modes inherited
+    the weapon's multishot, so Phantasma's alt-fire had 6 projectiles instead of 1.
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully

@@ -1,0 +1,29 @@
+{
+  "_comment": "Fields where the Overframe oracle is demonstrably wrong and our data is verified in game. Skipped by tools/calibrate.ts and tools/audit.ts so a green run means something. Each entry carries its evidence; do not add one without it.",
+  "Ocucor": {
+    "multishot": {
+      "ours": 1,
+      "oracle": 3.7,
+      "evidence": "In-game arsenal shows Multishot 1, Crit 16%, Status 24% — identical to our data. The oracle is exactly +1.0 over what its own mods can produce."
+    }
+  },
+  "Phantasma Prime": {
+    "multishot": {
+      "ours": 6,
+      "oracle": 11.5,
+      "evidence": "In-game arsenal: primary beam Multishot 6, Status 22.2%, Crit 11%; alt-fire Multishot 1 with 3% crit / 37% status on both the bomb and the radial. Our data matches all of it."
+    },
+    "statusChance": {
+      "ours": 0.222,
+      "oracle": 0.6606,
+      "evidence": "In-game status chance is 22.2% on the beam; Overframe reports the per-shot probability instead (see docs/data-notes.md)."
+    }
+  },
+  "Acceltra": {
+    "statusChance": {
+      "ours": 0.06,
+      "oracle": 0.1109,
+      "evidence": "The oracle equals 1-(1-0.06)^1.9, i.e. the chance of at least one proc per shot. A 120-build sweep shows the oracle is per-projectile in 112 of them, so this is an inconsistency on their side."
+    }
+  }
+}

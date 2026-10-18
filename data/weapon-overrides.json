@@ -16,5 +16,22 @@
     "note": "Export has no magazineSize and a 2s reloadTime; Overframe reports 10 rounds and a negligible reload.",
     "magazineSize": 10,
     "reloadTime": 0.01
+  },
+  "Phantasma Prime": {
+    "_note": "The beam fires 6 iterations; the alt-fire (plasma bomb + cluster bombs) fires a single projectile. Verified in game by the user: secondary multishot = 1.",
+    "modes": {
+      "Plasma Bomb Impact": {
+        "multishot": 1
+      },
+      "Plasma Bomb Explosion": {
+        "multishot": 1
+      },
+      "Cluster Bombs Impact": {
+        "multishot": 1
+      },
+      "Cluster Bombs Explosion": {
+        "multishot": 1
+      }
+    }
   }
 }

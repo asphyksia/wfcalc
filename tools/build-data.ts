@@ -303,11 +303,21 @@ function buildWeapons(): Record<string, WeaponData> {
       const override = overrides[name];
       if (override) {
         for (const [field, value] of Object.entries(override)) {
-          if (field === 'note') continue;
+          if (field === 'note' || field === 'modes') continue;
           if (typeof value === 'number' && field in stats) (stats as any)[field] = value;
         }
       }
       const modes = buildModes(weapon, stats);
+      // Per-mode corrections: fire modes can differ in stats the top-level block does not
+      // model (the Phantasma's beam has multishot 6 while its alt-fire fires 1 projectile).
+      const modeOverrides = (override?.modes ?? {}) as Record<string, Record<string, number>>;
+      for (const mode of modes) {
+        const patch = modeOverrides[mode.name];
+        if (!patch) continue;
+        for (const [field, value] of Object.entries(patch)) {
+          if (field in mode.stats) (mode.stats as any)[field] = value;
+        }
+      }
       out[name] = {
         id: name,
         name,
