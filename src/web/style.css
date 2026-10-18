@@ -511,6 +511,14 @@ details > *:not(summary) { margin-top: 8px; }
   font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px;
   background: rgba(0,0,0,.6); color: var(--accent);
 }
+/* Says up front which mods will be refused outside the Exilus slot, instead of letting the
+   drop fail. */
+.mcard-exilus {
+  position: absolute; top: 27px; left: 10px; z-index: 5;
+  font-size: 8.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 1px 5px; border-radius: 7px; color: #9fd7ff;
+  background: rgba(0,0,0,.62); border: 1px solid color-mix(in srgb, #44b7ff 55%, transparent);
+}
 .mcard-drain {
   position: absolute; top: 8px; right: 6px; z-index: 5;
   font-size: 11.5px; font-weight: 700; padding: 1px 6px; border-radius: 8px;

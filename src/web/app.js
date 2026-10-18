@@ -72,6 +72,7 @@ function modCardMarkup(mod, options = {}) {
       <span class="mcard-glow" aria-hidden="true"></span>
       ${headline(mod, rank) ? `<span class="mcard-stat" title="${(mod.levels?.[rank] ?? mod.description ?? '').replace(/"/g, '&quot;')}">${headline(mod, rank)}</span>` : ''}
       ${showShare && share > 0.005 ? `<span class="mcard-share">+${(share * 100).toFixed(0)}%</span>` : ''}
+      ${mod.isExilus ? '<span class="mcard-exilus" title="Exilus mod: only fits the Exilus slot">exilus</span>' : ''}
       <span class="mcard-drain">${drain}<i class="polarity" style="color:${polarityColor(mod.polarity)}">${glyph(mod.polarity)}</i></span>
       <figure class="mcard-image">
         ${mod.image ? `<img src="/img/${mod.image}" alt="" loading="lazy" draggable="false" onerror="this.style.display='none'" />` : ''}
