@@ -121,6 +121,30 @@ health hit = damage × (1 + health_type_modifier) × (1 − DR)
 shield hit = damage × (1 + shield_type_modifier)      (armor does not apply)
 ```
 
+### Open question: how does an armour modifier interact with armour?
+
+**This is the one modelling decision that has not been verified in game, and it is not a
+detail.** Against a level 150 Bombard (2700 armour) with a radiation build, the three
+readings give:
+
+| reading | shots to kill | relative |
+|---|---|---|
+| modifier scales the armour value (default) | 28.9 | 1.0x |
+| modifier multiplies damage, DR untouched | 113.2 | 3.9x slower |
+| modifier does both | 17.2 | 1.7x faster |
+
+The wiki says damage type modifiers are "independent of sources of damage reduction", which
+argues for the middle reading, while every open-source calculator does the third. We default
+to the first because it reproduces the community experience that radiation shreds Bombards,
+but that is reasoning, not evidence.
+
+`--armor-model armor-scaling|multiply|both` switches it at runtime, and
+`armorDamageReduction()` is the only function involved.
+
+**How to settle it with one screenshot**: take a radiation-modded weapon with a known
+per-shot damage against a level 150 Bombard and read the damage number on screen. The three
+models predict ratios of roughly 1 : 0.32 : 1.68, so a single hit discriminates them.
+
 ### Modelling decision: armour modifiers act on armour
 
 A vulnerability does two things at once: it increases damage **and** makes armour

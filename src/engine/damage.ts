@@ -11,7 +11,7 @@
  */
 import { DAMAGE_TYPES, type DamageType, type Snapshot } from '../types.ts';
 import type { ResolvedBuild } from './build.ts';
-import { armorDamageReduction, type ScaledEnemy } from './enemy.ts';
+import { armorDamageReduction, type ArmorModel, type ScaledEnemy } from './enemy.ts';
 import { computeDot, effectiveArmor, viralMultiplier, type DotContext, type DotEntry } from './dot.ts';
 
 export interface TypeBreakdown {
@@ -26,6 +26,11 @@ export interface TypeBreakdown {
   toShield: number;
   /** Share of this build's status procs that will be of this type. */
   procShare: number;
+}
+
+export interface HitOptions {
+  /** Which reading of the armour-type modifier to use (see enemy.ts). */
+  armorModel?: ArmorModel;
 }
 
 export interface EnemyHit {
@@ -56,7 +61,8 @@ export interface EnemyHit {
 const healthModifier = (snapshot: Snapshot, type: DamageType, healthType: string): number =>
   (snapshot.modifiers[type]?.[healthType] ?? 0) / 100;
 
-export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: ScaledEnemy): EnemyHit {
+export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: ScaledEnemy, options: HitOptions = {}): EnemyHit {
+  const armorModel = options.armorModel ?? 'armor-scaling';
   const warnings: string[] = [];
   const armor = scaled.pools.find((pool) => pool.category === 'armor');
   const shields = scaled.pools.filter((pool) => pool.category === 'shield');
@@ -76,7 +82,7 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
   const factionMultiplier = 1 + (build.factionBonus[factionKey] ?? 0) + (build.factionBonus.all ?? 0);
 
   // Status debuffs the player keeps up on the target.
-  const debuffs: DotContext = build.debuffs;
+  const debuffs: DotContext = { ...build.debuffs, armorModel };
   const viral = viralMultiplier(debuffs.viralStacks ?? 0);
   const armorAfterStatus = effectiveArmor(scaled.armor, debuffs);
 
@@ -90,9 +96,11 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
 
     const healthMod = healthModifier(snapshot, type, healthType);
     const armorMod = armor ? healthModifier(snapshot, type, armor.type) : 0;
-    const dr = armor ? armorDamageReduction(armorAfterStatus, armorMod) : 0;
+    const dr = armor ? armorDamageReduction(armorAfterStatus, armorMod, armorModel) : 0;
+    // 'both' applies the armour modifier to damage as well as to the armour value.
+    const armorModifierOnDamage = armorModel === 'both' ? 1 + armorMod : 1;
     // Viral amplifies all damage dealt to health, direct hits included.
-    const toHealth = raw * (1 + healthMod) * (1 - dr) * viral;
+    const toHealth = raw * (1 + healthMod) * (1 - dr) * viral * armorModifierOnDamage;
 
     const shieldMod = shieldType ? healthModifier(snapshot, type, shieldType) : 0;
     const bypassesShield = type === 'toxin' && scaled.enemy.toxinBypassesShields;

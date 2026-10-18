@@ -25,7 +25,7 @@
  */
 import { type DamageType, type Snapshot } from '../types.ts';
 import type { ResolvedBuild } from './build.ts';
-import { armorDamageReduction, type ScaledEnemy } from './enemy.ts';
+import { armorDamageReduction, type ArmorModel, type ScaledEnemy } from './enemy.ts';
 
 /** Damage types that produce a damage-over-time effect from weapon hits. */
 export const DOT_TYPES = ['slash', 'heat', 'toxin', 'electricity', 'gas', 'blast'] as const;
@@ -79,6 +79,8 @@ const healthModifier = (snapshot: Snapshot, type: DamageType, healthType: string
   (snapshot.modifiers[type]?.[healthType] ?? 0) / 100;
 
 export interface DotContext {
+  /** Armour-model reading, threaded from the hit calculation. */
+  armorModel?: ArmorModel;
   /** Viral stacks on the target: +100% damage to health at 1 stack, +25% each more. */
   viralStacks?: number;
   /** Corrosive stacks: 26% armour reduction, then 6% more each, capped at 80%. */

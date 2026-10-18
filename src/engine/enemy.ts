@@ -98,13 +98,28 @@ export function scaleEnemy(snapshot: Snapshot, enemy: EnemyData, level: number):
 }
 
 /**
+ * How an armour-type damage modifier interacts with armour. This is the one modelling
+ * decision in the project that has never been verified in game, and it matters a lot: at
+ * 2700 armour with a +75% vulnerability the three readings differ by more than 5x.
+ *
+ *  - 'armor-scaling' (default): the modifier scales the armour value, so a vulnerability
+ *    both raises damage and lowers DR.
+ *  - 'multiply': DR comes from the plain armour value and the modifier multiplies damage
+ *    on top ("independent of sources of damage reduction", per the wiki).
+ *  - 'both': the modifier scales the armour *and* multiplies damage, which is what the
+ *    reference open-source calculators do.
+ */
+export type ArmorModel = 'armor-scaling' | 'multiply' | 'both';
+
+/**
  * Damage reduction from armor, using the current enemy formula.
  * `modifier` is the armor-type damage modifier for the incoming damage type (fraction).
  * Vulnerability (+75% for Radiation vs Alloy Armor) reduces effective armor.
  */
-export function armorDamageReduction(armor: number, modifier = 0): number {
+export function armorDamageReduction(armor: number, modifier = 0, model: ArmorModel = 'armor-scaling'): number {
   if (armor <= 0) return 0;
-  const effective = Math.max(0, armor * (1 - modifier));
+  const scaledByModifier = model !== 'multiply';
+  const effective = scaledByModifier ? Math.max(0, armor * (1 - modifier)) : armor;
   if (effective <= 0) return 0;
   if (effective <= 2700) return Math.min(0.9, 0.9 * Math.sqrt(effective / 2700));
   return effective / (effective + 300);

@@ -175,7 +175,9 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
   const resolved = resolveBuild(snapshot, build);
   const { enemy, level } = resolveEnemy(snapshot, args);
   const scaled = scaleEnemy(snapshot, enemy, level);
-  const hit = hitEnemy(snapshot, resolved, scaled);
+  const hit = hitEnemy(snapshot, resolved, scaled, {
+    armorModel: (flag(args, 'armor-model') as never) ?? undefined,
+  });
 
   if (args.flags.has('json')) {
     console.log(
@@ -411,6 +413,7 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
          --element-bonus heat:60    (Kuva/Tenet elemental bonus)
          --covenant-damage 4000    (damage prevented for Harrow's Covenant)
          --viral 10  --corrosive 10  (status debuffs on the target)
+         --armor-model armor-scaling|multiply|both   (open question, see docs/formulas.md)
          --combo-hits 220  --heavy   (melee combo multiplier / heavy attack)
          --aoe-distance 4            (AoE falloff distance in metres)
          --enemy NAME  --level N  --faction NAME  --mode "Name"
