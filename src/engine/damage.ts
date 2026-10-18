@@ -97,8 +97,9 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
     const healthMod = healthModifier(snapshot, type, healthType);
     const armorMod = armor ? healthModifier(snapshot, type, armor.type) : 0;
     const dr = armor ? armorDamageReduction(armorAfterStatus, armorMod, armorModel) : 0;
-    // 'both' applies the armour modifier to damage as well as to the armour value.
-    const armorModifierOnDamage = armorModel === 'both' ? 1 + armorMod : 1;
+    // The armour modifier multiplies damage in the 'multiply' and 'both' readings; in the
+    // default reading it acts on the armour value instead (see armorDamageReduction).
+    const armorModifierOnDamage = armorModel === 'armor-scaling' ? 1 : 1 + armorMod;
     // Viral amplifies all damage dealt to health, direct hits included.
     const toHealth = raw * (1 + healthMod) * (1 - dr) * viral * armorModifierOnDamage;
 

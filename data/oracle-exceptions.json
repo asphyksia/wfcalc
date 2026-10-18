@@ -4,7 +4,7 @@
     "multishot": {
       "ours": 1,
       "oracle": 3.7,
-      "evidence": "In-game arsenal shows Multishot 1, Crit 16%, Status 24% — identical to our data. The oracle is exactly +1.0 over what its own mods can produce."
+      "evidence": "In-game arsenal shows Multishot 1, Crit 16%, Status 24% \u2014 identical to our data. The oracle is exactly +1.0 over what its own mods can produce."
     }
   },
   "Phantasma Prime": {
@@ -24,6 +24,13 @@
       "ours": 0.06,
       "oracle": 0.1109,
       "evidence": "The oracle equals 1-(1-0.06)^1.9, i.e. the chance of at least one proc per shot. A 120-build sweep shows the oracle is per-projectile in 112 of them, so this is an inconsistency on their side."
+    }
+  },
+  "Tenet Arca Plasmor": {
+    "fireRate": {
+      "ours": 1.0,
+      "oracle": 0.8,
+      "evidence": "Semi-Shotgun Cannonade's text is 'Fire Rate cannot be modified', so Critical Deceleration's -20% must not apply. The oracle applies the penalty for shotguns but blocks it for rifles (Latron Prime build 464476), contradicting itself on its own rule. Given two oracles errors already proven in game (Ocucor, Phantasma Prime) and Acceltra's per-shot artefact, our reading of the mod text is the better evidence."
     }
   }
 }
