@@ -238,6 +238,12 @@ export interface ArcaneData {
   rarity: string | null;
   maxRank: number;
   description: string;
+  /**
+   * The first stat of every rank, e.g. ["+10% Damage", "+20% Damage", ...]. Optional so older
+   * snapshots still load; when present the card shows the value at the equipped rank instead
+   * of the max-rank text.
+   */
+  levels?: string[];
   effects: Effect[];
   /** Where it goes: 'warframe', 'primary', 'secondary', 'melee', 'operator'... */
   slot: string | null;

@@ -36,9 +36,14 @@ const RARITY_COLORS = {
 };
 const rarityColor = (rarity) => RARITY_COLORS[String(rarity ?? '').toLowerCase()] ?? '#8d95a7';
 
-/** The headline stat of a mod, taken from the first line of its description. */
-function headline(mod) {
-  const line = (mod.description ?? '').split('\n')[0] ?? '';
+/**
+ * The headline stat of a mod at a given rank. `levels` holds one line per rank, so an R8
+ * Serration shows +135% and not the max-rank +165% the description carries.
+ */
+function headline(mod, rank) {
+  const levels = mod.levels ?? [];
+  const line = levels[rank ?? levels.length - 1] ?? (mod.description ?? '').split('\n')[0] ?? '';
+  // Keep the number and its sign, drop the rest of the phrase ("+165% Damage" -> "+165%").
   const match = /([+-]?\d+(?:[.,]\d+)?%?)/.exec(line);
   return match ? match[1] : '';
 }
@@ -53,6 +58,10 @@ function modCardMarkup(mod, options = {}) {
   const showShare = options.showShare ?? false;
   const share = options.share ?? 0;
   const stars = Math.min((mod.maxRank ?? 0) + 1, 11);
+  const rank = options.rank ?? mod.maxRank ?? 0;
+  // The slot passes the drain it really pays (halved on a polarity match); the library shows
+  // the max-rank cost with no slot to halve it.
+  const drain = options.drain ?? (mod.baseDrain ?? 0) + rank;
   const statLines = (mod.description ?? '').split('\n').filter(Boolean);
   // Overframe colours the frame by rarity, with a distinct one for Galvanized mods.
   const rarity = /galvan/i.test(mod.name)
@@ -60,9 +69,9 @@ function modCardMarkup(mod, options = {}) {
     : String(mod.rarity ?? 'common').toLowerCase();
   return `
     <div class="mcard ${rarity}" style="--rarity:${rarityColor(mod.rarity)}">
-      ${headline(mod) ? `<span class="mcard-stat">${headline(mod)}</span>` : ''}
+      ${headline(mod, rank) ? `<span class="mcard-stat" title="${(mod.levels?.[rank] ?? mod.description ?? '').replace(/"/g, '&quot;')}">${headline(mod, rank)}</span>` : ''}
       ${showShare && share > 0.005 ? `<span class="mcard-share">+${(share * 100).toFixed(0)}%</span>` : ''}
-      <span class="mcard-drain">${mod.baseDrain ?? 0}<i class="polarity" style="color:${polarityColor(mod.polarity)}">${glyph(mod.polarity)}</i></span>
+      <span class="mcard-drain">${drain}<i class="polarity" style="color:${polarityColor(mod.polarity)}">${glyph(mod.polarity)}</i></span>
       <figure class="mcard-image">
         ${mod.image ? `<img src="/img/${mod.image}" alt="" loading="lazy" draggable="false" onerror="this.style.display='none'" />` : ''}
       </figure>
@@ -333,18 +342,22 @@ function renderSlots() {
     const slotPolarityName = slotPolarity(index);
     const matches = Boolean(info?.polarity && slotPolarityName && info.polarity === slotPolarityName);
     const share = lastContributions.get(mod.name);
+    const rank = mod.rank ?? maxRank;
+    const realDrain = info
+      ? matches ? Math.ceil(((info.baseDrain ?? 0) + rank) / 2) : (info.baseDrain ?? 0) + rank
+      : 0;
     // Card layout: a small toolbar (rank + remove) above the name, then the mod's own text.
     row.innerHTML = `
       <div class="slot-top">
         <button class="polarity forma${state.slotPolarities?.[index] ? ' applied' : ''}" title="forma: cycle polarity"
                 data-forma="${index}" style="color:${polarityColor(slotPolarityName)}">${glyph(slotPolarityName) || '·'}</button>
         <span class="rank-value">${mod.name ? `R${mod.rank ?? maxRank}` : ''}</span>
-        <span class="drain${matches ? ' halved' : ''}">${mod.name && info ? `${matches ? Math.ceil(((info.baseDrain ?? 0) + (mod.rank ?? maxRank)) / 2) : (info.baseDrain ?? 0) + (mod.rank ?? maxRank)}` : ''}</span>
+        <span class="drain${matches ? ' halved' : ''}">${mod.name && info ? realDrain : ''}</span>
         <span class="mod-share">${mod.name && share ? `+${(share * 100).toFixed(0)}%` : ''}</span>
         <button class="remove" data-index="${index}" title="remove">×</button>
       </div>
       ${info
-        ? modCardMarkup(info, { showShare: true, share: share ?? 0 })
+        ? modCardMarkup(info, { showShare: true, share: share ?? 0, rank, drain: realDrain })
         : `<div class="slot-glyph" style="color:${polarityColor(slotPolarityName)}">${glyph(slotPolarityName) || '·'}</div>`}
       <div class="mod-name${mod.name ? ' sr-only' : ''}" data-index="${index}" tabindex="0" role="button"
            aria-label="edit mod">${mod.name ? mod.name.replace(/</g, '&lt;') : `<span class="placeholder">${exilus ? 'exilus slot' : 'empty slot'}</span>`}</div>

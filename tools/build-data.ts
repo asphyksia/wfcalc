@@ -88,6 +88,19 @@ function indexWfcdMods(): Map<string, Loose> {
   return index;
 }
 
+/**
+ * The headline stat of one rank, e.g. "+165% Damage". Strips the colour tags the game data
+ * embeds ("+165% <DT_FREEZE_COLOR>Cold") and picks the first line that carries a number: for
+ * conditional mods the first line is a label ("On Weak Point Hit:") and the value comes after.
+ */
+function cleanRankLines(lines: string[]): string {
+  const split = lines
+    .flatMap((line) => line.split(/\n|\\n/))
+    .map((line) => line.replace(/<[^>]*>/g, '').trim())
+    .filter(Boolean);
+  return split.find((line) => /[+-]?\d/.test(line)) ?? split[0] ?? '';
+}
+
 function buildMods(unmatchedReport: string[]): Record<string, ModData> {
   const module = readLua('module-mods.lua');
   const setOf = new Map<string, string>();
@@ -135,6 +148,7 @@ function buildMods(unmatchedReport: string[]): Record<string, ModData> {
       baseDrain: Number(entry.BaseDrain ?? 0),
       maxRank: Number(entry.MaxRank ?? 0),
       description: String(entry.Description ?? '').replace(/\r\n?/g, '\n').trim(),
+      levels: ranks.map((rank) => cleanRankLines(rank.length ? rank : [String(entry.Description ?? '')])),
       effects: parsed.effects,
       cardImage: typeof entry.Image === 'string' ? entry.Image : null,
       partial,

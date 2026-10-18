@@ -229,6 +229,7 @@ const server = createServer(async (req, res) => {
           maxRank: m.maxRank,
           polarity: m.polarity,
           description: m.description,
+          levels: m.levels,
           partial: m.partial,
           baseDrain: m.baseDrain,
           rarity: m.rarity,
