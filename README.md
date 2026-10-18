@@ -72,6 +72,60 @@ Interactive UI: `wfcalc serve` → <http://127.0.0.1:7777>.
 | `--headshot` | Every hit is a weak-point hit |
 | `--json` | Machine-readable output |
 
+## Keeping the data fresh
+
+`npm run sync` is built to run weekly and to be cheap when nothing changed:
+
+```sh
+npm run sync-check   # report whether any upstream moved (touches nothing)
+npm run sync         # fetch, rebuild, run invariants + coverage, sample the calibration
+```
+
+Change detection is per source: the WFCD export is checked through the GitHub API (last
+commit on `data/json`), and every wiki page through `If-Modified-Since`, which the wiki
+answers with a 304. A run where nothing moved downloads only page headers and does not
+rebuild. Each run appends to [docs/sync-log.md](docs/sync-log.md) with what changed and how
+the calibration moved, so a regression is traceable to a week.
+
+Weekly timer:
+
+```ini
+# ~/.config/systemd/user/wfcalc-sync.service
+[Service]
+Type=oneshot
+WorkingDirectory=%h/work/wfcalc
+ExecStart=/usr/bin/node tools/sync.ts
+```
+```ini
+# ~/.config/systemd/user/wfcalc-sync.timer
+[Timer]
+OnCalendar=weekly
+Persistent=true
+[Install]
+WantedBy=timers.target
+```
+
+Or, with cron: `17 4 * * 1 cd ~/work/wfcalc && npm run sync >> sync.log 2>&1`.
+
+### Why not sync straight from Overframe's database chunks?
+
+Because they are a *mirror of the same game export*, keyed by the same Lotus paths, and
+their value here is different: they are the **oracle**. Overframe renders the live game, so
+when our export and Overframe disagree (Acceltra's status chance, Fulmin's magazine) the
+export is the stale one. So:
+
+| Source | Role |
+|---|---|
+| WFCD `warframe-items` | primary data — structured, git-versioned, diffable |
+| WARFRAME Wiki raw modules | primary data — mod list, formulas, sets, abilities |
+| Overframe `api/v1` + `static/_next/.../db/*` | **verifier** — calibration and drift detection |
+
+Using Overframe as the primary source would mean adopting a webpack chunk with their own
+schema as the foundation, and losing the per-commit diffability of a git repository. Making
+it the verifier gets the accuracy benefit — `tools/calibrate.ts` and the drift check below —
+without the coupling. The learned id map (`data/raw/overframe-db.json`) is rebuilt on every
+sync, so an Overframe redeploy never breaks it.
+
 ## Data
 
 Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):

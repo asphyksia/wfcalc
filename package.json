@@ -20,7 +20,9 @@
     "validate": "node tools/validate.ts",
     "overframe": "node tools/overframe.ts",
     "calibrate": "node tools/calibrate.ts",
-    "overframe-db": "node tools/fetch-overframe-db.ts"
+    "overframe-db": "node tools/fetch-overframe-db.ts",
+    "sync": "node tools/sync.ts",
+    "sync-check": "node tools/sync.ts --check"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

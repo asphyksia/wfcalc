@@ -291,6 +291,17 @@ export interface IncarnonOption {
   text: string[];
 }
 
+/** Set Mod bonus: either scales the set's own mods, or is an effect per pieces equipped. */
+export interface SetBonus {
+  set: string;
+  kind: 'amplify' | 'table';
+  /** amplify: pieces equipped -> mod name (or "*") -> percentage bonus. */
+  amplify?: Record<string, Record<string, number>>;
+  /** table: pieces equipped -> value (fraction). */
+  table?: Record<string, number>;
+  description: string;
+}
+
 export interface Snapshot {
   version: number;
   generatedAt: string;
@@ -309,6 +320,8 @@ export interface Snapshot {
   rivenStats: Record<string, Record<string, number>>;
   /** Incarnon evolution trees by weapon name. */
   incarnons: Record<string, IncarnonOption[]>;
+  /** Set Mod bonuses, keyed by set name. */
+  setBonuses: Record<string, SetBonus>;
   enemies: Record<string, EnemyData>;
   /** damage type -> health type -> percentage points */
   modifiers: ModifierTable;

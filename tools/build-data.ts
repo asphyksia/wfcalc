@@ -90,14 +90,13 @@ function indexWfcdMods(): Map<string, Loose> {
 
 function buildMods(unmatchedReport: string[]): Record<string, ModData> {
   const module = readLua('module-mods.lua');
+  const setOf = new Map<string, string>();
   const wfcd = indexWfcdMods();
   const out: Record<string, ModData> = {};
 
-  // Set membership: Sets = { "Set Name" = { "Mod A", "Mod B" } } or { Mods = {...} }.
-  const setOf = new Map<string, string>();
-  for (const [setName, members] of Object.entries<Loose>(module.Sets ?? {})) {
-    const list = Array.isArray(members) ? members : luaArray(members.Mods ?? members);
-    for (const member of list) if (typeof member === 'string') setOf.set(member, setName);
+  // Set membership comes from each mod's own `Set` field; module.Sets holds the set cards.
+  for (const [modName, entry] of Object.entries<Loose>(module.Mods ?? {})) {
+    if (typeof entry.Set === 'string' && entry.Set) setOf.set(modName, entry.Set);
   }
 
   let partialCount = 0;
@@ -571,6 +570,20 @@ function buildIncarnons(weapons: Record<string, WeaponData>): Record<string, any
   return raw;
 }
 
+// --------------------------------------------------------------------- sets
+
+function buildSetBonuses(): Record<string, any> {
+  let raw: Record<string, any>;
+  try {
+    raw = readJsonFile('set-bonuses.json');
+  } catch {
+    return {};
+  }
+  const amplify = Object.values(raw).filter((entry) => entry.kind === 'amplify').length;
+  console.log(`set bonuses: ${Object.keys(raw).length} (${amplify} amplify mod stats)`);
+  return raw;
+}
+
 // ----------------------------------------------------------------- abilities
 
 function buildAbilities(): Record<string, AbilityData> {
@@ -621,6 +634,7 @@ function main(): void {
     abilities: buildAbilities(),
     rivenStats: buildRivenStats(),
     incarnons: buildIncarnons(weapons),
+    setBonuses: buildSetBonuses(),
     enemies: buildEnemies(healthTypes),
     modifiers,
     healthTypes,

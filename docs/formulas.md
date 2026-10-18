@@ -331,6 +331,18 @@ Two cheap mechanics it surfaced, both now modelled: "(x2 for Bows)" doubling and
 Cannonade "Fire Rate cannot be modified" lock. Per-weapon data errors live in
 `data/weapon-overrides.json`, each with the evidence that justifies it.
 
+## Set Mod bonuses
+
+Two shapes, both parsed from the set page:
+
+- **amplify** (Umbral, Sacrificial): with 2+ pieces equipped, the set's own mods have their
+  effect values scaled by the listed percentage. Verified: Sacrificial Steel 220% x 1.25 =
+  275%, so a 0.24 crit weapon reaches 0.9 (matches the game).
+- **table** (Vigilante, Gladiator): the value depends on the pieces equipped.
+  Gladiator adds crit chance per combo step (`value x (multiplier - 1)`); Vigilante is a
+  chance to upgrade a hit one crit tier, so a non-crit becomes a crit with probability X
+  and the expectation is `1 + (cc + (1-cc) x X) x (cd - 1)`.
+
 ## Verification
 
 Three layers, in `npm run validate` and `tests/`:

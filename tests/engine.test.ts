@@ -101,6 +101,12 @@ function snapshot(
     },
     healthTypes: { 'Alloy Armor': 'armor', 'Cloned Flesh': 'health' },
     incarnons: {},
+    setBonuses: {
+      'Sacrificial Set': {
+        set: 'Sacrificial Set', kind: 'amplify', description: 'enhances all equipped mods',
+        amplify: { '2': { '*': 0.25 } },
+      },
+    },
     rivenStats: {
       rifle: { Damage: 1.65, Multishot: 0.9, 'Critical Chance': 1.4999, 'Critical Damage': 1.19997, Zoom: 0.5999 },
       shotgun: { Damage: 1.647 },
@@ -790,4 +796,28 @@ test('Cannonade mods lock the fire rate, ignoring other mods', () => {
   close(withCannonade.fireRate, 4); // locked: Critical Delay's -20% does not apply
   const withoutCannonade = resolveBuild(snap, { weapon: 'Test Weapon', mods: ['Critical Delay'] });
   close(withoutCannonade.fireRate, 4 * 0.8);
+});
+
+test('a set bonus amplifies its own mods (Sacrificial style)', () => {
+  const steel = mod('Sacrificial Steel', 10, ['+220% Critical Chance'], { classes: ['Melee'], set: 'Sacrificial Set' });
+  const pressure = mod('Sacrificial Pressure', 10, ['+110% Melee Damage'], { classes: ['Melee'], set: 'Sacrificial Set' });
+  const melee = { ...weapon({ slash: 100, critChance: 0.24 }), type: 'Melee', modClasses: ['Melee'] };
+  const snap = snapshot([melee], [steel, pressure]);
+  const alone = resolveBuild(snap, { weapon: 'Test Weapon', mods: ['Sacrificial Steel'] });
+  const together = resolveBuild(snap, { weapon: 'Test Weapon', mods: ['Sacrificial Steel', 'Sacrificial Pressure'] });
+  close(alone.critChance, 0.24 * (1 + 2.2));
+  // Both pieces equipped: the set amplifies the mod's effect by 25% -> +275%.
+  close(together.critChance, 0.24 * (1 + 2.75));
+});
+
+test('Gladiator set adds crit chance per combo step', () => {
+  const steel = mod('Gladiator Might', 5, ['+60% Critical Damage'], { classes: ['Melee'], set: 'Gladiator Set' });
+  const melee = { ...weapon({ slash: 100, critChance: 0.2 }), type: 'Melee', modClasses: ['Melee'] };
+  const snap = snapshot([melee], [steel]);
+  snap.setBonuses['Gladiator Set'] = {
+    set: 'Gladiator Set', kind: 'table', description: 'crit chance per combo stack', table: { '1': 0.1 },
+  };
+  const at12x = resolveBuild(snap, { weapon: 'Test Weapon', mods: ['Gladiator Might'], comboHits: 220 });
+  // +10% per piece x (12 - 1) = +110% crit chance.
+  close(at12x.critChance, 0.2 + 0.1 * 11);
 });

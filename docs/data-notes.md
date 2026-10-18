@@ -157,6 +157,19 @@ Cloudflare. Do not use it.
       special mechanics (tendrils, held beam). Needs a look at the export fields.
     - Assorted `fire rate` / `crit chance` deltas in the same ballpark.
 
+33. **The wiki sends `Last-Modified` but no `ETag`.** `If-Modified-Since` returns 304;
+    `If-None-Match` always returns 200. Change detection for the fetcher must use dates.
+
+34. **Overframe is a mirror of the same export**, keyed by Lotus path, so it can be joined
+    field by field against WFCD. That is the cheapest way to notice the export going stale
+    (it already did for Acceltra's status and Fulmin's magazine). Keep it as the verifier,
+    not the source: WFCD is git-versioned and diffable, their chunk is a webpack eval.
+
+35. **Set bonuses come in two shapes** and the wiki documents both on the set page:
+    "enhances the effects of the mods in this set" (Umbral, Sacrificial → amplify the mods'
+    own effect values, and the wording is "both mods" rather than a mod name) and a
+    per-pieces table (Vigilante, Gladiator, Hunter → their own effect).
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully

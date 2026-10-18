@@ -279,6 +279,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     effects: Effect[];
     partial: boolean;
     incompatible: string[];
+    set?: string | null;
   }
   const sources: Source[] = [];
   if (aoeWarning) collected.warnings.push(aoeWarning);
@@ -310,7 +311,10 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
       collected.warnings.push(`${mod.name} cannot be equipped with ${mod.incompatible.filter((o) => equipped.includes(o)).join(', ')}`);
     }
     equipped.push(mod.name);
-    sources.push({ name: mod.name, maxRank: mod.maxRank, rank, effects: mod.effects, partial: mod.partial, incompatible: mod.incompatible });
+    sources.push({
+      name: mod.name, maxRank: mod.maxRank, rank, effects: mod.effects,
+      partial: mod.partial, incompatible: mod.incompatible, set: mod.set,
+    });
   }
 
   // Weapon arcanes: the slot has to match the weapon (Primary/Secondary/Melee/Bow/Shotgun).
@@ -431,6 +435,25 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     sources.push({ name: definition.ability, maxRank: 0, effects, partial: false, incompatible: [] });
   }
 
+  // Set Mods: count equipped pieces per set. Sets whose bonus "enhances the mods in this
+  // set" (Umbral, Sacrificial) scale those mods' own effect values, so the factor has to be
+  // known while effects are collected.
+  const setPieces = new Map<string, number>();
+  for (const source of sources) {
+    if (source.set) setPieces.set(source.set, (setPieces.get(source.set) ?? 0) + 1);
+  }
+  const amplifyFor = (set: string | null | undefined, modName: string): number => {
+    if (!set) return 0;
+    const bonus = snapshot.setBonuses[set];
+    const pieces = setPieces.get(set) ?? 0;
+    if (bonus?.kind !== 'amplify' || pieces < 2) return 0;
+    // Highest threshold that the equipped count reaches.
+    const thresholds = Object.keys(bonus.amplify ?? {}).map(Number).filter((value) => value <= pieces).sort((a, b) => b - a);
+    if (!thresholds.length) return 0;
+    const targets = bonus.amplify?.[String(thresholds[0])] ?? {};
+    return targets[modName] ?? targets['*'] ?? 0;
+  };
+
   for (const source of sources) {
     if (source.partial) collected.unsupported.push(source.name);
     for (const effect of source.effects) {
@@ -444,7 +467,8 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
       const comboFactor = effect.scalesWithCombo ? Math.max(0, comboMultiplier - 1) : 1;
       // "(x2 for Bows)": the mod text doubles the effect on bows.
       const bowFactor = effect.doublesForBows && /bow/i.test(weapon.type) ? 2 : 1;
-      const value = effect.value * rankFraction * stacks * comboFactor * bowFactor;
+      const setFactor = 1 + amplifyFor(source.set, source.name);
+      const value = effect.value * rankFraction * stacks * comboFactor * bowFactor * setFactor;
       if (effect.op === 'mult' && effect.target === 'elementMultiplier' && effect.element) {
         // "x2.5 Heat damage" (Accelerant): multiplies that damage type only.
         collected.elementMultipliers.set(effect.element, (collected.elementMultipliers.get(effect.element) ?? 1) * (1 + value));
@@ -605,7 +629,20 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   const projectileTotal = Object.values(damage).reduce((sum, value) => sum + (value ?? 0), 0);
 
   // ------------------------------------------------------------------- crit etc.
-  const critChance = (stats.critChance ?? 0) * (1 + bonus('critChance')) + bonus('critChanceFlat');
+  const baseCritChance = (stats.critChance ?? 0) * (1 + bonus('critChance')) + bonus('critChanceFlat');
+
+  // Table-style set bonuses. Gladiator adds crit chance per combo step (like Blood Rush);
+  // Vigilante rolls a chance to upgrade a hit to the next crit tier.
+  const setValue = (set: string): number => {
+    const bonus = snapshot.setBonuses[set];
+    const pieces = setPieces.get(set) ?? 0;
+    if (bonus?.kind !== 'table' || pieces < 1 || !bonus.table) return 0;
+    const thresholds = Object.keys(bonus.table).map(Number).filter((value) => value <= pieces).sort((a, b) => b - a);
+    return thresholds.length ? bonus.table[String(thresholds[0])] ?? 0 : 0;
+  };
+  const gladiatorCrit = setValue('Gladiator Set') * Math.max(0, comboMultiplier - 1);
+  const vigilante = setValue('Vigilante Set');
+  const critChance = baseCritChance + gladiatorCrit;
   const critMultiplier = (stats.critMultiplier ?? 1) * (1 + bonus('critDamage'));
   // Not clamped to 1: the game allows above-100% status, which means a guaranteed proc plus
   // a chance of another. Clamping threw that information away.
@@ -619,11 +656,13 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   const magazineSize = Math.max(1, Math.round((stats.magazineSize ?? 1) * (1 + bonus('magazine'))));
 
   const crit = Math.max(1, critMultiplier);
-  // "Non-critical hits deal +240% damage" (Cull the Weak): weighted average over the two cases.
+  // Expectation over the two cases. "Non-critical hits deal +240%" (Cull the Weak) weights
+  // the non-crit branch, and Vigilante moves a share of that branch into the crit branch.
   const nonCritBonus = bonus('nonCritDamage');
+  const effectiveCritChance = critChance >= 1 ? 1 : critChance + (1 - critChance) * vigilante;
   const averageCritMultiplier = critChance >= 1
     ? 1 + critChance * (crit - 1)
-    : (1 - critChance) * (1 + nonCritBonus) + critChance * crit;
+    : (1 - effectiveCritChance) * (1 + nonCritBonus) + effectiveCritChance * crit;
   // Weak-point multiplier: x2 by default. Sonar-style effects replace it (its x5 is a
   // total, not a x10), while "+weak point damage" mods multiply on top. Only counts on
   // weak-point hits.
