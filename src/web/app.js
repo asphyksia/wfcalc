@@ -139,13 +139,15 @@ function renderSlots() {
     const maxRank = info?.maxRank ?? 0;
     const exilus = index === MAX_SLOTS;
     const row = document.createElement('div');
-    row.className = `slot${exilus ? ' exilus' : ''}`;
+    row.className = `slot${mod.name ? ' filled' : ''}${exilus ? ' exilus' : ''}`;
+    const description = (info?.description ?? '').split('\n')[0];
     row.innerHTML = `
       <input class="mod-name" list="mod-list" value="${(mod.name ?? '').replace(/"/g, '&quot;')}" data-index="${index}"
-             placeholder="${exilus ? 'exilus slot' : 'mod'}" />
+             placeholder="${exilus ? 'exilus' : 'empty slot'}" />
       <input class="rank" type="range" min="0" max="${maxRank}" value="${mod.rank ?? maxRank}" data-index="${index}" />
       <span class="rank-value">R${mod.rank ?? maxRank}</span>
-      <button class="remove" data-index="${index}" title="remove">×</button>`;
+      <button class="remove" data-index="${index}" title="remove">×</button>
+      ${mod.name ? `<div class="mod-desc">${description}</div>` : ''}`;
     container.appendChild(row);
   });
 
@@ -208,9 +210,11 @@ function renderBuffList() {
       </label>`,
     )
     .join('');
+  $('buff-count').textContent = state.buffs.length ? String(state.buffs.length) : '';
   $('buff-list').querySelectorAll('input').forEach((input) => {
     input.addEventListener('change', () => {
       state.buffs = [...$('buff-list').querySelectorAll('input:checked')].map((element) => element.value);
+      $('buff-count').textContent = state.buffs.length ? String(state.buffs.length) : '';
       recalc();
     });
   });
@@ -238,6 +242,7 @@ function renderWeaponMeta(result) {
 function renderResults(result) {
   if (result.error) {
     $('stats').innerHTML = `<p class="error">${result.error}${result.suggestions?.length ? ` — did you mean ${result.suggestions.join(', ')}?` : ''}</p>`;
+    $('weapon-summary').innerHTML = '';
     $('damage-bars').innerHTML = '';
     $('contributions').innerHTML = '';
     $('target-report').innerHTML = '';
@@ -249,19 +254,49 @@ function renderResults(result) {
   const dotDps = dot.reduce((sum, entry) => sum + entry.dps, 0);
   const critAvg = 1 + result.critChance * (result.critMultiplier - 1);
 
-  $('stats').innerHTML = `
-    <div class="card"><span>damage / projectile</span><b>${fmt(result.projectileTotal, 1)}</b></div>
-    <div class="card"><span>damage / shot</span><b>${fmt(result.averageShotDamage, 0)}</b></div>
-    <div class="card"><span>crit</span><b>${pct(result.critChance)} ×${fmt(result.critMultiplier, 2)}</b><small>avg ×${critAvg.toFixed(2)}</small></div>
-    <div class="card"><span>status</span><b>${pct(result.statusChance)}</b><small>${fmt(result.statusChance * result.multishot, 2)} procs/shot</small></div>
-    <div class="card"><span>multishot</span><b>×${fmt(result.multishot, 2)}</b><small>${fmt(result.fireRate, 2)} shots/s</small></div>
-    ${result.critVariance && result.critVariance.pellets >= 2 ? `<div class="card"><span>crit spread</span><b>${result.critVariance.expectedCrits.toFixed(1)} / ${result.critVariance.pellets.toFixed(0)}</b><small>${pct(result.critVariance.atLeastOneCrit)} of shots crit</small></div>` : ''}
-    <div class="card"><span>burst dps</span><b>${fmt(result.burstDps, 0)}</b></div>
-    <div class="card"><span>sustained dps</span><b>${fmt(result.sustainedDps, 0)}</b><small>reload ${fmt(result.reloadTime, 2)}s</small></div>
-    ${result.comboMultiplier > 1 ? `<div class="card"><span>combo</span><b>${result.comboMultiplier.toFixed(1)}x</b><small>${state.comboHits} hits</small></div>` : ''}
-    ${target && Math.abs((target.factionMultiplier ?? 1) - 1) > 0.001 ? `<div class="card"><span>faction</span><b>×${target.factionMultiplier.toFixed(2)}</b><small>${target.faction ?? ''}</small></div>` : ''}
-    ${target ? `<div class="card accent"><span>time to kill lv${target.level}</span><b>${target.timeToKill === null ? '—' : `${fmt(target.timeToKill, 2)}s`}</b><small>${fmt(target.shotsToKill, 1)} shots</small></div>` : ''}
+  // Headline numbers, like Overframe's "total damage" block.
+  $('weapon-summary').innerHTML = `
+    <div class="kpi"><span>damage / shot</span><b>${fmt(result.averageShotDamage, 0)}</b></div>
+    <div class="kpi"><span>burst dps</span><b>${fmt(result.burstDps, 0)}</b></div>
+    <div class="kpi"><span>sustained</span><b>${fmt(result.sustainedDps, 0)}</b></div>
+    ${target ? `<div class="kpi accent"><span>ttk lv${target.level}</span><b>${target.timeToKill === null ? '—' : `${fmt(target.timeToKill, 2)}s`}</b></div>` : ''}
   `;
+
+  // Stats as a dense label/value list, the way the arsenal and Overframe present them.
+  const rows = [
+    ['section', 'Weapon'],
+    ['Accuracy', null],
+    ['Critical chance', pct(result.critChance)],
+    ['Critical damage', `×${fmt(result.critMultiplier, 2)}`],
+    ['Fire rate', `${fmt(result.fireRate, 2)}/s`],
+    ['Magazine', fmt(result.magazineSize)],
+    ['Multishot', `×${fmt(result.multishot, 2)}`],
+    ['Status / projectile', pct(result.statusChance)],
+    ['Reload', `${fmt(result.reloadTime, 2)}s`],
+    ['section', 'Against target'],
+  ];
+  for (const entry of result.elements.slice().sort((a, b) => b.share - a.share)) {
+    rows.push([entry.type, `${fmt(result.damage[entry.type], 1)}  (${pct(entry.share)})`]);
+  }
+  rows.push(['section', 'Result']);
+  rows.push(['Average hit', fmt(result.averageShotDamage, 0)]);
+  rows.push(['Burst dps', fmt(result.burstDps, 0)]);
+  rows.push(['Sustained dps', fmt(result.sustainedDps, 0)]);
+  if (dot.length) rows.push(['Status dps', fmt(dotDps, 0)]);
+  if (result.critVariance && result.critVariance.pellets >= 2) {
+    rows.push(['Crit spread', `${result.critVariance.expectedCrits.toFixed(1)}/${result.critVariance.pellets.toFixed(0)} pellets`]);
+  }
+  if (target) {
+    rows.push(['Shots to kill', fmt(target.shotsToKill, 1)]);
+    rows.push(['Time to kill', target.timeToKill === null ? '—' : `${fmt(target.timeToKill, 2)}s`]);
+  }
+  $('stats').innerHTML = rows
+    .map(([label, value]) =>
+      label === 'section'
+        ? `<div class="section">${value}</div>`
+        : `<div class="k">${label}</div><div class="v">${value}</div>`,
+    )
+    .join('');
 
   $('damage-bars').innerHTML = result.elements
     .slice()
@@ -360,7 +395,7 @@ async function recalc() {
   saveToUrl();
   if (!state.weapon) {
     $('stats').innerHTML = '<p class="hint">Pick a weapon to start.</p>';
-    for (const id of ['damage-bars', 'contributions', 'target-report', 'notes']) $(id).innerHTML = '';
+    for (const id of ['weapon-summary', 'damage-bars', 'contributions', 'target-report', 'notes']) $(id).innerHTML = '';
     return;
   }
   const id = ++calculationId;
