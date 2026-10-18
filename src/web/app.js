@@ -23,6 +23,19 @@ const POLARITY_COLORS = {
 };
 const polarityColor = (polarity) => POLARITY_COLORS[String(polarity ?? '').toLowerCase()] ?? POLARITY_COLORS.universal;
 
+/** Polarity glyphs as the game shows them on a slot. */
+const POLARITY_GLYPH = {
+  madurai: 'V', vazarin: 'D', naramon: '–', zenurik: '=', unairu: 'Ω',
+  penjaga: 'P', umbra: 'U', universal: '·',
+};
+const glyph = (polarity) => POLARITY_GLYPH[String(polarity ?? '').toLowerCase()] ?? '';
+
+/** Rarity colours, bronze to platinum like the game. */
+const RARITY_COLORS = {
+  common: '#c08a5a', uncommon: '#b9c2d0', rare: '#e0b04a', legendary: '#e8e8f0',
+};
+const rarityColor = (rarity) => RARITY_COLORS[String(rarity ?? '').toLowerCase()] ?? '#8d95a7';
+
 const emptyState = () => ({
   weapon: '',
   mods: [], // [{ name, rank }]
@@ -49,6 +62,8 @@ const emptyState = () => ({
 
 let state = emptyState();
 let allMods = [];
+/** Weapon metadata by name, for capacity and polarity matching. */
+const weaponData = new Map();
 let allBuffs = [];
 let calculationId = 0;
 /** Mod name -> share of burst DPS, refreshed on every calculation. */
@@ -138,6 +153,31 @@ function showTab(name) {
 
 /** ---------- rendering: build ---------- */
 
+/** Which polarity a slot accepts: the weapon's own, or the exilus polarity for slot 9. */
+function slotPolarity(index) {
+  const weapon = weaponData.get(state.weapon);
+  if (!weapon) return null;
+  return index >= MAX_SLOTS ? weapon.exilusPolarity : (weapon.polarities?.[index] ?? null);
+}
+
+/**
+ * Mod capacity, as the game counts it: a mod costs `baseDrain + rank`, halved (rounded up)
+ * when its polarity matches the slot's. Rank-30 weapons have 30 points, 60 with a reactor.
+ */
+function capacityInfo() {
+  const total = state.reactor ? 60 : 30;
+  let used = 0;
+  state.mods.forEach((mod, index) => {
+    if (!mod.name) return;
+    const info = allMods.find((entry) => entry.name === mod.name);
+    if (!info) return;
+    const drain = (info.baseDrain ?? 0) + (mod.rank ?? info.maxRank ?? 0);
+    const matches = info.polarity && slotPolarity(index) && info.polarity === slotPolarity(index);
+    used += matches ? Math.ceil(drain / 2) : drain;
+  });
+  return { used, total };
+}
+
 /** Index of the slot being dragged, shared by the slot grid and the library. */
 let dragFrom = null;
 let dragPayload = null;
@@ -155,14 +195,19 @@ function renderSlots() {
     row.className = `slot${mod.name ? ' filled' : ''}${exilus ? ' exilus' : ''}`;
     const description = (info?.description ?? '').split('\n')[0];
     if (info?.polarity) row.style.borderLeftColor = polarityColor(info.polarity);
+    const slotPolarityName = slotPolarity(index);
+    const matches = Boolean(info?.polarity && slotPolarityName && info.polarity === slotPolarityName);
     const share = lastContributions.get(mod.name);
     // Card layout: a small toolbar (rank + remove) above the name, then the mod's own text.
     row.innerHTML = `
       <div class="slot-top">
+        <span class="polarity" style="color:${polarityColor(slotPolarityName)}">${glyph(slotPolarityName)}</span>
         <span class="rank-value">${mod.name ? `R${mod.rank ?? maxRank}` : ''}</span>
+        <span class="drain${matches ? ' halved' : ''}">${mod.name && info ? `${matches ? Math.ceil(((info.baseDrain ?? 0) + (mod.rank ?? maxRank)) / 2) : (info.baseDrain ?? 0) + (mod.rank ?? maxRank)}` : ''}</span>
         <span class="mod-share">${mod.name && share ? `+${(share * 100).toFixed(0)}%` : ''}</span>
         <button class="remove" data-index="${index}" title="remove">×</button>
       </div>
+      ${info?.image ? `<img class="mod-art" src="/img/${info.image}" alt="" loading="lazy" draggable="false" />` : ''}
       <div class="mod-name" data-index="${index}" tabindex="0" role="button"
            aria-label="edit mod">${mod.name ? mod.name.replace(/</g, '&lt;') : `<span class="placeholder">${exilus ? 'exilus slot' : 'empty slot'}</span>`}</div>
       ${mod.name ? `<div class="mod-desc">${description}</div>` : ''}
@@ -213,6 +258,12 @@ function renderSlots() {
     container.appendChild(add);
   }
   $('mod-count').textContent = state.mods.filter((mod) => mod.name).length;
+  const capacity = capacityInfo();
+  const over = capacity.used > capacity.total;
+  $('capacity').innerHTML = `<div class="cap-bar${over ? ' over' : ''}">
+      <i style="width:${Math.min(100, (capacity.used / capacity.total) * 100).toFixed(0)}%"></i>
+    </div>
+    <span class="cap-text${over ? ' over' : ''}">${capacity.used} / ${capacity.total}</span>`;
   // Dropping a dragged slot outside any card removes it.
   container.ondragover = (event) => {
     if (dragFrom?.kind === 'slot') event.preventDefault();
@@ -305,11 +356,15 @@ function renderLibrary() {
   const query = ($('mod-filter')?.value ?? '').toLowerCase();
   const polarity = $('filter-polarity')?.value ?? '';
   const sort = $('filter-sort')?.value ?? 'name';
+  const typeFilter = $('filter-type')?.value ?? '';
+  const rarityFilter = $('filter-rarity')?.value ?? '';
   // Fusion cores and other inventory noise are not equippable mods.
   const JUNK = /^(Ancient Fusion Core|Flawed )/i;
   const list = allMods
     .filter((mod) => !JUNK.test(mod.name))
     .filter((mod) => !polarity || String(mod.polarity ?? '').toLowerCase() === polarity)
+    .filter((mod) => !typeFilter || (mod.classes ?? []).some((name) => String(name).toLowerCase() === typeFilter))
+    .filter((mod) => !rarityFilter || String(mod.rarity ?? '').toLowerCase() === rarityFilter)
     .filter((mod) => !query || mod.name.toLowerCase().includes(query) || (mod.description ?? '').toLowerCase().includes(query))
     .sort((a, b) =>
       sort === 'share'
@@ -322,10 +377,12 @@ function renderLibrary() {
     .slice(0, 120)
     .map(
       (mod) => `<button class="lib-card${state.mods.some((entry) => entry.name === mod.name) ? ' equipped' : ''}"
-        draggable="true" data-mod="${mod.name.replace(/"/g, '&quot;')}"
+        draggable="true" data-mod="${mod.name.replace(/"/g, '&quot;')}${mod.classes?.length ? ` data-type="${mod.classes[0]}"` : ''}${mod.rarity ? ` data-rarity="${mod.rarity}"` : ''}"
         style="border-left-color:${polarityColor(mod.polarity)}">
+        <span class="polarity" style="color:${polarityColor(mod.polarity)}">${glyph(mod.polarity)}</span>
+        ${mod.image ? `<img class="lib-art" src="/img/${mod.image}" alt="" loading="lazy" draggable="false" />` : ''}
         <span class="lib-name">${mod.name}</span>
-        <span class="lib-desc">${(mod.description || '').split('\n')[0].slice(0, 42)}</span>
+        <span class="lib-desc">${(mod.description || '').split('\n')[0].slice(0, 36)}</span>
       </button>`,
     )
     .join('') || '<p class="hint">No mod matches that search.</p>';
@@ -716,6 +773,12 @@ function bindEvents() {
   $('mod-filter').addEventListener('input', () => renderModList());
   $('filter-polarity').addEventListener('change', () => renderLibrary());
   $('filter-sort').addEventListener('change', () => renderLibrary());
+  $('filter-type').addEventListener('change', () => renderLibrary());
+  $('filter-rarity').addEventListener('change', () => renderLibrary());
+  $('reactor').addEventListener('change', (event) => {
+    state.reactor = event.target.checked;
+    renderSlots();
+  });
   $('mode-select').addEventListener('change', (event) => {
     state.mode = event.target.value;
     recalc();
@@ -850,6 +913,10 @@ async function loadStaticLists() {
     getJson('/api/warframes'),
   ]);
   $('frame-list').innerHTML = warframes.map((frame) => `<option value="${frame.name}"></option>`).join('');
+  weaponData.clear();
+  for (const weapon of weapons) weaponData.set(weapon.name, weapon);
+  // Type filter options come from the mods we ship; filled on first weapon load.
+  $('weapon-list').innerHTML = weapons.map((weapon) => `<option value="${weapon.name}">${weapon.type}</option>`).join('');
   $('weapon-list').innerHTML = weapons.map((weapon) => `<option value="${weapon.name}">${weapon.type}</option>`).join('');
   $('enemy-list').innerHTML = enemies.map((enemy) => `<option value="${enemy.name}">${enemy.faction ?? ''} hp${enemy.health}</option>`).join('');
   $('arcane-list').innerHTML = arcanes.map((arcane) => `<option value="${arcane.name}">${(arcane.description || '').split('\n')[0].slice(0, 44)}</option>`).join('');
@@ -864,6 +931,8 @@ async function loadModsForWeapon() {
     getJson(`/api/arcanes?weapon=${encodeURIComponent(state.weapon)}`),
   ]);
   allMods = mods;
+  const types = [...new Set(mods.flatMap((mod) => mod.classes ?? []))].sort();
+  $('filter-type').innerHTML = '<option value="">All types</option>' + types.map((type) => `<option value="${type.toLowerCase()}">${type}</option>`).join('');
   renderModList('');
   $('arcane-list').innerHTML = arcanes.map((arcane) => `<option value="${arcane.name}">${(arcane.description || '').split('\n')[0].slice(0, 44)}</option>`).join('');
 }

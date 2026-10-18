@@ -62,6 +62,10 @@
     <section class="panel board mods-panel">
       <div class="panel-head">
         <h2>Mods <span id="mod-count" class="badge">0</span></h2>
+        <div id="capacity" class="capacity"></div>
+      </div>
+      <div class="board-tools">
+        <label class="toggles"><label><input type="checkbox" id="reactor" /> Orokin Reactor</label></label>
         <span class="hint">drag to reorder · drop outside to remove</span>
       </div>
       <div id="slots" class="slots"></div>
@@ -90,6 +94,14 @@
           <option value="unairu">Unairu</option>
           <option value="penjaga">Penjaga</option>
           <option value="umbra">Umbra</option>
+        </select>
+        <select id="filter-type" aria-label="Type"><option value="">All types</option></select>
+        <select id="filter-rarity" aria-label="Rarity">
+          <option value="">All rarities</option>
+          <option value="common">Common</option>
+          <option value="uncommon">Uncommon</option>
+          <option value="rare">Rare</option>
+          <option value="legendary">Legendary</option>
         </select>
         <select id="filter-sort" aria-label="Sort">
           <option value="name">Name</option>

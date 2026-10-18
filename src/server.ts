@@ -10,7 +10,8 @@
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { networkInterfaces } from 'node:os';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { loadSnapshot, findEnemy, findWeapon, modsForWeapon } from './data.ts';
 import { resolveBuild, type Build } from './engine/build.ts';
@@ -19,6 +20,9 @@ import { hitEnemy, statusProcs } from './engine/damage.ts';
 import { availableBuffs } from './engine/buffs.ts';
 
 const WEB_ROOT = new URL('./web/', import.meta.url).pathname;
+/** Mod artwork cache: fetched once from the WFCD export repo, then served locally. */
+const IMG_ROOT = new URL('../data/img/', import.meta.url).pathname;
+const IMG_UPSTREAM = 'https://raw.githubusercontent.com/WFCD/warframe-items/master/data/img';
 const args = process.argv.slice(2);
 const portArg = args.indexOf('--port');
 const hostArg = args.indexOf('--host');
@@ -26,6 +30,23 @@ const PORT = portArg >= 0 ? Number(args[portArg + 1]) : 7777;
 const HOST = hostArg >= 0 ? args[hostArg + 1] : '127.0.0.1';
 
 const snapshot = loadSnapshot();
+
+/** Mod artwork file for WFCD's data/img, read from the export we already have. */
+const IMAGE_BY_MOD = (() => {
+  const map = new Map<string, string>();
+  try {
+    const raw = JSON.parse(readFileSync(new URL('../data/raw/wfcd-Mods.json', import.meta.url).pathname, 'utf8')) as any[];
+    for (const mod of raw) {
+      if (typeof mod?.name === 'string' && typeof mod?.imageName === 'string' && !map.has(mod.name)) {
+        map.set(mod.name, mod.imageName);
+      }
+    }
+  } catch {
+    /* the export may be absent; the UI just shows no art */
+  }
+  return map;
+})();
+const imageNameOf = (modName: string): string | null => IMAGE_BY_MOD.get(modName) ?? null;
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -159,7 +180,11 @@ const server = createServer(async (req, res) => {
   try {
     if (url.pathname === '/api/weapons') {
       const list = Object.values(snapshot.weapons)
-        .map((w) => ({ name: w.name, category: w.category, type: w.type, masteryRank: w.masteryRank }))
+        .map((w) => ({
+          name: w.name, category: w.category, type: w.type, masteryRank: w.masteryRank,
+          // Needed by the client to work out mod capacity and polarity matches.
+          polarities: w.polarities, exilusPolarity: w.exilusPolarity, modClasses: w.modClasses,
+        }))
         .sort((a, b) => a.name.localeCompare(b.name));
       return json(res, 200, list);
     }
@@ -184,6 +209,8 @@ const server = createServer(async (req, res) => {
           baseDrain: m.baseDrain,
           rarity: m.rarity,
           set: m.set,
+          classes: m.classes,
+          image: imageNameOf(m.name),
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
       return json(res, 200, list);
@@ -224,6 +251,33 @@ const server = createServer(async (req, res) => {
       const body = await readBody(req);
       const result = calculate(body);
       return json(res, result.error ? 404 : 200, result);
+    }
+
+    // Mod artwork: cached on first request, then served from disk.
+    if (url.pathname.startsWith('/img/')) {
+      const file = url.pathname.slice(5);
+      if (!/^[A-Za-z0-9._-]+\.(png|jpe?g|webp)$/i.test(file)) {
+        return json(res, 400, { error: 'bad image name' });
+      }
+      await mkdir(IMG_ROOT, { recursive: true });
+      const cached = join(IMG_ROOT, file);
+      let bytes: Buffer;
+      try {
+        bytes = await readFile(cached);
+      } catch {
+        const upstream = await fetch(`${IMG_UPSTREAM}/${file}`, { headers: { 'user-agent': 'wfcalc/0.1' } });
+        if (!upstream.ok) {
+          res.writeHead(404, { 'content-type': 'text/plain' });
+          return res.end('no image');
+        }
+        bytes = Buffer.from(await upstream.arrayBuffer());
+        await writeFile(cached, bytes);
+      }
+      res.writeHead(200, {
+        'content-type': file.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg',
+        'cache-control': 'public, max-age=2592000',
+      });
+      return res.end(bytes);
     }
 
     // Static files.
