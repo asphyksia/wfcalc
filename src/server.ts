@@ -208,6 +208,7 @@ const server = createServer(async (req, res) => {
           polarities: w.polarities, exilusPolarity: w.exilusPolarity, modClasses: w.modClasses,
           stancePolarity: WEAPON_STANCE.get(w.name) ?? null,
           image: WEAPON_IMAGE.get(w.name) ?? null,
+          description: w.description ?? '',
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
       return json(res, 200, list);

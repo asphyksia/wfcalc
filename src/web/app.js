@@ -69,6 +69,7 @@ function modCardMarkup(mod, options = {}) {
     : String(mod.rarity ?? 'common').toLowerCase();
   return `
     <div class="mcard ${rarity}" style="--rarity:${rarityColor(mod.rarity)}">
+      <span class="mcard-glow" aria-hidden="true"></span>
       ${headline(mod, rank) ? `<span class="mcard-stat" title="${(mod.levels?.[rank] ?? mod.description ?? '').replace(/"/g, '&quot;')}">${headline(mod, rank)}</span>` : ''}
       ${showShare && share > 0.005 ? `<span class="mcard-share">+${(share * 100).toFixed(0)}%</span>` : ''}
       <span class="mcard-drain">${drain}<i class="polarity" style="color:${polarityColor(mod.polarity)}">${glyph(mod.polarity)}</i></span>
@@ -607,6 +608,8 @@ function renderBuffList() {
 function renderWeaponMeta(result) {
   if (!result?.weapon) {
     $('weapon-meta').innerHTML = '';
+    const empty = document.getElementById('weapon-desc');
+    if (empty) { empty.textContent = ''; empty.hidden = true; }
     $('mode-field').hidden = true;
     return;
   }
@@ -620,10 +623,21 @@ function renderWeaponMeta(result) {
   if (board) {
     board.style.setProperty('--silhouette', meta?.image ? `url("/img/${meta.image}")` : 'none');
   }
+  // The weapon's flavour text, the way Overframe prints it under the build name.
+  const description = String(meta?.description ?? '').trim();
+  // Forma count, the way the arsenal and Overframe show it next to mastery rank.
+  const formas = (state.slotPolarities ?? []).filter(Boolean).length;
   $('weapon-meta').innerHTML = `<span class="chip">${weapon.type}</span>
     <span class="chip">MR ${weapon.masteryRank}</span>
+    ${formas ? `<span class="chip forma">${formas} forma${formas === 1 ? '' : 's'}</span>` : ''}
     <span class="chip">${(weapon.disposition ?? 1).toFixed(1)}★ riven</span>
     ${classes.length ? `<span class="chip">${classes.join(' / ')}</span>` : ''}`;
+  const desc = document.getElementById('weapon-desc');
+  if (desc) {
+    desc.textContent = description;
+    desc.hidden = !description;
+    desc.title = description;
+  }
   const modes = weapon.modes ?? [];
   $('mode-field').hidden = modes.length === 0;
   if (modes.length) {

@@ -82,7 +82,7 @@ button.danger:hover { border-color: var(--error); color: var(--error); }
 input[type="range"] { padding: 0; accent-color: var(--accent); }
 input[type="number"] { padding: 6px 8px; }
 
-.meta { display: flex; flex-wrap: wrap; gap: 5px; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
 .chip { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
 .badge { color: var(--muted); font-size: 11px; font-weight: 400; }
 .hint { color: var(--muted); font-size: 12px; margin: 2px 0 10px; }
@@ -362,6 +362,15 @@ details > *:not(summary) { margin-top: 8px; }
 .weapon-art img { width: 96px; height: 96px; object-fit: contain; opacity: 0.9; filter: drop-shadow(0 2px 6px #0008); }
 .weapon-fields { flex: 1; min-width: 0; }
 
+/* Weapon flavour text: muted, two lines at most, so it informs without pushing the numbers down. */
+.chip.forma { color: var(--accent); border-color: var(--accent-dim); }
+
+.weapon-desc {
+  margin: 6px 0 0; color: var(--muted);
+  font-size: 12.5px; line-height: 1.45; max-width: 78ch;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
 /* The weapon name reads as a build title (Overframe's h1 is 3rem of #44b7ff) while staying the
    picker: same element, no behaviour lost. */
 .build-header #weapon-input {
@@ -444,6 +453,19 @@ details > *:not(summary) { margin-top: 8px; }
   content: ''; position: absolute; left: 0; width: var(--card-w); z-index: 3; display: block;
   background-repeat: no-repeat; background-size: 100% auto; pointer-events: none;
 }
+/* Frame glow: both pseudo-elements already carry the frame art, so the hover light is a real
+   child. It lifts the edges and tints them with the rarity colour, like the game's highlight. */
+.mcard-glow {
+  position: absolute; inset: -2px; z-index: 2; border-radius: 6px; pointer-events: none;
+  opacity: 0; transition: opacity .35s cubic-bezier(.45,.7,.28,.96);
+  box-shadow: inset 0 0 14px color-mix(in srgb, var(--rarity) 55%, transparent),
+              0 0 20px color-mix(in srgb, var(--rarity) 32%, transparent);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--rarity) 22%, transparent), transparent 18%),
+    linear-gradient(270deg, color-mix(in srgb, var(--rarity) 22%, transparent), transparent 18%);
+}
+.mcard:hover .mcard-glow { opacity: 1; }
+
 .mcard::before { top: -12px; height: 62%; background-position: top; }
 .mcard::after { bottom: -6px; height: 62%; background-position: bottom; }
 
