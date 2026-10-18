@@ -19,7 +19,8 @@
     "coverage": "node tools/coverage.ts",
     "validate": "node tools/validate.ts",
     "overframe": "node tools/overframe.ts",
-    "calibrate": "node tools/calibrate.ts"
+    "calibrate": "node tools/calibrate.ts",
+    "overframe-db": "node tools/fetch-overframe-db.ts"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

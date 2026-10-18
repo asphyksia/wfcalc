@@ -126,6 +126,8 @@ export interface ResolvedBuild {
   incarnonLines: string[];
   /** Melee combo multiplier in effect (1 when no combo). */
   comboMultiplier: number;
+  /** Flat punch-through in metres. */
+  punchThrough: number;
   /** Per-shot crit spread, useful for shotguns where the average hides a wide range. */
   critVariance: { pellets: number; expectedCrits: number; atLeastOneCrit: number };
   /** Total Status Damage bonus (multiplies DoT ticks). */
@@ -603,11 +605,14 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   // ------------------------------------------------------------------- crit etc.
   const critChance = (stats.critChance ?? 0) * (1 + bonus('critChance')) + bonus('critChanceFlat');
   const critMultiplier = (stats.critMultiplier ?? 1) * (1 + bonus('critDamage'));
-  const statusChance = Math.min(1, (stats.statusChance ?? 0) * (1 + bonus('statusChance')) + bonus('statusChanceFlat'));
+  // Not clamped to 1: the game allows above-100% status, which means a guaranteed proc plus
+  // a chance of another. Clamping threw that information away.
+  const statusChance = (stats.statusChance ?? 0) * (1 + bonus('statusChance')) + bonus('statusChanceFlat');
   const multishot = (stats.multishot ?? 1) * (1 + bonus('multishot'));
   const fireRate = (stats.fireRate ?? 1) * (1 + bonus('fireRate'));
   const reloadTime = (stats.reloadTime ?? 0) / (1 + bonus('reloadSpeed'));
-  const magazineSize = Math.max(1, (stats.magazineSize ?? 1) * (1 + bonus('magazine')));
+  // Magazine is an integer in game: 6 x 2.1 shows as 13, not 12.6.
+  const magazineSize = Math.max(1, Math.round((stats.magazineSize ?? 1) * (1 + bonus('magazine'))));
 
   const crit = Math.max(1, critMultiplier);
   // "Non-critical hits deal +240% damage" (Cull the Weak): weighted average over the two cases.
@@ -664,6 +669,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     rivenLines,
     incarnonLines,
     comboMultiplier,
+    punchThrough: bonus('punchThrough'),
     critVariance,
     statusDamageBonus: bonus('statusDamage'),
     elementBonuses: collected.elementBonuses.reduce<Partial<Record<BaseElement, number>>>((acc, entry) => {

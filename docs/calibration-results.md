@@ -1,46 +1,56 @@
 # Calibration results
 
-Independent verification against **Overframe** (`overframe.gg/api/v1/builds/<id>`), which
-exposes the game's own modifier block (`WEAPON_CRIT_CHANCE`, `WEAPON_FIRE_ITERATIONS`, …).
+Generated 2026-10-18 by `npm run calibrate`. Every row is a
+public Overframe build compared field by field (multishot, critical chance, critical
+damage, status chance, fire rate, magazine, reload) against wfcalc, using the game's own
+modifier keys from `overframe.gg/api/v1`.
 
-## Verified builds
+- builds compared: **120**
+- matching: **79**
+- mismatching: **41**
 
-### 1036746 — Haalvu, "Split Atom Prime - Altfire Steel path Melt"
+## Mismatches
 
-Mods: Galvanized Chamber, Galvanized Aptitude, Hellfire, Thermite Rounds, Critical Delay,
-Primed Shred, Vital Sense, Serration · Arcane: Primary Crux.
-
-| stat | Overframe | wfcalc |
+| build | weapon | fields (ours vs theirs) |
 |---|---|---|
-| multishot | 1.8000 | 1.8000 |
-| critical chance | 0.7500 | 0.7500 |
-| critical damage | 5.500 | 5.500 |
-| status chance | 0.4560 | 0.4560 |
-| fire rate | 17.5526 | 17.5500 |
-| magazine | 150 | 150 |
-| reload | 1.00 | 1.00 |
-| total damage (Aptitude active) | 394 | 393.53 |
-
-Result: **8/8**. This build is what exposed the *Direct Damage* bucket bug (Galvanized
-Aptitude multiplies Serration's result instead of sharing its bucket).
-
-## Automation status
-
-`npm run calibrate --discover N` / `--battery N` fetches public builds, compares them and
-writes this file. Two things block unattended runs:
-
-1. **No mod catalogue.** Overframe's `slots` reference internal item ids (shared with
-   weapons: Haalvu is `8015`) and there is no `/api/v1/mods` endpoint. `robots.txt`
-   disallows crawling and the sitemap is behind Cloudflare.
-2. **Ids cannot be solved from a build alone.** The drain/rank constraints narrow each slot
-   to ~20-40 candidates, and the `rank` field does not match the mod ranks implied by the
-   stats, so cross-checking is unreliable.
-
-What *does* work: give the mod list once per build (`tools/overframe.ts --mods "…"`) and the
-comparison is fully automatic and machine-checkable, including a solver that tries to learn
-the ids (it refuses to write anything it cannot verify).
-
-## To grow coverage
-
-Each build compared by name teaches us its ids. Ten or so builds across rifles, shotguns,
-melee and Incarnon would cover the mods that appear in most public builds.
+| 279107 | Nataruk | fireRate 0.734 vs 0.800<br>reload 0.050 vs 0.150 |
+| 328134 | Felarx | reload 3.700 vs 6.500 |
+| 279221 | Nataruk | fireRate 0.900 vs 1.134<br>reload 0.050 vs 0.150 |
+| 374667 | Phantasma Prime | multishot 12.600 vs 11.500 |
+| 19277 | Kuva Bramma | fireRate 1.133 vs 1.600 |
+| 483134 | Ocucor | multishot 2.700 vs 3.700 |
+| 4810 | Acceltra | statusChance 0.060 vs 0.111 |
+| 11877 | Redeemer Prime | critChance 0.768 vs 0.900 |
+| 511115 | Fulmin Prime | magazine 8.000 vs 80.000 |
+| 569013 | Grimoire | magazine 1.000 vs 10.000<br>reload 2.000 vs 0.010 |
+| 464476 | Latron Prime | fireRate 3.333 vs 4.167 |
+| 465699 | Strun Prime | fireRate 2.667 vs 3.333 |
+| 279107 | Nataruk | fireRate 0.734 vs 0.800<br>reload 0.050 vs 0.150 |
+| 328134 | Felarx | reload 3.700 vs 6.500 |
+| 279221 | Nataruk | fireRate 0.900 vs 1.134<br>reload 0.050 vs 0.150 |
+| 374667 | Phantasma Prime | multishot 12.600 vs 11.500 |
+| 19277 | Kuva Bramma | fireRate 1.133 vs 1.600 |
+| 483134 | Ocucor | multishot 2.700 vs 3.700 |
+| 4810 | Acceltra | statusChance 0.060 vs 0.111 |
+| 11877 | Redeemer Prime | critChance 0.768 vs 0.900 |
+| 511115 | Fulmin Prime | magazine 8.000 vs 80.000 |
+| 569013 | Grimoire | magazine 1.000 vs 10.000<br>reload 2.000 vs 0.010 |
+| 464476 | Latron Prime | fireRate 3.333 vs 4.167 |
+| 465699 | Strun Prime | fireRate 2.667 vs 3.333 |
+| 279107 | Nataruk | fireRate 0.734 vs 0.800<br>reload 0.050 vs 0.150 |
+| 328134 | Felarx | reload 3.700 vs 6.500 |
+| 279221 | Nataruk | fireRate 0.900 vs 1.134<br>reload 0.050 vs 0.150 |
+| 374667 | Phantasma Prime | multishot 12.600 vs 11.500 |
+| 19277 | Kuva Bramma | fireRate 1.133 vs 1.600 |
+| 483134 | Ocucor | multishot 2.700 vs 3.700 |
+| 4810 | Acceltra | statusChance 0.060 vs 0.111 |
+| 11877 | Redeemer Prime | critChance 0.768 vs 0.900 |
+| 511115 | Fulmin Prime | magazine 8.000 vs 80.000 |
+| 569013 | Grimoire | magazine 1.000 vs 10.000<br>reload 2.000 vs 0.010 |
+| 464476 | Latron Prime | fireRate 3.333 vs 4.167 |
+| 465699 | Strun Prime | fireRate 2.667 vs 3.333 |
+| 279107 | Nataruk | fireRate 0.734 vs 0.800<br>reload 0.050 vs 0.150 |
+| 328134 | Felarx | reload 3.700 vs 6.500 |
+| 279221 | Nataruk | fireRate 0.900 vs 1.134<br>reload 0.050 vs 0.150 |
+| 374667 | Phantasma Prime | multishot 12.600 vs 11.500 |
+| 19277 | Kuva Bramma | fireRate 1.133 vs 1.600 |

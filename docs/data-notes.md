@@ -123,6 +123,26 @@ Cloudflare. Do not use it.
     bucket, which multiplies after base damage mods. Mapping the text to `baseDamage` makes
     the mod additive with Serration and understates the result by ~28%.
 
+27. **Overframe is reachable around Cloudflare**, which makes it an oracle: `/api/v1/builds/<id>`
+    (no challenge) and `static.overframe.gg/_next/static/chunks/db/{mods,items}.<hash>.js`.
+    The chunk hashes live in the webpack runtime, which the app HTML links, so nothing is
+    hardcoded. `db/mods` holds mods *and* arcanes; `categories: ["mod"|"arcane"]` separates them.
+
+28. **`tools/calibrate.ts` found these real bugs**, all invisible to synthetic tests:
+    fire modes with an empty export damage dict resolving to zero, compound conditions
+    capping stacks, "Direct Damage" merged into the base bucket, status chance being clamped
+    to 100%, and a non-integer magazine.
+
+29. **Open calibration mismatches** (79/120 builds match; these are the rest):
+    - **Bows** (`Nataruk`): Overframe's reload is 0.15 s where the export says 0.05 s, and its
+      fire rate is ~9% higher. Probably a nock/charge term we do not model.
+    - **Per-shell shotguns** (`Felarx`): Overframe reports a full empty reload (6.5 s) where the
+      export gives the per-shell time (3.7 s). Affects sustained DPS, not burst.
+    - **Battery/tome weapons** (`Fulmin Prime` magazine 8 vs 80, `Grimoire`): the export's
+      `magazineSize` is unreliable for these; Grimoire has no magazine field at all.
+    - Assorted `fire rate` ~x0.8 deltas worth a second look (likely a rank-scaling difference
+      on a fire-rate mod).
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully

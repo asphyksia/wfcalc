@@ -163,7 +163,25 @@ layers. `npm run validate` is the machine-checkable part and exits non-zero on f
 The validator has already earned its keep: it caught a charge weapon whose export
 `fireRate` is 0 (Lanka), which made its DPS zero.
 
-## Comparing against Overframe
+## Automated calibration against Overframe
+
+Overframe's HTML is behind Cloudflare, but two things are not: its JSON API and its
+Next.js static host. That is enough to calibrate against real, public builds:
+
+```sh
+node tools/fetch-overframe-db.ts      # learn Overframe's mod/item ids (no hardcoded hashes)
+node tools/calibrate.ts --battery 120 # compare 120 public builds, write a report
+node tools/calibrate.ts --build 1036746
+```
+
+`tools/calibrate.ts` resolves every mod and arcane from the learned ids, computes the build
+with wfcalc and diffs it against Overframe's own modifier block (`WEAPON_CRIT_CHANCE`,
+`WEAPON_FIRE_ITERATIONS`, ...). Results land in [docs/calibration-results.md](docs/calibration-results.md).
+
+Latest run: **79/120 builds match on every applicable stat**. The remaining mismatches are
+grouped by signature; the open ones are listed in [docs/data-notes.md](docs/data-notes.md).
+
+## Comparing a single build by hand
 
 Overframe's site is behind Cloudflare, but its JSON API is not:
 
