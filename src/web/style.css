@@ -380,3 +380,27 @@ details > *:not(summary) { margin-top: 8px; }
   border-radius: 4px; margin: 2px 0 3px; background: #0a0c10;
 }
 .lib-card-art.broken { display: none; }
+
+/* ── hover preview: the game's card, full size ───────────────────────── */
+.preview {
+  position: fixed; z-index: 60; width: 300px; max-height: 82vh; overflow: hidden;
+  background: linear-gradient(180deg, #1b2130, #0d1015 70%);
+  border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.75), var(--glow);
+  padding: 8px; display: flex; gap: 10px; align-items: flex-start;
+  pointer-events: none;
+  animation: reveal .16s var(--ease) both;
+}
+.preview img { width: 104px; border-radius: 6px; flex: 0 0 auto; }
+.pv-body { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.pv-title { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.pv-text { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.pv-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.pv-meta span { background: var(--panel-3); border-radius: 999px; padding: 1px 6px; }
+.pv-share { color: var(--accent); }
+
+/* ── the board now only holds the slot matrix, so it can breathe ─────── */
+.board .slots { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 700px) { .board .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.board { align-self: start; }
+.rail .bars { margin-top: 4px; }

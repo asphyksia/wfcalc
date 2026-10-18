@@ -204,6 +204,64 @@ function capacityInfo() {
   return { used, total };
 }
 
+/**
+ * Hover preview: the full card plus its complete text, the way the game shows a mod when
+ * you point at it. One element, positioned next to the pointer and clamped to the viewport.
+ */
+function showPreview(modName, event) {
+  const mod = allMods.find((entry) => entry.name === modName);
+  const bubble = $('preview');
+  if (!mod || !bubble) return;
+  const drain = (mod.baseDrain ?? 0) + (mod.maxRank ?? 0);
+  bubble.innerHTML = `
+    ${mod.card ? `<img src="/card/${mod.card}" alt="" />` : ''}
+    <div class="pv-body">
+      <div class="pv-title"><span class="polarity" style="color:${polarityColor(mod.polarity)}">${glyph(mod.polarity)}</span>${mod.name}</div>
+      <div class="pv-text">${(mod.description || '').replace(/\n/g, '<br>')}</div>
+      <div class="pv-meta">
+        <span>${mod.rarity ?? ''}</span>
+        <span>drain ${drain}</span>
+        <span>R${mod.maxRank}</span>
+        ${lastContributions.get(mod.name) ? `<span class="pv-share">+${(lastContributions.get(mod.name) * 100).toFixed(0)}% dps</span>` : ''}
+      </div>
+    </div>`;
+  bubble.hidden = false;
+  positionPreview(event);
+}
+
+function positionPreview(event) {
+  const bubble = $('preview');
+  if (!bubble || bubble.hidden) return;
+  const pad = 12;
+  const rect = bubble.getBoundingClientRect();
+  let x = (event?.clientX ?? 0) + 16;
+  let y = (event?.clientY ?? 0) + 16;
+  if (x + rect.width + pad > window.innerWidth) x = Math.max(pad, (event?.clientX ?? 0) - rect.width - 16);
+  if (y + rect.height + pad > window.innerHeight) y = Math.max(pad, window.innerHeight - rect.height - pad);
+  bubble.style.left = `${x}px`;
+  bubble.style.top = `${y}px`;
+}
+
+const hidePreview = () => {
+  const bubble = $('preview');
+  if (bubble) bubble.hidden = true;
+};
+
+/** Wires hover + keyboard focus preview onto any element carrying data-mod. */
+function bindPreview(root) {
+  for (const element of root.querySelectorAll('[data-mod]')) {
+    const name = element.dataset.mod;
+    element.addEventListener('mouseenter', (event) => showPreview(name, event));
+    element.addEventListener('mousemove', positionPreview);
+    element.addEventListener('mouseleave', hidePreview);
+    element.addEventListener('focus', (event) => {
+      const rect = element.getBoundingClientRect();
+      showPreview(name, { clientX: rect.left + rect.width / 2, clientY: rect.top });
+    });
+    element.addEventListener('blur', hidePreview);
+  }
+}
+
 /** Mods that were not in the previous render, so their card can animate in. */
 let previousMods = [];
 let lastContributionsVersion = 0;
@@ -224,6 +282,7 @@ function renderSlots() {
     const stance = isStance(index);
     const row = document.createElement('div');
     row.className = `slot${mod.name ? ' filled' : ''}${exilus ? ' exilus' : ''}${stance ? ' stance' : ''}`;
+    if (mod.name) row.dataset.mod = mod.name;
     const description = (info?.description ?? '').split('\n')[0];
     if (info?.polarity) row.style.borderLeftColor = polarityColor(info.polarity);
     if (info?.rarity) row.style.setProperty('--rarity', rarityColor(info.rarity));
@@ -376,6 +435,7 @@ function renderSlots() {
       }
     });
   });
+  bindPreview(container);
   container.querySelectorAll('.rank').forEach((input) => {
     input.addEventListener('input', (event) => {
       const index = Number(event.target.dataset.index);
@@ -453,6 +513,7 @@ function renderLibrary() {
     )
     .join('') || '<p class="hint">No mod matches that search.</p>';
 
+  bindPreview($('mod-list'));
   for (const card of $('mod-list').querySelectorAll('.lib-card')) {
     const name = card.dataset.mod;
     card.addEventListener('dragstart', (event) => {
@@ -466,6 +527,7 @@ function renderLibrary() {
       dragPayload = null;
     });
     card.addEventListener('click', () => {
+      hidePreview();
       const empty = state.mods.findIndex((entry) => !entry.name);
       const target = empty >= 0 ? empty : state.mods.length < MAX_SLOTS + 1 ? state.mods.length : -1;
       if (target < 0) return;
