@@ -222,7 +222,15 @@ function baseStats(weapon: Loose): WeaponStats {
   stats.critChance = Number(weapon.criticalChance ?? 0);
   stats.critMultiplier = Number(weapon.criticalMultiplier ?? 1);
   stats.statusChance = Number(weapon.procChance ?? 0);
-  stats.fireRate = Number(weapon.fireRate ?? 1);
+  // Charge weapons ship fireRate 0; the real rate is one shot per charge time.
+  let fireRate = Number(weapon.fireRate ?? 0);
+  if (!(fireRate > 0)) {
+    const chargeTimes = (Array.isArray(weapon.attacks) ? weapon.attacks : [])
+      .map((attack: Loose) => Number(attack.charge_time ?? 0))
+      .filter((time: number) => time > 0);
+    fireRate = chargeTimes.length ? 1 / Math.max(...chargeTimes) : 1;
+  }
+  stats.fireRate = fireRate;
   stats.multishot = Number(weapon.multishot ?? 1);
   stats.magazineSize = Number(weapon.magazineSize ?? 0);
   stats.reloadTime = Number(weapon.reloadTime ?? 0);

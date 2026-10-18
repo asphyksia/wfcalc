@@ -140,6 +140,29 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
   `unsupportedMods` and the result is flagged as a lower bound rather than silently
   wrong. `npm run coverage` prints the current state.
 
+## How do we know it is right?
+
+Testing every damage combination in game is impossible, so the model is checked in
+layers. `npm run validate` is the machine-checkable part and exits non-zero on failure:
+
+1. **Invariants over the whole dataset** (622 weapons, 479 enemies): damage is linear in
+   base damage, adding a net-positive mod never lowers the average shot, enabling a
+   conditional never lowers it either, armour DR hits exactly 1x at 0 armour and 0.1x at
+   2700, shares sum to 1, enemy health never drops with level, armour never exceeds the
+   2700 clamp, and no NaN or negative damage anywhere.
+2. **Cross-path consistency**: the per-damage-type breakdown must add up to the same
+   total the aggregate path computes.
+3. **Golden values from the wiki**: the worked examples with explicit numbers
+   (Serration's 18 -> 45, the five DoT tick examples, the armour curves, the combo
+   ladder) are asserted to the decimal in `tests/`. The DoT ticks match the wiki's own
+   arithmetic, e.g. `((40 x 1.55) + 1) x 0.5 x 3.25 x 1.55 = 158.68`.
+4. **In-game calibration**: a short list of screenshots worth taking, in
+   [docs/calibration.md](docs/calibration.md). Fifteen cases that each isolate one layer
+   beat thousands of combinations, because the layers compose.
+
+The validator has already earned its keep: it caught a charge weapon whose export
+`fireRate` is 0 (Lanka), which made its DPS zero.
+
 ## Development
 
 ```sh
@@ -147,6 +170,7 @@ npm run update     # refresh data
 npm test           # engine tests (values quoted from the wiki)
 npm run check      # tsc --noEmit
 npm run coverage   # how much of the mod dataset is understood
+npm run validate   # invariants + cross-checks over the whole dataset
 ```
 
 Layout:

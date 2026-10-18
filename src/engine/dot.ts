@@ -156,8 +156,16 @@ export function computeDot(
     const procsPerSecond =
       procsPerProjectile * build.multishot * pullsPerSecond + (forced.get(type) ?? 0);
 
-    // Faction damage double-dips: it is already inside the seed and is applied again here.
-    const rawTick = (component + 1) * coefficient * statusDamageBonus * factionMultiplier * factionMultiplier;
+    // The wiki separates the seed (damage before the elemental bonus) from the elemental
+    // multiplier: (seed + 1) × C × (1 + element bonus) × … Combined types (Gas, Blast) are
+    // explicitly NOT buffed by their component mods, so their bonus stays 0.
+    const elementalBonus = (type === 'gas' || type === 'blast')
+      ? 0
+      : (build.elementBonuses as Record<string, number | undefined>)[type] ?? 0;
+    const seed = elementalBonus > 0 ? component / (1 + elementalBonus) : component;
+    // Faction damage scales the seed itself and is then applied again, exactly as the wiki's
+    // worked examples do it: ((seed x faction) + 1) x C x (1 + element bonus) x status x faction.
+    const rawTick = ((seed * factionMultiplier) + 1) * coefficient * (1 + elementalBonus) * statusDamageBonus * factionMultiplier;
     const armorModifier = armorPool && dotType !== 'true' ? healthModifier(snapshot, dotType, armorPool.type) : 0;
     const dr = dotType === 'true' ? 0 : armorDamageReduction(armor, armorModifier);
     const healthMod = dotType === 'true' ? 0 : healthModifier(snapshot, dotType, healthType);

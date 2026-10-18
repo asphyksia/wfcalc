@@ -115,6 +115,10 @@ Cloudflare. Do not use it.
     caps). The caps are read from the page text and hardcoded in the registry; if they ever
     change, `wfcalc buffs` will not notice.
 
+25. **Charge weapons ship `fireRate: 0`** (Lanka and friends); the real rate is
+    `1 / max(charge_time)` from the attacks array. The validator caught this one — it was
+    making Lanka's DPS zero.
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully

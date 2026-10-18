@@ -16,7 +16,8 @@
     "calc": "node src/cli.ts",
     "check": "tsc --noEmit",
     "test": "node --test tests/*.test.ts",
-    "coverage": "node tools/coverage.ts"
+    "coverage": "node tools/coverage.ts",
+    "validate": "node tools/validate.ts"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

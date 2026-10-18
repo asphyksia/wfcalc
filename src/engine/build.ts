@@ -130,6 +130,12 @@ export interface ResolvedBuild {
   critVariance: { pellets: number; expectedCrits: number; atLeastOneCrit: number };
   /** Total Status Damage bonus (multiplies DoT ticks). */
   statusDamageBonus: number;
+  /**
+   * Elemental bonus per base element (e.g. Heat 0.9 for Hellfire). The DoT layer needs it
+   * to separate the seed from the elemental multiplier, which is what the wiki's worked
+   * examples do: (seed + 1) × C × (1 + element bonus).
+   */
+  elementBonuses: Partial<Record<BaseElement, number>>;
   /** Status effects forced by mods (Hunter Munitions and friends). */
   forcedProcs: Array<{ type: DamageType; chance: number; requiresCrit: boolean }>;
   /** Ability Strength used for buffs (from frame mods when provided). */
@@ -647,6 +653,10 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     comboMultiplier,
     critVariance,
     statusDamageBonus: bonus('statusDamage'),
+    elementBonuses: collected.elementBonuses.reduce<Partial<Record<BaseElement, number>>>((acc, entry) => {
+      acc[entry.element] = (acc[entry.element] ?? 0) + entry.amount;
+      return acc;
+    }, {}),
     forcedProcs: collected.forcedProcs,
     abilityStrength,
     debuffs: build.debuffs ?? {},

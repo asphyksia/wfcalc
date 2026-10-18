@@ -93,6 +93,7 @@ function snapshot(
     enemies: byName(enemies),
     // Alloy Armor: Radiation +75, Puncture +15. Cloned Flesh: Slash +25, Heat +25.
     modifiers: {
+      'Neutral Flesh': {},
       radiation: { 'Alloy Armor': 75 },
       puncture: { 'Alloy Armor': 15 },
       slash: { 'Cloned Flesh': 25 },
@@ -110,6 +111,13 @@ function snapshot(
   };
 }
 
+const dummy: EnemyData = {
+  id: 'Dummy', name: 'Dummy', faction: 'grineer', kind: 'Grineer', baseLevel: 1,
+  health: 1_000_000, shield: 0, armor: 0,
+  pools: [{ type: 'Neutral Flesh', category: 'health', amount: 1_000_000 }],
+  toxinBypassesShields: true,
+};
+
 const bombard: EnemyData = {
   id: 'Bombard', name: 'Bombard', faction: 'grineer', kind: 'Grineer', baseLevel: 1,
   health: 300, shield: 0, armor: 500,
@@ -126,6 +134,7 @@ const hellfire = mod('Hellfire', 5, ['+90% Heat']);
 const cryoRounds = mod('Cryo Rounds', 5, ['+90% Cold']);
 const infectedClip = mod('Infected Clip', 5, ['+90% Toxin']);
 const stormbringer = mod('Stormbringer', 5, ['+90% Electricity']);
+const thermite = mod('Thermite Rounds', 5, ['+60% Heat']);
 const vitalSense = mod('Vital Sense', 5, ['+120% Critical Damage']);
 const splitChamber = mod('Split Chamber', 5, ['+90% Multishot']);
 const baneOfGrineer = mod('Bane of Grineer', 5, ['x1.3 Damage to Grineer']);
@@ -640,4 +649,58 @@ test('Covenant gives flat crit chance, capped per hit type', () => {
   close(at(1000).critChance, 0.3 + 0.20); // 5% + 1.5% x 10
   close(at(4000).critChance, 0.3 + 0.50); // capped at 50% on body shots
   close(at(20000, true).critChance, 0.3 + 2.00); // capped at 200% on weak points
+});
+
+/**
+ * Golden values copied verbatim from wiki.warframe.com/w/Damage/Calculation →
+ * "Damage Over Time Final Calculations". Each one is a worked example with the
+ * seed, the bonuses and the expected tick damage the game displays.
+ */
+test('wiki DoT example: Heat, 40 seed with +60% Heat -> 32.8 per tick', () => {
+  // (40 + 1) x 0.5 x 1.6 = 32.8
+  const snap = snapshot([weapon({ heat: 40 })], [thermite], [dummy]);
+  const resolved = build(snap, ['Thermite Rounds']);
+  const hit = hitEnemy(snap, resolved, scaleEnemy(snap, dummy, 1));
+  const heat = hit.dot.find((entry) => entry.type === 'heat');
+  assert.ok(heat);
+  close(heat!.tickDamage, 32.8, 1e-3);
+});
+
+test('wiki DoT example: Toxin, 40 seed, +225% Toxin and +55% faction -> 158.68 per tick', () => {
+  // ((40 x 1.55) + 1) x 0.5 x 3.25 x 1.55 = 158.68
+  const toxinBig = mod('Primed Infected Clip', 10, ['+225% Toxin'], { classes: ['Rifle'] });
+  const bane = mod('Primed Bane of Grineer', 10, ['x1.55 Damage to Grineer'], { classes: ['Rifle'] });
+  const snap = snapshot([weapon({ toxin: 40 })], [toxinBig, bane], [dummy]);
+  const resolved = build(snap, ['Primed Infected Clip', 'Primed Bane of Grineer']);
+  const hit = hitEnemy(snap, resolved, scaleEnemy(snap, dummy, 1));
+  const toxin = hit.dot.find((entry) => entry.type === 'toxin');
+  assert.ok(toxin);
+  close(toxin!.tickDamage, 158.68, 1e-2);
+});
+
+test('wiki DoT example: Slash bleed, 40 seed with +55% faction -> 34.18 per tick', () => {
+  // ((40 x 1.55) + 1) x 0.35 x 1.55 = 34.18, and bleed ignores armour entirely.
+  const bane = mod('Primed Bane of Grineer', 10, ['x1.55 Damage to Grineer'], { classes: ['Rifle'] });
+  const hunterMunitions = mod('Hunter Munitions', 5, ['+30% chance to apply on Critical'], { classes: ['Rifle'] });
+  const snap = snapshot(
+    [weapon({ slash: 40, critChance: 1, critMultiplier: 1 })],
+    [bane, hunterMunitions],
+    [dummy],
+  );
+  const resolved = build(snap, ['Primed Bane of Grineer', 'Hunter Munitions']);
+  const hit = hitEnemy(snap, resolved, scaleEnemy(snap, dummy, 1));
+  const bleed = hit.dot.find((entry) => entry.type === 'slash');
+  assert.ok(bleed);
+  close(bleed!.tickDamage, 34.18, 1e-3);
+});
+
+test('wiki DoT example: Gas, 40 seed with no bonuses -> 20.5 per tick', () => {
+  // (40 + 1) x 0.5 = 20.5 with "no applicable bonuses": combined types like Gas get no
+  // elemental multiplier on the DoT (their component mods only add to the Gas pool itself).
+  const snap = snapshot([weapon({ gas: 40 })], [], [dummy]);
+  const resolved = build(snap, []);
+  const hit = hitEnemy(snap, resolved, scaleEnemy(snap, dummy, 1));
+  const gas = hit.dot.find((entry) => entry.type === 'gas');
+  assert.ok(gas);
+  close(gas!.tickDamage, 20.5, 1e-3);
 });

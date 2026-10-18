@@ -292,13 +292,28 @@ shield-capable damage), then health using direct damage plus DoT DPS. Toxin bypa
 shields (except Treasurer and Hounds). Time comes from the sustained fire rate, which
 accounts for the magazine and reload cycle.
 
+## Verification
+
+Three layers, in `npm run validate` and `tests/`:
+
+1. **Invariants** that any correct implementation satisfies, checked over all 622 weapons
+   and 479 enemies: linearity in base damage, monotonicity, armour bounds, unit-sum
+   shares, determinism, no NaN/negatives, breakdown sums.
+2. **Golden values** quoted from the wiki, asserted to the decimal: Serration's
+   `18 x (1 + 1.5) = 45`, armour `0.9 x sqrt(2700/2700) = 0.9`, the combo ladder, and the
+   five DoT tick examples (`((40 x 1.55) + 1) x 0.5 x 3.25 x 1.55 = 158.68`).
+3. **In-game calibration**: [calibration.md](calibration.md), fifteen isolating captures.
+
 ## Known approximations
 
 - Buff uptime is not modelled: a buff is either on or off. "Fury at maximum" means the
   value assuming full ramp-up.
 
 - Quantization (`1/32` of base damage) is **not** applied: it shifts things by well
-  under 1% except for the Shattering Impact edge case.
+  under 1% except for the Shattering Impact edge case. DoT ticks are not quantized in
+  the game either, so the golden DoT examples match to the decimal.
+- The DoT `+1` accumulator uses the seed before the elemental multiplier, which is what
+  the wiki's worked examples do; treating it as a flat +1 would drift ~1%.
 - Multishot and crit are treated as expectations, not per-pellet rolls.
 - Fire rate is the trigger rate; charge weapons use the dataset's charge-inclusive rate.
 - Area-of-effect falloff and punch-through multi-hits are not modelled.
