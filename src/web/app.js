@@ -37,6 +37,7 @@ const state = {
   comboHits: 0,
   heavyAttack: false,
   aoeDistance: null,
+  elementBonus: null, // { type, value }
   debuffs: { viralStacks: 0, corrosiveStacks: 0 },
   enemy: 'Bombard',
   level: 100,
@@ -366,6 +367,15 @@ function bindEvents() {
 
   $('mod-filter').addEventListener('input', (event) => renderModList(event.target.value.toLowerCase()));
 
+  $('element-bonus').addEventListener('change', (event) => {
+    const [type, raw] = event.target.value.split(':');
+    const amount = Number((raw ?? '').replace('%', ''));
+    state.elementBonus = type && Number.isFinite(amount)
+      ? { type: type.trim().toLowerCase(), value: amount > 1 ? amount / 100 : amount }
+      : null;
+    recalc();
+  });
+
   $('arcane-input').addEventListener('change', (event) => {
     const name = event.target.value.trim();
     state.arcanes = name ? [{ name }] : [];
@@ -485,6 +495,7 @@ function syncInputsFromState() {
   $('combo-input').value = String(state.comboHits ?? 0);
   $('combo-value').textContent = String(state.comboHits ?? 0);
   $('heavy').checked = Boolean(state.heavyAttack);
+  $('element-bonus').value = state.elementBonus ? `${state.elementBonus.type}:${(state.elementBonus.value * 100).toFixed(0)}` : '';
   $('aoe-input').value = String(state.aoeDistance ?? 0);
   $('aoe-value').textContent = state.aoeDistance ? `${state.aoeDistance} m` : 'centre';
   $('viral').value = String(state.debuffs?.viralStacks ?? 0);

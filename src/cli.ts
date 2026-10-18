@@ -62,6 +62,17 @@ function parseModArg(raw: string): BuildMod {
   return { name: raw.trim() };
 }
 
+/** `--element-bonus heat:60` -> Kuva/Tenet elemental bonus. */
+function parseElementBonus(args: Args) {
+  const raw = flag(args, 'element-bonus');
+  if (!raw) return undefined;
+  const [type, value] = raw.split(':');
+  const element = (type ?? '').trim().toLowerCase();
+  const amount = Number(String(value ?? '').replace('%', '').trim());
+  if (!element || !Number.isFinite(amount)) return undefined;
+  return { type: element as never, value: amount > 1 ? amount / 100 : amount };
+}
+
 /** `--riven damage,multishot,-zoom` -> a riven spec (- prefix means malus). */
 function parseRiven(args: Args): RivenSpec | undefined {
   const raw = flag(args, 'riven');
@@ -91,6 +102,9 @@ function parseConditions(args: Args): Record<string, number> {
   }
   const statusTypes = flag(args, 'status-types');
   if (statusTypes) conditions.statusTypes = Number(statusTypes);
+  // Harrow's Covenant scales with the damage prevented during invulnerability.
+  const covenantDamage = flag(args, 'covenant-damage');
+  if (covenantDamage) conditions.covenantDamage = Number(covenantDamage);
   return conditions;
 }
 
@@ -118,6 +132,7 @@ function buildFromArgs(snapshot: Snapshot, args: Args, mods: string[]): Build {
       .map((entry) => parseModArg(entry.trim()))
       .filter((entry) => entry.name),
     riven: parseRiven(args),
+    elementBonus: parseElementBonus(args),
     aoeDistance: flag(args, 'aoe-distance') ? Number(flag(args, 'aoe-distance')) : undefined,
     comboHits: flag(args, 'combo-hits') ? Number(flag(args, 'combo-hits')) : undefined,
     heavyAttack: args.flags.has('heavy'),
@@ -228,6 +243,9 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
   if (resolved.activeBuffs.length) console.log(`  buffs        ${resolved.activeBuffs.join(', ')} @ ${num(resolved.abilityStrength)}% strength`);
   if (resolved.rivenLines.length) console.log(`  riven        ${resolved.rivenLines.join(', ')}`);
   if (resolved.incarnonLines.length) console.log(`  incarnon     ${resolved.incarnonLines.join(' / ')}`);
+  if (build.elementBonus) {
+    console.log(`  element      +${(build.elementBonus.value * 100).toFixed(0)}% ${build.elementBonus.type} (Kuva/Tenet bonus)`);
+  }
   if (resolved.comboMultiplier > 1) {
     console.log(`  combo        ${num(resolved.comboMultiplier, 1)}x at ${build.comboHits} hits${build.heavyAttack ? ' (heavy attack)' : ''}`);
   }
@@ -390,6 +408,8 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
          --frame Rhino  --frame-mods "Intensify,Blind Rage"  --frame-arcane "Molt Augmented"
          --strength 284  --riven damage,multishot
          --incarnon "EVO2:0,EVO4:1"  --riven-roll 1.05
+         --element-bonus heat:60    (Kuva/Tenet elemental bonus)
+         --covenant-damage 4000    (damage prevented for Harrow's Covenant)
          --viral 10  --corrosive 10  (status debuffs on the target)
          --combo-hits 220  --heavy   (melee combo multiplier / heavy attack)
          --aoe-distance 4            (AoE falloff distance in metres)

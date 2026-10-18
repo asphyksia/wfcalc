@@ -108,6 +108,13 @@ Cloudflare. Do not use it.
     with `op: 'flat'` in the pipeline (currently Arcane Avenger; extend the set as more
     are verified).
 
+23. **The Kuva/Tenet elemental bonus is not in the export at all** — it is a player choice,
+    so it has to be an input. 35 weapons depend on it for their elemental combination.
+
+24. **Covenant's numbers live in two `strength` segments plus a `misc` parameter** (the 50%/200%
+    caps). The caps are read from the page text and hardcoded in the registry; if they ever
+    change, `wfcalc buffs` will not notice.
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully

@@ -262,7 +262,30 @@ P(at least one)  = 1 - (1 - critChance)^pellets
 - **Helminth**: the ability dataset carries a `Subsumable` flag; asking for a buff the
   chosen frame cannot have produces a warning instead of a silent wrong answer.
 
-## 12. Time to kill
+## 12. Kuva and Tenet elemental bonus
+
+Kuva and Tenet weapons carry a player-chosen element worth 25-60% of **base damage**.
+It behaves exactly like innate damage: it is added before anything else, counts as part
+of base damage for elemental mods, and joins the combination first.
+
+```
+element_amount = base_total × bonus
+```
+
+Example (Kuva Bramma, 1026 base, 60% Heat): +615.6 Heat, which then combines with any
+Cold mod into Blast — and that changes which element the build actually ends up with.
+
+## 13. Harrow's Covenant (Retaliation)
+
+```
+bonus = (5% + 1.50% × damage_prevented/100) × strength     as FLAT crit chance
+cap   = 50% on body shots, 200% on weak-point hits         (the page's 4x weak-point factor)
+```
+
+Flat means it is added after mods: `10% base × (1 + Point Strike 150%) + 200%`. The
+damage prevented is the player's input (`--covenant-damage`); the calculator cannot know it.
+
+## 14. Time to kill
 
 Computed as rates rather than shots so status damage counts: shields first (only
 shield-capable damage), then health using direct damage plus DoT DPS. Toxin bypasses

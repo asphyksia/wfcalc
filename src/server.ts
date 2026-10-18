@@ -64,6 +64,9 @@ function calculate(body: any) {
     frame: body.frame || undefined,
     warframeArcanes: Array.isArray(body.warframeArcanes) ? body.warframeArcanes : [],
     incarnon: Array.isArray(body.incarnon) ? body.incarnon : [],
+    elementBonus: body.elementBonus
+      ? { type: body.elementBonus.type, value: Number(body.elementBonus.value) > 1 ? Number(body.elementBonus.value) / 100 : Number(body.elementBonus.value) }
+      : undefined,
     aoeDistance: body.aoeDistance !== undefined ? Number(body.aoeDistance) : undefined,
     comboHits: body.comboHits ? Number(body.comboHits) : undefined,
     heavyAttack: Boolean(body.heavyAttack),

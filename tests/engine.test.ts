@@ -605,3 +605,39 @@ test('a non-subsumable buff from another frame only warns', () => {
   const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], buffs: ['sonar'], frame: 'Rhino' });
   assert.ok(resolved.warnings.some((warning) => warning.includes('not subsumable')));
 });
+
+test('Kuva/Tenet elemental bonus joins the combination as innate damage', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [hellfire, cryoRounds]);
+  // 60% of 100 base = 60 Heat, added before mods; Hellfire (+90%) stacks on top of the
+  // 100 base, so Heat = 60 + 90 = 150 and nothing is left to combine.
+  const bare = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], elementBonus: { type: 'heat', value: 0.6 } });
+  close(bare.damage.perProjectile.heat ?? 0, 60);
+  close(bare.damage.projectileTotal, 160);
+
+  // The bonus counts as base damage, so elemental mods scale off the larger total:
+  // Cryo Rounds adds 90% of 160 = 144 Cold, which pairs with the innate 60 Heat.
+  const withCold = resolveBuild(snap, {
+    weapon: 'Test Weapon', mods: ['Cryo Rounds'], elementBonus: { type: 'heat', value: 0.6 },
+  });
+  close(withCold.damage.perProjectile.blast ?? 0, 60 + 144);
+  close(withCold.damage.perProjectile.heat ?? 0, 0);
+});
+
+test('Covenant gives flat crit chance, capped per hit type', () => {
+  const snap = snapshot([weapon({ impact: 100, critChance: 0.3 })], [], [], {
+    abilities: [
+      {
+        ability: 'Covenant', frame: 'Harrow', page: 'Covenant', kind: 'ability', value: 5,
+        segments: [{ label: 'base critical chance', max: 5 }, { label: 'critical chance per 100 damage', max: 1.5 }],
+        duration: 12, range: 50, subsumable: false,
+      },
+    ],
+  });
+  const at = (damage: number, headshot = false) =>
+    resolveBuild(snap, { weapon: 'Test Weapon', mods: [], buffs: ['covenant'], conditions: { covenantDamage: damage }, headshot });
+
+  close(at(0).critChance, 0.35); // 30% base + 5% flat
+  close(at(1000).critChance, 0.3 + 0.20); // 5% + 1.5% x 10
+  close(at(4000).critChance, 0.3 + 0.50); // capped at 50% on body shots
+  close(at(20000, true).critChance, 0.3 + 2.00); // capped at 200% on weak points
+});

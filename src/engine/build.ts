@@ -57,6 +57,12 @@ export interface Build {
   warframeArcanes?: Array<string | BuildMod>;
   /** Caster's Warframe name, used to validate which buffs it can actually bring. */
   frame?: string;
+  /**
+   * Kuva/Tenet weapon elemental bonus: the player-chosen element and its percentage of
+   * base damage (25-60%). It behaves as innate damage, so it joins the elemental
+   * combination before any mod.
+   */
+  elementBonus?: { type: DamageType; value: number };
   /** Riven mod stats for this weapon. */
   riven?: RivenSpec;
   /** Status debuffs on the target, in DotContext terms (viralStacks, corrosiveStacks). */
@@ -207,6 +213,16 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   let stats = resolvedMode.stats;
   const mode = resolvedMode.mode;
 
+  // Kuva/Tenet elemental bonus: a player-chosen element worth 25-60% of base damage,
+  // baked in before anything else so it combines like innate damage.
+  let elementBonusWarning: string | null = null;
+  if (build.elementBonus && build.elementBonus.value > 0) {
+    const { type, value } = build.elementBonus;
+    if (value > 0.6) elementBonusWarning = `element bonus ${(value * 100).toFixed(0)}% is above the 60% maximum`;
+    const rawTotal = DAMAGE_TYPES.reduce((sum, candidate) => sum + (stats[candidate] ?? 0), 0);
+    stats = { ...stats, [type]: (stats[type] ?? 0) + rawTotal * value };
+  }
+
   // AoE: the arsenal block counts the radial hit at the blast centre. Swap that portion
   // for the falloff-reduced value at the requested distance.
   const aoeDistance = build.aoeDistance;
@@ -252,6 +268,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   }
   const sources: Source[] = [];
   if (aoeWarning) collected.warnings.push(aoeWarning);
+  if (elementBonusWarning) collected.warnings.push(elementBonusWarning);
   const equipped: string[] = [];
   const rivenLines: string[] = [];
 
@@ -391,7 +408,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
         `${definition.ability} belongs to ${ability.frame} and is not subsumable; ${build.frame} cannot use it`,
       );
     }
-    const effects = buffEffects(snapshot, definition, abilityStrength);
+    const effects = buffEffects(snapshot, definition, abilityStrength, { conditions, headshot: build.headshot });
     if (!effects.length) {
       collected.warnings.push(`${definition.ability}: no numbers in the dataset, buff ignored`);
       continue;

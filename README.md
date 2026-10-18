@@ -58,6 +58,8 @@ Interactive UI: `wfcalc serve` → <http://127.0.0.1:7777>.
 | `--riven-roll 1.05` / `--riven-rank 6` | Riven random roll (0.9-1.1) and rank |
 | `--frame Rhino` | Validate that the frame can actually bring those buffs (Helminth) |
 | `--frame-arcane "Arcane Avenger"` | Warframe arcanes (also feed Ability Strength) |
+| `--element-bonus heat:60` | Kuva/Tenet elemental bonus (25-60%) |
+| `--covenant-damage 4000` | Damage prevented, for Harrow's Covenant |
 | `--viral 10`, `--corrosive 10` | Status stacks kept up on the target |
 | `--incarnon "EVO2:0,EVO4:1"` | Incarnon evolutions per tier (see `wfcalc incarnon`) |
 | `--combo-hits 220` / `--heavy` | Melee combo counter and heavy attack |
@@ -90,6 +92,8 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
   **combination order**, multishot, crit chance/damage, status chance.
 - Faction damage mods and **Roar**, applied multiplicatively against the matching faction.
 - Weapon arcanes (Primary Merciless, Melee Exposure, Cascadia Flare...) with their stacks.
+- **Kuva/Tenet elemental bonus**: the player-chosen element, baked in as innate damage
+  (which is what really decides the elemental combination on those 35 weapons).
 - **Warframe arcanes**: Arcane Avenger (flat crit chance), Arcane Acceleration, Arcane Rage,
   Molt Augmented (which feeds Ability Strength and therefore every buff).
 - **Helminth awareness**: a buff from another frame is flagged when it is not subsumable.
@@ -120,9 +124,8 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
 
 ## What it does not model yet
 
-- Buffs outside the curated registry: Harrow's Covenant needs the damage dealt during
-  invulnerability, which the calculator cannot know. Elemental Ward and Provoke do not
-  buff weapon damage, so they are intentionally absent.
+- Elemental Ward and Provoke do not buff weapon damage, so they are intentionally absent.
+- Boss damage attenuation (Archons, Liches) is not modelled: the game caps damage per hit.
 - Umbral set bonuses, Archon Shards and Helminth invigorations for Ability Strength.
 - **Stances**: stance damage multipliers are per-combo-hit execution, not a build
   property, and the wiki keeps them in prose. Out of scope by design.

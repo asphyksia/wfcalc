@@ -14,13 +14,20 @@
 import type { AbilityData, DamageType, Effect, Snapshot } from '../types.ts';
 import type { Conditions } from './build.ts';
 
+/** Extra context a buff needs: buff stacks plus whether the shot is a weak-point hit. */
+export interface BuffContext {
+  conditions?: Record<string, number | boolean | undefined>;
+  headshot?: boolean;
+}
+
 export type BuffKind =
   | 'damage' // multiplies total weapon damage (same bucket as Serration)
   | 'faction' // faction damage bonus: multiplicative with damage mods
   | 'element' // adds a damage type worth N% of base damage
   | 'elementMultiplier' // multiplies one existing damage type
   | 'speed' // attack / fire rate
-  | 'weakPoint'; // multiplies weak-point damage
+  | 'weakPoint' // multiplies weak-point damage
+  | 'flatCrit'; // flat critical chance added after mods
 
 export interface BuffDefinition {
   /** Stable id used by the CLI/UI. */
@@ -96,6 +103,7 @@ export const BUFFS: BuffDefinition[] = [
   { id: 'resupply', ability: 'Resupply', kind: 'damage', pick: byLabel('weapon', 'damage') },
   { id: 'amp', ability: 'Amp', kind: 'damage', note: 'minimum roll' },
   { id: 'haste-mote', ability: 'Reservoirs', kind: 'speed', pick: byLabel('fire', 'rate'), note: "Wisp's Haste Mote" },
+  { id: 'covenant', ability: 'Covenant', kind: 'flatCrit', pick: byLabel('base', 'critical'), note: 'Retaliation: needs the damage prevented' },
 ];
 
 export const buffById = (id: string): BuffDefinition | undefined =>
@@ -105,7 +113,12 @@ export const buffById = (id: string): BuffDefinition | undefined =>
  * Turns an active buff into effects, given the caster's Ability Strength.
  * `strength` is a percentage: 100 means unmodded.
  */
-export function buffEffects(snapshot: Snapshot, definition: BuffDefinition, strength = 100): Effect[] {
+export function buffEffects(
+  snapshot: Snapshot,
+  definition: BuffDefinition,
+  strength = 100,
+  context: BuffContext = {},
+): Effect[] {
   const ability = snapshot.abilities[definition.ability];
   if (!ability) return [];
   const base = definition.pick ? definition.pick(ability) : ability.value;
@@ -134,6 +147,21 @@ export function buffEffects(snapshot: Snapshot, definition: BuffDefinition, stre
     case 'weakPoint':
       // Sonar replaces the weak-point multiplier (default x2) with its scaled value.
       return [{ target: 'weakPointOverride', op: 'add', value, raw }];
+    case 'flatCrit': {
+      // Harrow's Retaliation: 5% base plus 1.5% per 100 damage prevented, x strength, as a
+      // FLAT crit chance added after mods. Caps: 50% on body shots, 200% on weak points.
+      const perHundred = ability.segments.find((entry) => entry.label.includes('per 100'))?.max ?? 1.5;
+      const damagePrevented = Number(context.conditions?.covenantDamage ?? 0);
+      const bonus = ((base ?? 5) + perHundred * (damagePrevented / 100)) * (strength / 100);
+      const cap = context.headshot ? 200 : 50;
+      const capped = Math.min(cap, bonus);
+      return [{
+        target: 'critChance',
+        op: 'flat',
+        value: capped / 100,
+        raw: `Covenant ${capped.toFixed(0)}% flat crit chance (${damagePrevented} damage prevented, cap ${cap}%)`,
+      }];
+    }
     default:
       return [];
   }
