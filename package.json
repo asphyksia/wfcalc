@@ -23,7 +23,8 @@
     "overframe-db": "node tools/fetch-overframe-db.ts",
     "sync": "node tools/sync.ts",
     "sync-check": "node tools/sync.ts --check",
-    "drift": "node tools/drift.ts"
+    "drift": "node tools/drift.ts",
+    "audit": "node tools/audit.ts"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

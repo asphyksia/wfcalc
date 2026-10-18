@@ -245,7 +245,9 @@ node tools/calibrate.ts --build 1036746
 with wfcalc and diffs it against Overframe's own modifier block (`WEAPON_CRIT_CHANCE`,
 `WEAPON_FIRE_ITERATIONS`, ...). Results land in [docs/calibration-results.md](docs/calibration-results.md).
 
-Latest run: **170/200 builds match on every applicable stat**. The remaining mismatches are
+Latest runs: **170/200** and **222/250** builds match on every applicable stat. `npm run audit`
+adds the *why*: mismatch rate per weapon category, per field, and mods over-represented in
+failures. Its last sweep found every failure concentrated in four weapons, one field each. The remaining mismatches are
 grouped by signature; the open ones are listed in [docs/data-notes.md](docs/data-notes.md).
 
 ## Comparing a single build by hand

@@ -349,7 +349,12 @@ zero, and "Direct Damage" being merged into the base-damage bucket.
 ## Calibration
 
 `npm run calibrate` compares public Overframe builds against wfcalc field by field using the
-game's own modifier keys. Latest run: **170/200 builds match on every applicable stat**.
+game's own modifier keys. Latest runs: **170/200** and **222/250** builds match.
+
+`npm run audit` goes further: it looks for *causes* rather than counting symptoms (failure
+rate per weapon category and per field, mods over-represented in failures). Its 250-build
+sweep found that all 28 mismatches belong to four weapons — one field each — so the engine is
+consistent across the other ~618.
 
 Two cheap mechanics it surfaced, both now modelled: "(x2 for Bows)" doubling and the
 Cannonade "Fire Rate cannot be modified" lock. Per-weapon data errors live in

@@ -180,6 +180,20 @@ Cloudflare. Do not use it.
     so a stat has several candidate values; compare against the closest rather than the
     first, or multi-mode weapons look like drift.
 
+38. **Full audit sweep (250 public builds, `npm run audit`)**: 222 match, 28 fail, and the
+    failures are **exactly four weapons** — Phantasma Prime (multishot), Ocucor (multishot),
+    Tenet Arca Plasmor (fire rate), Acceltra (status chance) — seven builds each, one field
+    each. No other weapon in the sample ever diverges. Melee: 0/56 failing. Over 201 arcane
+    slots appear in the sample and none is implicated.
+
+39. Those four are not formula errors: in each, the oracle differs from *both* our data and
+    Overframe's own raw mirror by a suspiciously round amount (Ocucor is exactly +1.0
+    multishot), which smells like a per-weapon special mechanic rather than a mapping bug.
+    They are left unreconciled on purpose: forcing an override would hide the cause.
+
+40. **Overframe build pages do not contain rivens** (0 riven slots in 250 builds), so riven
+    support cannot be validated this way and rests on the unit tests against the wiki table.
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully
