@@ -61,6 +61,8 @@ function calculate(body: any) {
     buffs: Array.isArray(body.buffs) ? body.buffs : [],
     abilityStrength: body.abilityStrength ? Number(body.abilityStrength) : undefined,
     frameMods: Array.isArray(body.frameMods) ? body.frameMods : [],
+    frame: body.frame || undefined,
+    warframeArcanes: Array.isArray(body.warframeArcanes) ? body.warframeArcanes : [],
     incarnon: Array.isArray(body.incarnon) ? body.incarnon : [],
     aoeDistance: body.aoeDistance !== undefined ? Number(body.aoeDistance) : undefined,
     comboHits: body.comboHits ? Number(body.comboHits) : undefined,
