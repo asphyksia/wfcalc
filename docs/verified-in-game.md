@@ -72,3 +72,29 @@ could account for; it is not a model-level error.
 **This does not discriminate the three armour models**: at level 27 they differ by only 5%
 (8.68 / 8.98 / 9.15 before truncation) and all three truncate to 8. To separate them the target
 must have far more armour relative to its health — level 60+ or a Steel Path mission.
+
+## The armour model: one of three eliminated (level 101, Steel-Path-grade armour)
+
+**Soma Prime + maxed Serration, Elite Frontier Lancer level 101** (Alloy Armor at the 2700 cap):
+**4 damage normal, 10 on a yellow crit.**
+
+Per-type values before truncation, and what each model predicts:
+
+| model | impact | puncture | slash | normal (truncated) |
+|---|---|---|---|---|
+| modifier scales armour | 1.00 | 2.17 | 1.99 | **4** ✅ |
+| modifier multiplies damage | 1.00 | 1.46 | 1.99 | 3 ❌ |
+| both | 1.00 | 2.49 | 1.99 | **4** ✅ |
+
+So **"the armour modifier merely multiplies damage" is ruled out**: it predicts 3, the game
+shows 4. The armour modifier does interact with the armour value.
+
+That leaves two readings, and this data cannot separate them because puncture (the only type
+whose value differs, 2.17 vs 2.49) truncates to 2 either way.
+
+The crit (10) does not match any model at x3 (12-15 predicted) and the observed ratio, 2.5, is
+lower than at level 27 (2.875). At 4-10 damage the wiki's `1/32` quantization is a large share
+of the number, which is the likely cause; that quantization is still not modelled.
+
+**Next data point needed**: the same build with far higher damage per shot (Serration plus an
+elemental, or a stronger weapon), so truncation stops masking the 2.17 vs 2.49 difference.
