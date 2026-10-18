@@ -36,6 +36,39 @@ const RARITY_COLORS = {
 };
 const rarityColor = (rarity) => RARITY_COLORS[String(rarity ?? '').toLowerCase()] ?? '#8d95a7';
 
+/** The headline stat of a mod, taken from the first line of its description. */
+function headline(mod) {
+  const line = (mod.description ?? '').split('\n')[0] ?? '';
+  const match = /([+-]?\d+(?:[.,]\d+)?%?)/.exec(line);
+  return match ? match[1] : '';
+}
+
+/**
+ * One mod card: artwork, rarity frame, headline stat, drain, name, stats, compatibility and
+ * rank stars — Overframe's Mod component, whose frame is CSS rather than a baked image, so
+ * the card always renders even when the artwork fails.
+ */
+function modCardMarkup(mod, options = {}) {
+  const equipped = options.equipped ?? false;
+  const showShare = options.showShare ?? false;
+  const share = options.share ?? 0;
+  const stars = Math.min((mod.maxRank ?? 0) + 1, 11);
+  const statLines = (mod.description ?? '').split('\n').slice(1, 3).filter(Boolean);
+  return `
+    <div class="mcard ${String(mod.rarity ?? '').toLowerCase()}" style="--rarity:${rarityColor(mod.rarity)}">
+      ${headline(mod) ? `<span class="mcard-stat">${headline(mod)}</span>` : ''}
+      ${showShare && share > 0.005 ? `<span class="mcard-share">+${(share * 100).toFixed(0)}%</span>` : ''}
+      <span class="mcard-drain">${mod.baseDrain ?? 0}<i class="polarity" style="color:${polarityColor(mod.polarity)}">${glyph(mod.polarity)}</i></span>
+      <figure class="mcard-image">
+        ${mod.image ? `<img src="/img/${mod.image}" alt="" loading="lazy" draggable="false" onerror="this.style.display='none'" />` : ''}
+      </figure>
+      <div class="mcard-text"><b>${mod.name}</b>${statLines.map((line) => `<span>${line}</span>`).join('')}</div>
+      <div class="mcard-compat">${(mod.classes ?? [])[0] ?? ''}</div>
+      <div class="mcard-stars">${'★'.repeat(stars)}</div>
+      ${equipped ? '<span class="mcard-badge">equipped</span>' : ''}
+    </div>`;
+}
+
 const emptyState = () => ({
   weapon: '',
   mods: [], // [{ name, rank }]
@@ -301,13 +334,9 @@ function renderSlots() {
         <span class="mod-share">${mod.name && share ? `+${(share * 100).toFixed(0)}%` : ''}</span>
         <button class="remove" data-index="${index}" title="remove">×</button>
       </div>
-      ${info?.card
-        ? `<img class="card-art" src="/card/${info.card}" alt="" loading="lazy" draggable="false"
-             onerror="this.classList.add('broken');this.removeAttribute('src')" />`
-        : info?.image
-          ? `<img class="card-art" src="/img/${info.image}" alt="" loading="lazy" draggable="false"
-               onerror="this.classList.add('broken');this.removeAttribute('src')" />`
-          : `<div class="slot-glyph" style="color:${polarityColor(slotPolarityName)}">${glyph(slotPolarityName) || '·'}</div>`}
+      ${info
+        ? modCardMarkup(info, { showShare: true, share: share ?? 0 })
+        : `<div class="slot-glyph" style="color:${polarityColor(slotPolarityName)}">${glyph(slotPolarityName) || '·'}</div>`}
       <div class="mod-name${mod.name ? ' sr-only' : ''}" data-index="${index}" tabindex="0" role="button"
            aria-label="edit mod">${mod.name ? mod.name.replace(/</g, '&lt;') : `<span class="placeholder">${exilus ? 'exilus slot' : 'empty slot'}</span>`}</div>
       ${mod.name && !info?.card ? `<div class="mod-desc">${description}</div>` : ''}
@@ -502,13 +531,9 @@ function renderLibrary() {
     .slice(0, 120)
     .map(
       (mod) => `<button class="lib-card${state.mods.some((entry) => entry.name === mod.name) ? ' equipped' : ''}"
-        draggable="true" data-mod="${mod.name.replace(/"/g, '&quot;')}${mod.classes?.length ? ` data-type="${mod.classes[0]}"` : ''}${mod.rarity ? ` data-rarity="${mod.rarity}"` : ''}"
+        draggable="true" data-mod="${mod.name.replace(/"/g, '&quot;')}"
         style="border-left-color:${polarityColor(mod.polarity)}">
-        <span class="polarity" style="color:${polarityColor(mod.polarity)}">${glyph(mod.polarity)}</span>
-        ${mod.card ? `<img class="lib-card-art" src="/card/${mod.card}" alt="" loading="lazy" draggable="false"
-             onerror="this.classList.add('broken');this.removeAttribute('src')" />` : ''}
-        <span class="lib-name">${mod.name}</span>
-        <span class="lib-desc">${(mod.description || '').split('\n')[0].slice(0, 36)}</span>
+        ${modCardMarkup(mod, { equipped: state.mods.some((entry) => entry.name === mod.name) })}
       </button>`,
     )
     .join('') || '<p class="hint">No mod matches that search.</p>';

@@ -404,3 +404,51 @@ details > *:not(summary) { margin-top: 8px; }
 @media (max-width: 700px) { .board .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .board { align-self: start; }
 .rail .bars { margin-top: 4px; }
+
+/* ── mod card, Overframe-style: artwork + CSS frame ──────────────────── */
+.mcard {
+  position: relative; display: flex; flex-direction: column; gap: 2px;
+  border-radius: 7px; padding: 4px 5px 3px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--rarity) 16%, #1d222c), #12151c 62%);
+  border: 1px solid color-mix(in srgb, var(--rarity) 55%, var(--border));
+  box-shadow: inset 0 0 14px -6px var(--rarity), 0 1px 3px rgba(0,0,0,.5);
+  text-align: left; width: 100%;
+}
+.mcard-image { margin: 0; border-radius: 4px; overflow: hidden; background: #0a0c10; aspect-ratio: 1.55; }
+.mcard-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mcard-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.mcard-text b { font-size: 11.5px; font-weight: 600; line-height: 1.15; }
+.mcard-text span { font-size: 9.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcard-stat {
+  position: absolute; top: 6px; left: 6px; z-index: 2;
+  font-size: 9.5px; font-weight: 700; padding: 1px 4px; border-radius: 4px;
+  background: rgba(8,10,14,.82); color: var(--ok);
+  font-variant-numeric: tabular-nums;
+}
+.mcard-share {
+  position: absolute; top: 6px; left: 50%; transform: translateX(-50%); z-index: 2;
+  font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
+  background: rgba(8,10,14,.82); color: var(--accent);
+}
+.mcard-drain {
+  position: absolute; top: 5px; right: 5px; z-index: 2;
+  font-size: 9.5px; font-weight: 700; padding: 1px 4px; border-radius: 4px;
+  background: rgba(8,10,14,.82); display: flex; align-items: center; gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.mcard-drain .polarity { font-size: 9px; }
+.mcard-compat {
+  font-size: 8.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+  border-top: 1px solid color-mix(in srgb, var(--rarity) 25%, transparent);
+  padding-top: 2px; text-align: center;
+}
+.mcard-stars { font-size: 7px; letter-spacing: 1px; color: var(--rarity); text-align: center; line-height: 1; }
+.mcard-badge { position: absolute; inset: auto 0 0 0; font-size: 8px; text-align: center; color: var(--accent); }
+
+/* the slot wrapper no longer needs its own frame around a card */
+.slot.filled { padding: 4px; background: none; border-color: transparent; box-shadow: none; }
+.slot.filled::after { content: none; }
+.slot .mcard { cursor: grab; }
+.lib-card { padding: 0; background: none; border: 0; }
+.lib-card .mcard { cursor: grab; }
