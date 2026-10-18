@@ -170,6 +170,16 @@ Cloudflare. Do not use it.
     own effect values, and the wording is "both mods" rather than a mod name) and a
     per-pieces table (Vigilante, Gladiator, Hunter → their own effect).
 
+36. **The raw export leaves some fields at their default.** `criticalHitDamageMultiplier` is
+    2 for a whole family of weapons regardless of their real value (Acceltra is 2.8 in game
+    and in Overframe's engine), and `criticalHitChance` can be 0. So `tools/drift.ts` is a
+    signal: magazine size and reload are trustworthy, crit/status need arbitration against
+    the wiki or an Overframe oracle.
+
+37. **Overframe's item mirror is keyed by Lotus path and every weapon has 1-3 behaviours**,
+    so a stat has several candidate values; compare against the closest rather than the
+    first, or multi-mode weapons look like drift.
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully

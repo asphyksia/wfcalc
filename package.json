@@ -22,7 +22,8 @@
     "calibrate": "node tools/calibrate.ts",
     "overframe-db": "node tools/fetch-overframe-db.ts",
     "sync": "node tools/sync.ts",
-    "sync-check": "node tools/sync.ts --check"
+    "sync-check": "node tools/sync.ts --check",
+    "drift": "node tools/drift.ts"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

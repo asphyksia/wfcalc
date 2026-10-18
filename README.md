@@ -107,6 +107,19 @@ WantedBy=timers.target
 
 Or, with cron: `17 4 * * 1 cd ~/work/wfcalc && npm run sync >> sync.log 2>&1`.
 
+### Drift detection
+
+`npm run drift` joins our weapon data against Overframe's mirror of the same game export,
+by Lotus path, and compares the base stats as ratios (the export stores fire rate in ticks
+per minute, so a flat comparison is meaningless). A field whose ratio is stable across the
+weapons is a unit difference; a weapon that deviates from that median got stale.
+
+It is a signal, not a verdict: some raw fields sit at their default (Acceltra's
+`criticalHitDamageMultiplier` is 2 in the export while the game and Overframe's own engine
+use 2.8), so crit/status divergences need arbitration. Magazine size and reload have no such
+defaults and are the reliable class — that is how the Fulmin family's factor-of-10 error
+turned up. `npm run sync` runs it on every update.
+
 ### Why not sync straight from Overframe's database chunks?
 
 Because they are a *mirror of the same game export*, keyed by the same Lotus paths, and
@@ -118,7 +131,7 @@ export is the stale one. So:
 |---|---|
 | WFCD `warframe-items` | primary data — structured, git-versioned, diffable |
 | WARFRAME Wiki raw modules | primary data — mod list, formulas, sets, abilities |
-| Overframe `api/v1` + `static/_next/.../db/*` | **verifier** — calibration and drift detection |
+| Overframe `api/v1` + `static/_next/.../db/*` | **verifier** — calibration (`npm run calibrate`) and drift detection (`npm run drift`) |
 
 Using Overframe as the primary source would mean adopting a webpack chunk with their own
 schema as the foundation, and losing the per-commit diffability of a git repository. Making

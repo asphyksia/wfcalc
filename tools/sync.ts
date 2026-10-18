@@ -186,8 +186,19 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log('\n4/5 coverage…');
+  console.log('\n4/5 coverage and drift…');
   run('coverage.ts');
+  let driftLines: string[] = [];
+  try {
+    const drift = execFileSync('node', [join(ROOT, 'tools/drift.ts'), '--quiet'], { cwd: ROOT, encoding: 'utf8' });
+    driftLines = drift.split('\n').filter((line) => /divergence|weapons where/.test(line));
+    for (const line of driftLines) console.log(`  ${line}`);
+  } catch (error) {
+    // drift.ts exits non-zero when it finds divergences; that is the point.
+    const output = String((error as any).stdout ?? '');
+    driftLines = output.split('\n').filter((line) => /divergence|weapons where/.test(line));
+    for (const line of driftLines) console.log(`  ${line}`);
+  }
 
   console.log('\n5/5 calibration sample…');
   const score = calibrateSample(60);
@@ -201,6 +212,7 @@ async function main(): Promise<void> {
     `- WFCD export: ${outgoing.wfcd?.sha?.slice(0, 8) ?? '?'} (${outgoing.wfcd?.date ?? '?'})`,
     `- wiki pages changed: ${wiki.changed.length ? wiki.changed.join(', ') : 'none'}`,
     `- calibration sample: **${score.matched}/${score.total}**`,
+    ...(driftLines.length ? [`- \`tools/drift.ts\`: ${driftLines.join(' ')}`] : []),
     ...(score.failing.length ? ['- failing builds:', ...score.failing.slice(0, 10).map((line) => `  - ${line}`)] : []),
     '',
   ].join('\n');
