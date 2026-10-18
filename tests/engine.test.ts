@@ -704,3 +704,28 @@ test('wiki DoT example: Gas, 40 seed with no bonuses -> 20.5 per tick', () => {
   assert.ok(gas);
   close(gas!.tickDamage, 20.5, 1e-3);
 });
+
+test('compound conditions use the stack count, not the boolean gate', () => {
+  // Galvanized Scope: "On Weak Point Kill: +40% Critical Chance when Aiming, stacks to 5x".
+  const scope = mod('Galvanized Scope', 10, [
+    'On Weak Point Hit:',
+    '+120% Critical Chance when Aiming for 9s',
+    'On Weak Point Kill:',
+    '+40% Critical Chance when Aiming for 9s. Stacks up to 5x.',
+  ]);
+  const snap = snapshot([weapon({ impact: 100, critChance: 0.25 })], [scope]);
+  const at = (stacks: number) =>
+    resolveBuild(snap, {
+      weapon: 'Test Weapon',
+      mods: ['Galvanized Scope'],
+      conditions: { onWeakPointHit: 1, onWeakPointKill: stacks, aiming: 1 },
+    });
+  // Base 25% x (1 + 1.2 base buff + 0.4 x 3 stacks) = 25% x 3.4
+  close(at(3).critChance, 0.25 * (1 + 1.2 + 0.4 * 3));
+  close(at(1).critChance, 0.25 * (1 + 1.2 + 0.4));
+  // Without aiming, the buff is inactive even with the kill stacks.
+  const noAim = resolveBuild(snap, {
+    weapon: 'Test Weapon', mods: ['Galvanized Scope'], conditions: { onWeakPointHit: 1, onWeakPointKill: 3 },
+  });
+  close(noAim.critChance, 0.25);
+});

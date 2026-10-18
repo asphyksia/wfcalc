@@ -152,14 +152,20 @@ export interface ResolvedBuild {
   warnings: string[];
 }
 
-/** How many stacks of a conditional effect are active, given the build's toggles. */
+/**
+ * How many stacks of a conditional effect are active.
+ *
+ * A compound condition such as "onWeakPointKill+aiming" gates on *both* parts, but only
+ * the stackable one carries a count: aiming is a boolean (1), onWeakPointKill can be 3.
+ * Taking the minimum would silently cap the stacks at 1.
+ */
 function conditionStacks(effect: Effect, conditions: Conditions): number {
   if (!effect.condition) return 1;
-  let stacks = Number.POSITIVE_INFINITY;
+  let stacks = 1;
   for (const part of effect.condition.split('+')) {
     const raw = conditions[part];
     if (!raw) return 0; // undefined, false or 0 -> effect inactive
-    stacks = Math.min(stacks, typeof raw === 'number' ? raw : 1);
+    if (typeof raw === 'number' && raw > stacks) stacks = raw;
   }
   if (effect.maxStacks) stacks = Math.min(stacks, effect.maxStacks);
   if (effect.perStatusType) stacks *= Math.max(1, Number(conditions.statusTypes ?? 1));
