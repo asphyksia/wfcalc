@@ -36,6 +36,12 @@ interface UpstreamState {
 const state: UpstreamState = existsSync(STATE_FILE) ? JSON.parse(readFileSync(STATE_FILE, 'utf8')) : {};
 
 
+/**
+ * Wiki categories this project depends on, read through the MediaWiki API. The Exilus one is
+ * the only source saying which mods are Exilus-only; WFCD has no such flag.
+ */
+const WIKI_CATEGORIES = ['Exilus Weapon Mods'];
+
 /** Wiki pages and modules this project depends on. */
 const WIKI_PAGES = [
   'Module:Mods/data',
@@ -77,12 +83,28 @@ async function wfcdHead(): Promise<{ sha: string; date: string }> {
  * and honours If-Modified-Since with a 304, so unchanged pages cost a round trip and
  * nothing more.
  */
+function categoryUrl(category: string): string {
+  const url = new URL('https://wiki.warframe.com/api.php');
+  url.searchParams.set('action', 'query');
+  url.searchParams.set('list', 'categorymembers');
+  url.searchParams.set('cmtitle', `Category:${category}`);
+  url.searchParams.set('cmlimit', '500');
+  url.searchParams.set('format', 'json');
+  return url.toString();
+}
+
 async function changedWikiPages(): Promise<{ changed: string[]; lastModified: Record<string, string> }> {
   const lastModified: Record<string, string> = { ...(state.lastModified ?? {}) };
   const changed: string[] = [];
+  const targets: Array<[label: string, url: string]> = [
+    ...WIKI_PAGES.map((page): [string, string] => [
+      page,
+      `https://wiki.warframe.com/w/${encodeURIComponent(page).replace(/%2F/g, '/')}?action=raw`,
+    ]),
+    ...WIKI_CATEGORIES.map((category): [string, string] => [`Category:${category}`, categoryUrl(category)]),
+  ];
   await Promise.all(
-    WIKI_PAGES.map(async (page) => {
-      const url = `https://wiki.warframe.com/w/${encodeURIComponent(page).replace(/%2F/g, '/')}?action=raw`;
+    targets.map(async ([label, url]) => {
       const headers: Record<string, string> = { 'user-agent': 'wfcalc-sync' };
       const known = state.lastModified?.[url];
       if (known && !force) headers['if-modified-since'] = known;
@@ -90,14 +112,14 @@ async function changedWikiPages(): Promise<{ changed: string[]; lastModified: Re
         const response = await fetch(url, { headers });
         if (response.status === 304) return;
         if (!response.ok) {
-          changed.push(page);
+          changed.push(label);
           return;
         }
         const stamp = response.headers.get('last-modified');
         if (stamp) lastModified[url] = stamp;
-        changed.push(page);
+        changed.push(label);
       } catch {
-        changed.push(page);
+        changed.push(label);
       }
     }),
   );

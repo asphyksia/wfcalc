@@ -233,6 +233,7 @@ const server = createServer(async (req, res) => {
           levels: m.levels,
           partial: m.partial,
           baseDrain: m.baseDrain,
+          isExilus: Boolean(m.isExilus),
           rarity: m.rarity,
           set: m.set,
           classes: m.classes,

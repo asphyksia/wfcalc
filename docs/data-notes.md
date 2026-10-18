@@ -7,7 +7,8 @@ Hard-won details about the upstream data. Read this before touching
 
 | Source | Use for | Notes |
 |---|---|---|
-| `wiki.warframe.com/w/Module:Mods/data?action=raw` | Master mod list, descriptions, internal upgrade axes | 1550 mods. The wiki's `api.php` is disabled; `?action=raw` still works. |
+| `wiki.warframe.com/w/Module:Mods/data?action=raw` | Master mod list, descriptions, internal upgrade axes | 1550 mods |
+| `wiki.warframe.com/api.php` (category members) | Which mods are Exilus-only | 74 members. `action=raw` cannot list categories; the API is at the site root, **not** under `/w`. It sends no ETag but does send `Last-Modified`. |
 | `wiki.warframe.com/w/Module:DamageTypes/data` | Damage-type modifier matrix, health type → category | Percentage points per health type |
 | `wiki.warframe.com/w/Module:Warframes/data` | Warframe base stats + abilities | Not used yet (phase 2) |
 | `wiki.warframe.com/w/Damage/Calculation`, `Armor`, `Enemy_Level_Scaling`, `Riven_Mods` | Formulas | Kept verbatim in `data/raw/` for reference |

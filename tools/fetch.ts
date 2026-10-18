@@ -16,6 +16,8 @@ const RAW = join(ROOT, 'data/raw');
 
 const WFCD = 'https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json';
 const WIKI = 'https://wiki.warframe.com/w';
+// The MediaWiki API lives at the site root, not under /w like the raw wikitext.
+const WIKI_API = 'https://wiki.warframe.com/api.php';
 
 /** WFCD game-export datasets. `as` is the local file name. */
 const wfcdItems = [
@@ -45,6 +47,11 @@ const wikiPages: Array<[page: string, file: string]> = [
   ['Riven_Mods', 'wiki-riven-mods.wiki'],
 ];
 
+/** Wiki categories: the wiki is the only source that says which mods are Exilus-only. */
+const wikiCategories: Array<[category: string, file: string]> = [
+  ['Exilus Weapon Mods', 'wiki-exilus-mods.json'],
+];
+
 const force = process.argv.includes('--force');
 
 async function exists(path: string): Promise<boolean> {
@@ -71,6 +78,37 @@ async function fetchTo(url: string, out: string, validate?: (text: string) => vo
   console.log(`ok     ${out.slice(ROOT.length)}  ${(text.length / 1024).toFixed(0)}KB`);
 }
 
+/**
+ * Category members through the MediaWiki API, following the continuation token until the wiki
+ * stops handing out batches. Written as a JSON array of page titles.
+ */
+async function fetchCategory(category: string, out: string): Promise<void> {
+  if (!force && (await exists(out))) {
+    console.log(`skip   ${out.slice(ROOT.length)}`);
+    return;
+  }
+  const titles: string[] = [];
+  let cont: string | undefined;
+  do {
+    const url = new URL(WIKI_API);
+    url.searchParams.set('action', 'query');
+    url.searchParams.set('list', 'categorymembers');
+    url.searchParams.set('cmtitle', `Category:${category}`);
+    url.searchParams.set('cmlimit', '500');
+    url.searchParams.set('format', 'json');
+    if (cont) url.searchParams.set('cmcontinue', cont);
+    const res = await fetch(url, { headers: { 'user-agent': 'wfcalc/0.1 (personal offline damage calculator)' } });
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`);
+    const body = (await res.json()) as { query?: { categorymembers?: Array<{ title: string }> }; continue?: { cmcontinue?: string } };
+    for (const member of body.query?.categorymembers ?? []) titles.push(member.title);
+    cont = body.continue?.cmcontinue;
+  } while (cont);
+  if (titles.length < 10) throw new Error(`category ${category} returned only ${titles.length} members`);
+  const text = `${JSON.stringify([...new Set(titles)].sort(), null, 0)}\n`;
+  await writeFile(out, text);
+  console.log(`ok     ${out.slice(ROOT.length)}  ${titles.length} members`);
+}
+
 async function main(): Promise<void> {
   await mkdir(RAW, { recursive: true });
 
@@ -90,6 +128,10 @@ async function main(): Promise<void> {
         if (/<!DOCTYPE html>/i.test(text)) throw new Error(`${page} is missing on the wiki (HTML error page)`);
       }),
     );
+  }
+
+  for (const [category, file] of wikiCategories) {
+    jobs.push(fetchCategory(category, join(RAW, file)));
   }
 
   const results = await Promise.allSettled(jobs);

@@ -101,6 +101,19 @@ function cleanRankLines(lines: string[]): string {
   return split.find((line) => /[+-]?\d/.test(line)) ?? split[0] ?? '';
 }
 
+/**
+ * Names from the wiki's "Exilus Weapon Mods" category. WFCD has no Exilus flag, so this is the
+ * only thing that tells a mod like Aerial Ace apart from any other rifle mod.
+ */
+function exilusModNames(): Set<string> {
+  try {
+    const list = readJson('wiki-exilus-mods.json');
+    return new Set(Array.isArray(list) ? list.map((name) => String(name)) : []);
+  } catch {
+    return new Set();
+  }
+}
+
 function buildMods(unmatchedReport: string[]): Record<string, ModData> {
   const module = readLua('module-mods.lua');
   const setOf = new Map<string, string>();
@@ -113,6 +126,7 @@ function buildMods(unmatchedReport: string[]): Record<string, ModData> {
   }
 
   let partialCount = 0;
+  const exilusNames = exilusModNames();
   for (const [name, entry] of Object.entries<Loose>(module.Mods ?? {})) {
     const internal = typeof entry.InternalName === 'string' ? entry.InternalName : '';
     const source = internal ? wfcd.get(internal) : undefined;
@@ -158,6 +172,7 @@ function buildMods(unmatchedReport: string[]): Record<string, ModData> {
       upgradeTypes: luaArray(entry.UpgradeTypes).filter((x): x is string => typeof x === 'string'),
       isAugment: Boolean(source?.isAugment) || /Augment/i.test(String(entry.Class ?? '')),
       isRiven: /Riven/i.test(name) || /Riven/i.test(String(source?.type ?? '')),
+      isExilus: exilusNames.has(name),
       conclave: Boolean(entry.Conclave),
     };
     out[name] = mod;

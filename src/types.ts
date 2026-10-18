@@ -213,6 +213,12 @@ export interface ModData {
   maxRank: number;
   /** Max-rank description text (wiki). */
   description: string;
+  /**
+   * The headline stat of every rank, e.g. ["+10% Damage", "+20% Damage", ...]. Optional so
+   * older snapshots still load; when present the card shows the value at the equipped rank
+   * instead of the max-rank text.
+   */
+  levels?: string[];
   /** Effects at max rank. Per-rank scaling is `value * rank / maxRank` for linear mods. */
   effects: Effect[];
   /** Wiki filename of the full in-game card (frame, name, stat), e.g. "SerrationMod.png". */
@@ -229,6 +235,8 @@ export interface ModData {
   upgradeTypes: string[];
   isAugment: boolean;
   isRiven: boolean;
+  /** Exilus mods only fit the Exilus slot; the wiki category is the only source for this. */
+  isExilus?: boolean;
   /** Conclave (PvP) mods are excluded from PvE builds. */
   conclave: boolean;
 }
@@ -240,12 +248,6 @@ export interface ArcaneData {
   rarity: string | null;
   maxRank: number;
   description: string;
-  /**
-   * The first stat of every rank, e.g. ["+10% Damage", "+20% Damage", ...]. Optional so older
-   * snapshots still load; when present the card shows the value at the equipped rank instead
-   * of the max-rank text.
-   */
-  levels?: string[];
   effects: Effect[];
   /** Where it goes: 'warframe', 'primary', 'secondary', 'melee', 'operator'... */
   slot: string | null;

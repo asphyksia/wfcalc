@@ -164,6 +164,9 @@ function loadFromUrl() {
   }
 }
 
+/** Set when a drop was refused, so the notes panel can say why. */
+let dragWarning = '';
+
 const loadLibrary = () => {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
@@ -504,20 +507,58 @@ function renderSlots() {
   });
 }
 
+/**
+ * Exilus mods only fit the Exilus slot, and nothing else fits it. WFCD has no Exilus flag, so
+ * this comes from the wiki's "Exilus Weapon Mods" category, carried through the snapshot.
+ * Returns the reason when the drop is illegal, or null when it is fine.
+ */
+function exilusConflict(name, index) {
+  if (!name) return null;
+  const info = allMods.find((mod) => mod.name === name) ?? null;
+  if (!info) return null;
+  if (info.isExilus && index !== EXILUS_SLOT) {
+    return `${name} is an Exilus mod: it only fits the Exilus slot.`;
+  }
+  if (!info.isExilus && index === EXILUS_SLOT) {
+    return `${name} cannot go in the Exilus slot.`;
+  }
+  return null;
+}
+
 /** Moves whatever was dragged into `index`. */
 function applyDrop(index) {
   if (dragFrom?.kind === 'slot') {
     const from = dragFrom.index;
     if (from === index) return;
+    const conflict = exilusConflict(state.mods[from]?.name, index)
+      ?? exilusConflict(state.mods[index]?.name, from);
+    if (conflict) {
+      dragWarning = conflict;
+      dragFrom = null;
+      dragPayload = null;
+      renderSlots();
+      recalc();
+      return;
+    }
     const a = state.mods[from];
     state.mods[from] = state.mods[index] ?? { name: '', rank: undefined };
     state.mods[index] = a;
     if (!state.mods[from].name) state.mods.splice(from, 1);
   } else if (dragFrom?.kind === 'library' && dragPayload) {
+    const conflict = exilusConflict(dragPayload, index);
+    if (conflict) {
+      dragWarning = conflict;
+      dragFrom = null;
+      dragPayload = null;
+      renderSlots();
+      recalc();
+      return;
+    }
     state.mods[index] = { name: dragPayload, rank: undefined };
   }
   dragFrom = null;
   dragPayload = null;
+  dragWarning = '';
   renderSlots();
   recalc();
 }
@@ -784,6 +825,14 @@ function renderResults(result) {
   if (result.weapon.mode) notes.push(`Using fire mode: ${result.weapon.mode}`);
   if (result.incarnon?.length) notes.push(`Incarnon: ${result.incarnon.join(' / ')}`);
   if (result.riven?.length) notes.push(`Riven: ${result.riven.join(', ')}`);
+  // A refused drop has no effect on the build, so it is reported on its own.
+  if (dragWarning) notes.unshift(dragWarning);
+  // An exilus mod sitting outside the exilus slot is an illegal build; flag it even when it
+  // arrived from a shared link rather than a drag.
+  for (const [index, mod] of state.mods.entries()) {
+    const conflict = exilusConflict(mod?.name, index);
+    if (conflict) notes.push(conflict);
+  }
   $('notes').innerHTML = notes.map((note) => `<p>· ${note}</p>`).join('');
 }
 
