@@ -18,7 +18,8 @@
     "test": "node --test tests/*.test.ts",
     "coverage": "node tools/coverage.ts",
     "validate": "node tools/validate.ts",
-    "overframe": "node tools/overframe.ts"
+    "overframe": "node tools/overframe.ts",
+    "calibrate": "node tools/calibrate.ts"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

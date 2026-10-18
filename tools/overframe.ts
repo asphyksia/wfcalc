@@ -80,17 +80,9 @@ if (!mods.length) {
   process.exit(0);
 }
 
-// Learn the id -> name mapping when the slot count matches the mod list.
-const mapping: Record<string, string> = existsSync(MAP_FILE) ? JSON.parse(readFileSync(MAP_FILE, 'utf8')) : {};
-const weaponSlots = build.slots.filter((slot: any, index: number) => index < 8);
-if (weaponSlots.length === mods.length) {
-  weaponSlots.forEach((slot: any, index: number) => {
-    mapping[String(slot.mod)] = mods[index];
-  });
-  writeFileSync(MAP_FILE, JSON.stringify(mapping, null, 2) + '\n');
-}
-
 const snapshot = loadSnapshot();
+const mapping: Record<string, string> = existsSync(MAP_FILE) ? JSON.parse(readFileSync(MAP_FILE, 'utf8')) : {};
+const weaponSlots = build.slots.filter((slot: any, _index: number) => true).slice(0, 8);
 const conditions: Record<string, number> = {};
 for (const pair of (flag('conditions') ?? '').split(',').filter(Boolean)) {
   const [key, value] = pair.split('=');
@@ -110,6 +102,71 @@ const resolved = resolveBuild(snapshot, {
   arcanes: list('arcane').map((name) => ({ name })),
   conditions,
 });
+
+/**
+ * Solves which mod id is which name: backtracks over the slot list keeping only
+ * assignments where the mod's drain matches the slot's, then keeps the assignment that
+ * reproduces the oracle's stats. Slot order is *not* reliable — this was verified the
+ * hard way.
+ */
+function solveMapping(): Record<string, string> | null {
+  if (weaponSlots.length !== mods.length) return null;
+  const fits = (modName: string, slot: any): boolean => {
+    const mod = snapshot.mods[modName];
+    if (!mod || slot.rank > mod.maxRank) return false;
+    const base = mod.baseDrain + slot.rank;
+    return slot.polarity_match === 2 ? Math.floor(base / 2) === slot.drain : base === slot.drain;
+  };
+  const solutions: Record<string, string>[] = [];
+  const used = new Set<string>();
+  const current: Record<string, string> = {};
+  const walk = (index: number): void => {
+    if (solutions.length > 1) return; // ambiguous, stop early
+    if (index === weaponSlots.length) {
+      const candidateMods = weaponSlots.map((slot: any) => ({ name: current[String(slot.mod)], rank: slot.rank }));
+      const resolvedCandidate = resolveBuild(snapshot, { weapon: flag('weapon') ?? 'Haalvu', mods: candidateMods });
+      if (diff(oracle, resolvedCandidate).length === 0) solutions.push({ ...current });
+      return;
+    }
+    const slot = weaponSlots[index];
+    for (const name of mods) {
+      if (used.has(name) || !fits(name, slot)) continue;
+      used.add(name);
+      current[String(slot.mod)] = name;
+      walk(index + 1);
+      used.delete(name);
+    }
+  };
+  walk(0);
+  return solutions.length === 1 ? solutions[0] : null;
+}
+
+if (weaponSlots.length === mods.length) {
+  const solved = solveMapping();
+  if (solved) {
+    Object.assign(mapping, solved);
+    writeFileSync(MAP_FILE, JSON.stringify(mapping, null, 2) + '\n');
+    console.log('  mod ids solved and verified against the oracle:');
+    for (const [id, name] of Object.entries(solved)) console.log(`    ${id.padStart(5)} = ${name}`);
+  } else {
+    console.log('  could not uniquely solve the id mapping (ambiguous or a mod is not in the dataset)');
+  }
+}
+
+/** Fields where the two implementations must agree. */
+const near = (actual: number, expected: number): boolean =>
+  Math.abs(actual - expected) <= Math.max(1e-3, Math.abs(expected) * 3e-3);
+const diff = (expected: Record<string, number>, resolved: ReturnType<typeof resolveBuild>): string[] => {
+  const failures: string[] = [];
+  if (expected['multishot'] !== undefined && !near(resolved.multishot, expected['multishot'])) failures.push('multishot');
+  if (expected['crit chance'] !== undefined && !near(resolved.critChance, expected['crit chance'])) failures.push('crit');
+  if (expected['crit damage'] !== undefined && !near(resolved.critMultiplier, expected['crit damage'])) failures.push('cd');
+  if (expected['status chance'] !== undefined && !near(resolved.statusChance, expected['status chance'])) failures.push('status');
+  if (expected['fire rate'] !== undefined && !near(resolved.fireRate, expected['fire rate'])) failures.push('fire');
+  if (expected['magazine'] !== undefined && !near(resolved.magazineSize, expected['magazine'])) failures.push('magazine');
+  if (expected['reload'] !== undefined && !near(resolved.reloadTime, expected['reload'])) failures.push('reload');
+  return failures;
+};
 
 const computed: Record<string, number> = {
   'multishot': bare.multishot,
