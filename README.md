@@ -29,6 +29,19 @@ build  —  Kuva Bramma (Bow) vs Bombard lv150
 
 Interactive UI: `wfcalc serve` → <http://127.0.0.1:7777>.
 
+### From the phone or another device
+
+The session shares Android's network stack, so the loopback address works from the phone's own
+browser: open `http://127.0.0.1:7777`. To reach it from another device on the Wi-Fi, or from the
+phone by IP, listen on all interfaces:
+
+```sh
+wfcalc serve --host 0.0.0.0    # prints every reachable address on startup
+```
+
+It has no authentication, so use it at home and stop it when you are done. To keep it running
+after closing the terminal: `setsid wfcalc serve --host 0.0.0.0 >/tmp/wfcalc.log 2>&1 &`.
+
 ## Commands
 
 | Command | What it does |

@@ -24,7 +24,8 @@
     "sync": "node tools/sync.ts",
     "sync-check": "node tools/sync.ts --check",
     "drift": "node tools/drift.ts",
-    "audit": "node tools/audit.ts"
+    "audit": "node tools/audit.ts",
+    "serve:lan": "node src/server.ts --host 0.0.0.0"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

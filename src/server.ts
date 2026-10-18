@@ -9,6 +9,7 @@
  * drive it the same way the browser does (see docs/api.md).
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { networkInterfaces } from 'node:os';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { loadSnapshot, findEnemy, findWeapon, modsForWeapon } from './data.ts';
@@ -237,6 +238,14 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`wfcalc web UI: http://${HOST}:${PORT}`);
+  console.log(`wfcalc web UI: http://${HOST === '0.0.0.0' ? '127.0.0.1' : HOST}:${PORT}`);
+  if (HOST === '0.0.0.0') {
+    // Print every reachable address, so opening the UI from the phone is copy-paste.
+    for (const [name, addrs] of Object.entries(networkInterfaces())) {
+      for (const address of addrs ?? []) {
+        if (address.family === 'IPv4' && !address.internal) console.log(`  also on http://${address.address}:${PORT}  (${name})`);
+      }
+    }
+  }
   console.log(`data: ${Object.keys(snapshot.weapons).length} weapons, ${Object.keys(snapshot.mods).length} mods, ${Object.keys(snapshot.enemies).length} enemies`);
 });
