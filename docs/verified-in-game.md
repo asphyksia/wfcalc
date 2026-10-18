@@ -98,3 +98,33 @@ of the number, which is the likely cause; that quantization is still not modelle
 
 **Next data point needed**: the same build with far higher damage per shot (Serration plus an
 elemental, or a stronger weapon), so truncation stops masking the 2.17 vs 2.49 difference.
+
+## Consolidated armour evidence (four in-game observations)
+
+All with an unmodded or lightly modded Soma Prime, summed per damage type.
+
+| # | Target | Build | Observed | scales armour | multiplies | both |
+|---|---|---|---|---|---|---|
+| 1 | Elite Frontier Lancer 101 | none | 3 | 3 | 3 | 3 |
+| 2 | Drekar Elite Lancer 27 | none | 8 / 23 | 8 / 26 | 8 / 24 | 8 / 27 |
+| 3 | Elite Frontier Lancer 101 | Serration | 4 / 10 | 4 / 14 | **3** / 12 | 4 / 15 |
+| 4 | Bombard 102 | Serration + Stormbringer | 7 / 19 | **7** / 21 | 6 / 17 | 6 / 19 |
+
+Reading of the evidence:
+
+- **"The modifier merely multiplies damage" is eliminated.** It predicts 3 where the game shows
+  4 (row 3) and 6 where the game shows 7 (row 4).
+- **The default ("modifier scales the armour value") is the best fit**: exact on rows 1, 2 and 4,
+  and exact on row 3 once the display truncates per damage type.
+- "Both" survives row 1 and row 3 but misses rows 2 and 4.
+
+Two loose ends, stated plainly:
+
+1. **Row 3 needs per-type truncation; row 4 needs the untruncated sum.** Truncating row 4 per
+   type gives 5 against an observed 7, which is the one genuinely contradictory number in the
+   set. It may be a different enemy level than reported, or a hit that included something else.
+2. **The crit values are consistently below every model** (ratios 2.5-2.88 against a x3
+   multiplier), which is what the unmodelled `1/32` quantization would do at these magnitudes.
+
+Conclusion: keep `armor-scaling` as the default (it is the best-supported reading, and the only
+one that is never contradicted by more than one number), with the caveat above recorded.
