@@ -204,6 +204,10 @@ function capacityInfo() {
   return { used, total };
 }
 
+/** Mods that were not in the previous render, so their card can animate in. */
+let previousMods = [];
+let lastContributionsVersion = 0;
+
 /** Index of the slot being dragged, shared by the slot grid and the library. */
 let dragFrom = null;
 let dragPayload = null;
@@ -222,6 +226,9 @@ function renderSlots() {
     row.className = `slot${mod.name ? ' filled' : ''}${exilus ? ' exilus' : ''}${stance ? ' stance' : ''}`;
     const description = (info?.description ?? '').split('\n')[0];
     if (info?.polarity) row.style.borderLeftColor = polarityColor(info.polarity);
+    if (info?.rarity) row.style.setProperty('--rarity', rarityColor(info.rarity));
+    // Newcomers animate in, so dropping a mod feels like the card landing in the slot.
+    if (mod.name && !previousMods.includes(mod.name)) row.classList.add('entering');
     const slotPolarityName = slotPolarity(index);
     const matches = Boolean(info?.polarity && slotPolarityName && info.polarity === slotPolarityName);
     const share = lastContributions.get(mod.name);
@@ -290,6 +297,7 @@ function renderSlots() {
     };
     container.appendChild(add);
   }
+  previousMods = state.mods.map((mod) => mod.name).filter(Boolean);
   $('mod-count').textContent = state.mods.filter((mod) => mod.name).length;
   const capacity = capacityInfo();
   const formas = (state.slotPolarities ?? []).filter(Boolean).length;
@@ -494,6 +502,11 @@ function renderWeaponMeta(result) {
   const classes = weapon.modClasses.filter((name) => name !== weapon.type);
   const meta = weaponData.get(state.weapon);
   $('weapon-art').innerHTML = meta?.image ? `<img src="/img/${meta.image}" alt="" />` : '';
+  // The weapon's artwork, blurred, becomes the board's backdrop.
+  const board = document.querySelector('.board');
+  if (board) {
+    board.style.setProperty('--silhouette', meta?.image ? `url("/img/${meta.image}")` : 'none');
+  }
   $('weapon-meta').innerHTML = `<span class="chip">${weapon.type}</span>
     <span class="chip">MR ${weapon.masteryRank}</span>
     <span class="chip">${(weapon.disposition ?? 1).toFixed(1)}★ riven</span>

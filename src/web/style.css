@@ -1,5 +1,7 @@
 /* wfcalc — dense, phone-first, dark. Stats read as a table, mods as cards. */
 :root {
+  /* Condensed stack for headings and labels: what makes a dense UI read as "product". */
+  --font-condensed: "Roboto Condensed", "Archivo Narrow", "Arial Narrow", "Liberation Sans Narrow", system-ui, sans-serif;
   /* Palette and motion borrowed from Overframe's own CSS: near-black ground, muted text,
      one bright blue accent, and slow cubic-bezier transitions. */
   --bg: #07080a; --panel: #14161c; --panel-2: #1a1d26; --panel-3: #22262f;
@@ -55,8 +57,11 @@ main {
 }
 .wide { grid-column: 1 / -1; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-h2 { font-size: 11px; margin: 0; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 600; }
-h3 { font-size: 10px; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+h2, h3, .field > span, .stat-list .k, summary, .tab, .chip, .kpi span {
+  font-family: var(--font-condensed); font-stretch: semi-condensed;
+}
+h2 { font-size: 11.5px; margin: 0; text-transform: uppercase; letter-spacing: 0.11em; color: var(--muted); font-weight: 700; }
+h3 { font-size: 10.5px; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 700; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .grow { flex: 1; }
 
@@ -104,6 +109,24 @@ input[type="number"] { padding: 6px 8px; }
   transition: transform .35s var(--ease), box-shadow .35s var(--ease), border-color .2s ease;
 }
 .slot.filled:hover { transform: translateY(-2px); box-shadow: var(--shadow), var(--glow); }
+
+/* Rarity frame: a soft ring in the mod's rarity colour, plus a corner sheen. */
+.slot.filled {
+  border-color: color-mix(in srgb, var(--rarity, var(--border)) 45%, var(--border));
+  box-shadow: 0 1px 2px rgba(0,0,0,.5), inset 0 0 24px -18px var(--rarity, transparent);
+}
+.slot.filled::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--rarity, transparent) 12%, transparent), transparent 45%);
+}
+
+/* Card entry: the mod lands in the slot. */
+.slot.entering { animation: land .3s var(--ease) both; }
+@keyframes land {
+  from { opacity: 0; transform: scale(.9) translateY(4px); }
+  60% { opacity: 1; transform: scale(1.015) translateY(0); }
+  to { opacity: 1; transform: none; }
+}
 .slot.filled { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
 .slot.exilus { border-style: dashed; }
 .mod-name.editing { border: 1px solid var(--accent); background: var(--panel-3); padding: 3px 5px; border-radius: 6px; }
@@ -237,11 +260,23 @@ details > *:not(summary) { margin-top: 8px; }
 
 /* the board: a dark stage so the slots read as cards on a table */
 .board {
+  position: relative; overflow: hidden;
   background:
     radial-gradient(100% 70% at 50% -10%, rgba(68,183,255,.09), transparent 65%),
     linear-gradient(180deg, rgba(45,46,64,.5), #101218 55%);
   padding: 12px;
 }
+/* The weapon's own artwork, blurred, as the stage backdrop — the closest thing to the
+   game's warframe silhouette without shipping new art. */
+.board::before {
+  content: ''; position: absolute; inset: -10%;
+  background-image: var(--silhouette, none);
+  background-size: 62% auto; background-position: 50% 45%; background-repeat: no-repeat;
+  filter: blur(22px) brightness(0.45) saturate(0.7);
+  opacity: 0.5; pointer-events: none; z-index: 0;
+  transition: opacity .35s var(--ease);
+}
+.board > * { position: relative; z-index: 1; }
 .board .slots { gap: 8px; }
 .board .slot { min-height: 92px; background: linear-gradient(165deg, #232a36, #1b202a 75%); }
 .board .slot.filled { box-shadow: 0 2px 10px #0005; }
