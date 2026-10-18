@@ -2,18 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>wfcalc</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 <header>
   <h1>wfcalc</h1>
-  <span class="hint">offline damage calculator</span>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="build" role="tab">Build</button>
+    <button class="tab" data-tab="compare" role="tab">Compare</button>
+    <button class="tab" data-tab="saved" role="tab">Saved</button>
+  </nav>
   <button id="share" title="Copy a link with this build">copy link</button>
 </header>
 
-<main>
+<!-- ───────────────────────────── BUILD ───────────────────────────── -->
+<main id="tab-build" class="tab-panel active">
   <section class="panel" id="weapon-panel">
     <label class="field">
       <span>Weapon</span>
@@ -21,13 +26,13 @@
     </label>
     <datalist id="weapon-list"></datalist>
     <div id="weapon-meta" class="meta"></div>
-    <label class="field">
-      <span>Kuva/Tenet element bonus</span>
-      <input id="element-bonus" placeholder="heat:60" autocomplete="off" />
-    </label>
     <label class="field" id="mode-field" hidden>
       <span>Fire mode</span>
       <select id="mode-select"></select>
+    </label>
+    <label class="field">
+      <span>Kuva/Tenet element bonus</span>
+      <input id="element-bonus" placeholder="heat:60" autocomplete="off" />
     </label>
   </section>
 
@@ -38,34 +43,51 @@
     </div>
     <div id="slots" class="slots"></div>
     <datalist id="mod-list"></datalist>
-    <div id="suggestions" class="suggestions"></div>
   </section>
 
   <section class="panel">
-    <div class="panel-head"><h2>Frame &amp; arcane</h2></div>
+    <div class="panel-head"><h2>Frame</h2></div>
     <label class="field">
-      <span>Weapon arcane</span>
-      <input id="arcane-input" list="arcane-list" placeholder="Primary Merciless" autocomplete="off" />
+      <span>Warframe (validates Helminth)</span>
+      <input id="frame-input" list="frame-list" placeholder="Rhino" autocomplete="off" />
     </label>
-    <datalist id="arcane-list"></datalist>
+    <datalist id="frame-list"></datalist>
     <label class="field">
       <span>Warframe mods (sets ability strength)</span>
-      <input id="framemods-input" placeholder="Intensify, Transient Fortitude" autocomplete="off" />
+      <input id="framemods-input" placeholder="Intensify, Blind Rage" autocomplete="off" />
+    </label>
+    <label class="field">
+      <span>Warframe arcanes</span>
+      <input id="framearcane-input" placeholder="Arcane Avenger" autocomplete="off" />
     </label>
     <label class="field">
       <span>Ability strength <b id="strength-value">100%</b></span>
       <input id="strength-input" type="range" min="40" max="500" step="5" value="100" />
     </label>
     <div id="buff-list" class="buffs"></div>
+    <label class="field">
+      <span>Covenant: damage prevented</span>
+      <input id="covenant-damage" type="number" min="0" step="500" placeholder="0" />
+    </label>
   </section>
 
   <section class="panel">
-    <div class="panel-head"><h2>Riven</h2></div>
+    <div class="panel-head"><h2>Weapon arcane &amp; riven</h2></div>
     <label class="field">
-      <span>Stats (comma separated, - for a malus)</span>
+      <span>Arcane</span>
+      <input id="arcane-input" list="arcane-list" placeholder="Primary Merciless" autocomplete="off" />
+    </label>
+    <datalist id="arcane-list"></datalist>
+    <label class="field">
+      <span>Riven stats (− marks the malus)</span>
       <input id="riven-input" placeholder="damage,multishot,-zoom" autocomplete="off" />
     </label>
-    <div id="riven-meta" class="meta"></div>
+    <div class="row">
+      <label class="field"><span>Riven roll <b id="roll-value">1.00</b></span>
+        <input id="riven-roll" type="range" min="0.9" max="1.1" step="0.01" value="1" /></label>
+      <label class="field"><span>Riven rank <b id="rinkrank-value">8</b></span>
+        <input id="riven-rank" type="range" min="0" max="8" step="1" value="8" /></label>
+    </div>
   </section>
 
   <section class="panel">
@@ -79,11 +101,11 @@
       <span>Melee combo hits <b id="combo-value">0</b></span>
       <input id="combo-input" type="range" min="0" max="240" step="20" value="0" />
     </label>
+    <label class="toggles"><label><input type="checkbox" id="heavy" /> heavy attack</label></label>
     <label class="field">
       <span>AoE distance <b id="aoe-value">centre</b></span>
       <input id="aoe-input" type="range" min="0" max="12" step="0.5" value="0" />
     </label>
-    <label class="toggles"><label><input type="checkbox" id="heavy" /> heavy attack</label></label>
   </section>
 
   <section class="panel">
@@ -99,21 +121,67 @@
     </label>
     <div class="toggles">
       <label><input type="checkbox" id="headshot" /> weak point hit</label>
-      <label class="stack">On kill stacks <input type="number" id="onkill" min="0" max="10" value="0" /></label>
+      <label class="stack">On-kill stacks <input type="number" id="onkill" min="0" max="10" value="0" /></label>
       <label class="stack">Status types <input type="number" id="status-types" min="1" max="12" value="1" /></label>
       <label><input type="checkbox" id="aiming" /> aiming</label>
-      <label class="stack">Viral stacks <input type="number" id="viral" min="0" max="10" value="0" /></label>
-      <label class="stack">Corrosive stacks <input type="number" id="corrosive" min="0" max="10" value="0" /></label>
+      <label class="stack">Viral <input type="number" id="viral" min="0" max="10" value="0" /></label>
+      <label class="stack">Corrosive <input type="number" id="corrosive" min="0" max="10" value="0" /></label>
     </div>
     <div id="enemy-meta" class="meta"></div>
   </section>
 
-  <section class="panel wide" id="results">
-    <div class="panel-head"><h2>Result</h2></div>
+  <section class="panel wide">
+    <div class="panel-head">
+      <h2>Result</h2>
+      <button id="save-build" class="ghost">save build</button>
+    </div>
     <div id="stats" class="stats"></div>
-    <div id="damage-bars" class="bars"></div>
-    <div id="target-report"></div>
+    <div class="columns">
+      <div>
+        <h3>Damage composition</h3>
+        <div id="damage-bars" class="bars"></div>
+        <h3>Mod contribution</h3>
+        <div id="contributions" class="bars"></div>
+      </div>
+      <div>
+        <h3>Vs target</h3>
+        <div id="target-report"></div>
+      </div>
+    </div>
     <div id="notes" class="notes"></div>
+  </section>
+</main>
+
+<!-- ──────────────────────────── COMPARE ──────────────────────────── -->
+<main id="tab-compare" class="tab-panel">
+  <section class="panel wide">
+    <div class="panel-head">
+      <h2>Compare</h2>
+      <button id="compare-run" class="primary">compare</button>
+    </div>
+    <p class="hint">
+      A is the current build. Edit B below — leave a field empty to reuse A's value.
+      Useful for "viral or corrosive?" without losing the build you were working on.
+    </p>
+    <div class="compare-grid">
+      <label class="field"><span>B: weapon</span>
+        <input id="b-weapon" placeholder="same as A" autocomplete="off" list="weapon-list" /></label>
+      <label class="field"><span>B: mods (comma separated, in slot order)</span>
+        <input id="b-mods" placeholder="Serration, Split Chamber, Vital Sense" autocomplete="off" /></label>
+      <label class="field"><span>B: element bonus</span>
+        <input id="b-element" placeholder="heat:60" autocomplete="off" /></label>
+      <label class="field"><span>B: arcane</span>
+        <input id="b-arcane" placeholder="same as A" autocomplete="off" list="arcane-list" /></label>
+    </div>
+    <div id="compare-out" class="compare-out"></div>
+  </section>
+</main>
+
+<!-- ───────────────────────────── SAVED ───────────────────────────── -->
+<main id="tab-saved" class="tab-panel">
+  <section class="panel wide">
+    <div class="panel-head"><h2>Saved builds</h2><span id="saved-count" class="badge"></span></div>
+    <div id="saved-list" class="saved-list"></div>
   </section>
 </main>
 

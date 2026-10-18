@@ -87,6 +87,25 @@ function calculate(body: any) {
     target = { name: enemy.name, faction: enemy.faction, pools: scaled.pools, ...hit };
   }
 
+  // What each mod actually contributes: resolve without it and measure the drop.
+  let contributions: Array<{ name: string; deltaDps: number; deltaPct: number }> | null = null;
+  if (body.contributions) {
+    const mods = Array.isArray(build.mods) ? build.mods : [];
+    contributions = mods.map((entry, index) => {
+      const name = typeof entry === 'string' ? entry : entry?.name;
+      const without = resolveBuild(snapshot, {
+        ...build,
+        mods: mods.filter((_, position) => position !== index),
+      });
+      const delta = resolved.burstDps - without.burstDps;
+      return {
+        name: name ?? '?',
+        deltaDps: delta,
+        deltaPct: resolved.burstDps > 0 ? delta / resolved.burstDps : 0,
+      };
+    });
+  }
+
   return {
     weapon: {
       name: weapon.name,
@@ -121,6 +140,7 @@ function calculate(body: any) {
     sustainedDps: resolved.sustainedDps,
     elements: resolved.elements,
     procs: statusProcs(resolved),
+    contributions,
     warnings: resolved.warnings,
     unsupportedMods: resolved.unsupportedMods,
     inactiveConditions: resolved.inactiveConditions,
@@ -167,6 +187,12 @@ const server = createServer(async (req, res) => {
       const { item } = findWeapon(snapshot, weaponName);
       if (!item) return json(res, 404, { error: `weapon not found: ${weaponName}` });
       return json(res, 200, snapshot.incarnons[item.name] ?? []);
+    }
+    if (url.pathname === '/api/warframes') {
+      const list = Object.values(snapshot.warframes)
+        .map((frame) => ({ name: frame.name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      return json(res, 200, list);
     }
     if (url.pathname === '/api/buffs') {
       return json(res, 200, availableBuffs(snapshot));
