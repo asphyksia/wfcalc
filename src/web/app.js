@@ -303,12 +303,20 @@ function applyDrop(index) {
  */
 function renderLibrary() {
   const query = ($('mod-filter')?.value ?? '').toLowerCase();
+  const polarity = $('filter-polarity')?.value ?? '';
+  const sort = $('filter-sort')?.value ?? 'name';
   // Fusion cores and other inventory noise are not equippable mods.
   const JUNK = /^(Ancient Fusion Core|Flawed )/i;
   const list = allMods
     .filter((mod) => !JUNK.test(mod.name))
+    .filter((mod) => !polarity || String(mod.polarity ?? '').toLowerCase() === polarity)
     .filter((mod) => !query || mod.name.toLowerCase().includes(query) || (mod.description ?? '').toLowerCase().includes(query))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) =>
+      sort === 'share'
+        ? (lastContributions.get(b.name) ?? 0) - (lastContributions.get(a.name) ?? 0)
+        : a.name.localeCompare(b.name),
+    );
+  $('lib-count').textContent = String(list.length);
 
   $('mod-list').innerHTML = list
     .slice(0, 120)
@@ -345,9 +353,7 @@ function renderLibrary() {
   }
 }
 
-const renderModList = debounce((filter) => {
-  renderLibrary();
-}, 80);
+const renderModList = debounce(() => renderLibrary(), 80);
 
 function renderBuffList() {
   $('buff-list').innerHTML = allBuffs
@@ -415,12 +421,12 @@ function renderResults(result) {
   // Stats as a dense label/value list, the way the arsenal and Overframe present them.
   const rows = [
     ['section', 'Weapon'],
-    ['Critical chance', pct(result.critChance)],
-    ['Critical damage', `×${fmt(result.critMultiplier, 2)}`],
+    ['Crit chance', pct(result.critChance)],
+    ['Crit damage', `×${fmt(result.critMultiplier, 2)}`],
     ['Fire rate', `${fmt(result.fireRate, 2)}/s`],
     ['Magazine', fmt(result.magazineSize)],
     ['Multishot', `×${fmt(result.multishot, 2)}`],
-    ['Status / projectile', pct(result.statusChance)],
+    ['Status', pct(result.statusChance)],
     ['Reload', `${fmt(result.reloadTime, 2)}s`],
     ['section', 'Against target'],
   ];
@@ -428,16 +434,16 @@ function renderResults(result) {
     rows.push([entry.type, `${fmt(result.damage[entry.type], 1)}  (${pct(entry.share)})`]);
   }
   rows.push(['section', 'Result']);
-  rows.push(['Average hit', fmt(result.averageShotDamage, 0)]);
+  rows.push(['Avg hit', fmt(result.averageShotDamage, 0)]);
   rows.push(['Burst dps', fmt(result.burstDps, 0)]);
-  rows.push(['Sustained dps', fmt(result.sustainedDps, 0)]);
+  rows.push(['Sustained', fmt(result.sustainedDps, 0)]);
   if (dot.length) rows.push(['Status dps', fmt(dotDps, 0)]);
   if (result.critVariance && result.critVariance.pellets >= 2) {
     rows.push(['Crit spread', `${result.critVariance.expectedCrits.toFixed(1)} of ${result.critVariance.pellets.toFixed(1)} · ${pct(result.critVariance.atLeastOneCrit)} land one`]);
   }
   if (target) {
-    rows.push(['Shots to kill', fmt(target.shotsToKill, 1)]);
-    rows.push(['Time to kill', target.timeToKill === null ? '—' : `${fmt(target.timeToKill, 2)}s`]);
+    rows.push(['Shots', fmt(target.shotsToKill, 1)]);
+    rows.push(['TTK', target.timeToKill === null ? '—' : `${fmt(target.timeToKill, 2)}s`]);
   }
   $('stats').innerHTML = rows
     .map(([label, value]) =>
@@ -707,7 +713,9 @@ function bindEvents() {
     recalc();
   });
 
-  $('mod-filter').addEventListener('input', (event) => renderModList(event.target.value.toLowerCase()));
+  $('mod-filter').addEventListener('input', () => renderModList());
+  $('filter-polarity').addEventListener('change', () => renderLibrary());
+  $('filter-sort').addEventListener('change', () => renderLibrary());
   $('mode-select').addEventListener('change', (event) => {
     state.mode = event.target.value;
     recalc();

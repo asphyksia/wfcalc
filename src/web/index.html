@@ -20,8 +20,8 @@
 <!-- ───────────────────────────── BUILD ───────────────────────────── -->
 <main id="tab-build" class="tab-panel active">
 
-  <!-- weapon selector + live summary, sticky -->
-  <section class="panel weapon-panel">
+  <!-- header: weapon + headline numbers, like Overframe's build header -->
+  <section class="panel build-header">
     <div class="weapon-row">
       <label class="field grow">
         <span>Weapon</span>
@@ -37,51 +37,69 @@
     <div id="weapon-summary" class="summary"></div>
   </section>
 
-  <!-- mods (left on desktop, first on phone) -->
-  <section class="panel mods-panel">
-    <div class="panel-head">
-      <h2>Mods <span id="mod-count" class="badge">0</span></h2>
-      <input id="mod-filter" placeholder="search mods…" autocomplete="off" />
-    </div>
-    <div id="slots" class="slots"></div>
-    <h3>Library <span class="hint">tap to fill the next slot, or drag onto one</span></h3>
-    <div id="mod-list" class="lib"></div>
-    <div id="mod-arcane" class="arcane-slot">
+  <div class="builder">
+    <!-- left rail: stats, the way the arsenal lists them -->
+    <aside class="panel rail stats-panel">
+      <div class="panel-head"><h2>Stats</h2></div>
+      <div id="stats" class="stat-list"></div>
+      <h3>Damage</h3>
+      <div id="damage-bars" class="bars"></div>
+      <h3>Target</h3>
       <label class="field">
-        <span>Weapon arcane</span>
-        <input id="arcane-input" list="arcane-list" placeholder="Primary Merciless" autocomplete="off" />
+        <span>Enemy</span>
+        <input id="enemy-input" list="enemy-list" placeholder="Bombard" autocomplete="off" />
       </label>
-    </div>
-    <datalist id="arcane-list"></datalist>
-  </section>
+      <datalist id="enemy-list"></datalist>
+      <label class="field">
+        <span>Level <b id="level-value">100</b></span>
+        <input id="level-input" type="range" min="1" max="200" value="100" />
+      </label>
+      <div id="enemy-meta" class="meta"></div>
+      <div id="target-report"></div>
+    </aside>
 
-  <!-- stats (right on desktop) -->
-  <section class="panel stats-panel">
-    <div class="panel-head"><h2>Stats</h2></div>
-    <div id="stats" class="stat-list"></div>
-    <h3>Damage composition</h3>
-    <div id="damage-bars" class="bars"></div>
-    <h3>Mod contribution</h3>
-    <div id="contributions" class="bars"></div>
-  </section>
+    <!-- centre: the board, slots on a dark backdrop -->
+    <section class="panel board mods-panel">
+      <div class="panel-head">
+        <h2>Mods <span id="mod-count" class="badge">0</span></h2>
+        <span class="hint">drag to reorder · drop outside to remove</span>
+      </div>
+      <div id="slots" class="slots"></div>
+      <div id="mod-arcane" class="arcane-slot">
+        <label class="field">
+          <span>Weapon arcane</span>
+          <input id="arcane-input" list="arcane-list" placeholder="Primary Merciless" autocomplete="off" />
+        </label>
+      </div>
+      <datalist id="arcane-list"></datalist>
+      <h3>Contribution</h3>
+      <div id="contributions" class="bars"></div>
+    </section>
 
-  <!-- target + result -->
-  <section class="panel target-panel">
-    <div class="panel-head"><h2>Target</h2></div>
-    <label class="field">
-      <span>Enemy</span>
-      <input id="enemy-input" list="enemy-list" placeholder="Bombard" autocomplete="off" />
-    </label>
-    <datalist id="enemy-list"></datalist>
-    <label class="field">
-      <span>Level <b id="level-value">100</b></span>
-      <input id="level-input" type="range" min="1" max="200" value="100" />
-    </label>
-    <div id="enemy-meta" class="meta"></div>
-    <div id="target-report"></div>
-  </section>
+    <!-- right rail: the library, always in sight like Overframe's filter panel -->
+    <aside class="panel rail library-panel">
+      <div class="panel-head"><h2>Library</h2><span id="lib-count" class="badge"></span></div>
+      <input id="mod-filter" placeholder="search mods…" autocomplete="off" />
+      <div class="filters">
+        <select id="filter-polarity" aria-label="Polarity">
+          <option value="">All polarities</option>
+          <option value="madurai">Madurai</option>
+          <option value="vazarin">Vazarin</option>
+          <option value="naramon">Naramon</option>
+          <option value="zenurik">Zenurik</option>
+          <option value="unairu">Unairu</option>
+          <option value="penjaga">Penjaga</option>
+          <option value="umbra">Umbra</option>
+        </select>
+        <select id="filter-sort" aria-label="Sort">
+          <option value="name">Name</option>
+          <option value="share">Contribution</option>
+        </select>
+      </div>
+      <div id="mod-list" class="lib"></div>
+    </aside>
+  </div>
 
-  <!-- everything advanced, collapsed -->
   <section class="panel stack-panel">
     <details>
       <summary>Conditions &amp; stacks</summary>
