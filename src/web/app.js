@@ -6,7 +6,7 @@
  * build is shareable) and to localStorage (so it survives closing the tab).
  */
 
-const MAX_SLOTS = 8; // plus one exilus slot
+const MAX_SLOTS = 8; // plus exilus; melee also gets a stance slot that adds capacity
 const STORAGE_KEY = 'wfcalc.builds';
 
 const ELEMENT_COLORS = {
@@ -40,6 +40,7 @@ const emptyState = () => ({
   weapon: '',
   mods: [], // [{ name, rank }]
   slotPolarities: [], // per-slot forma polarity override, null = weapon's own
+  reactor: false,
   arcanes: [],
   buffs: [],
   frame: '',
@@ -155,12 +156,20 @@ function showTab(name) {
 /** ---------- rendering: build ---------- */
 
 /** Which polarity a slot accepts: the weapon's own, or the exilus polarity for slot 9. */
+/** Slot roles: 0-7 normal, 8 exilus, 9 stance (melee only). */
+const EXILUS_SLOT = 8;
+const STANCE_SLOT = 9;
+const isStance = (index) => index === STANCE_SLOT;
+const hasStance = () => Boolean(weaponData.get(state.weapon)?.stancePolarity);
+
 function slotPolarity(index) {
   const forma = state.slotPolarities?.[index];
   if (forma) return forma;
   const weapon = weaponData.get(state.weapon);
   if (!weapon) return null;
-  return index >= MAX_SLOTS ? weapon.exilusPolarity : (weapon.polarities?.[index] ?? null);
+  if (index === STANCE_SLOT) return weapon.stancePolarity ?? null;
+  if (index === EXILUS_SLOT) return weapon.exilusPolarity ?? null;
+  return weapon.polarities?.[index] ?? null;
 }
 
 /** Forma polarities cycle in the order the game offers them. */
@@ -178,15 +187,19 @@ function cycleForma(index) {
  * when its polarity matches the slot's. Rank-30 weapons have 30 points, 60 with a reactor.
  */
 function capacityInfo() {
-  const total = state.reactor ? 60 : 30;
+  let total = state.reactor ? 60 : 30;
   let used = 0;
   state.mods.forEach((mod, index) => {
     if (!mod.name) return;
     const info = allMods.find((entry) => entry.name === mod.name);
     if (!info) return;
-    const drain = (info.baseDrain ?? 0) + (mod.rank ?? info.maxRank ?? 0);
-    const matches = info.polarity && slotPolarity(index) && info.polarity === slotPolarity(index);
-    used += matches ? Math.ceil(drain / 2) : drain;
+    const base = (info.baseDrain ?? 0) + (mod.rank ?? info.maxRank ?? 0);
+    const matches = Boolean(info.polarity && slotPolarity(index) && info.polarity === slotPolarity(index));
+    const cost = matches ? Math.ceil(base / 2) : base;
+    // A stance mod works like an aura: it grants capacity instead of spending it, doubled
+    // when its polarity matches the stance slot.
+    if (isStance(index)) total += matches ? base * 2 : base;
+    else used += cost;
   });
   return { used, total };
 }
@@ -198,14 +211,15 @@ let dragPayload = null;
 function renderSlots() {
   const container = $('slots');
   container.innerHTML = '';
-  const total = MAX_SLOTS + 1;
+  const total = MAX_SLOTS + 1 + (hasStance() ? 1 : 0);
 
   state.mods.forEach((mod, index) => {
     const info = allMods.find((entry) => entry.name === mod.name);
     const maxRank = info?.maxRank ?? 0;
-    const exilus = index === MAX_SLOTS;
+    const exilus = index === EXILUS_SLOT;
+    const stance = isStance(index);
     const row = document.createElement('div');
-    row.className = `slot${mod.name ? ' filled' : ''}${exilus ? ' exilus' : ''}`;
+    row.className = `slot${mod.name ? ' filled' : ''}${exilus ? ' exilus' : ''}${stance ? ' stance' : ''}`;
     const description = (info?.description ?? '').split('\n')[0];
     if (info?.polarity) row.style.borderLeftColor = polarityColor(info.polarity);
     const slotPolarityName = slotPolarity(index);
@@ -221,7 +235,8 @@ function renderSlots() {
         <span class="mod-share">${mod.name && share ? `+${(share * 100).toFixed(0)}%` : ''}</span>
         <button class="remove" data-index="${index}" title="remove">×</button>
       </div>
-      ${info?.image ? `<img class="mod-art" src="/img/${info.image}" alt="" loading="lazy" draggable="false" />` : ''}
+      ${info?.image ? `<img class="mod-art" src="/img/${info.image}" alt="" loading="lazy" draggable="false" />`
+        : `<div class="slot-glyph" style="color:${polarityColor(slotPolarityName)}">${glyph(slotPolarityName) || '·'}</div>`}
       <div class="mod-name" data-index="${index}" tabindex="0" role="button"
            aria-label="edit mod">${mod.name ? mod.name.replace(/</g, '&lt;') : `<span class="placeholder">${exilus ? 'exilus slot' : 'empty slot'}</span>`}</div>
       ${mod.name ? `<div class="mod-desc">${description}</div>` : ''}
@@ -264,7 +279,11 @@ function renderSlots() {
   if (state.mods.length < total) {
     const add = document.createElement('button');
     add.className = 'add-slot';
-    add.textContent = state.mods.length === MAX_SLOTS ? '+ add exilus mod' : '+ add mod';
+    add.textContent = state.mods.length === MAX_SLOTS
+      ? '+ add exilus mod'
+      : state.mods.length === MAX_SLOTS + 1 && hasStance()
+        ? '+ add stance mod'
+        : '+ add mod';
     add.onclick = () => {
       state.mods.push({ name: '', rank: undefined });
       renderSlots();
@@ -274,12 +293,19 @@ function renderSlots() {
   $('mod-count').textContent = state.mods.filter((mod) => mod.name).length;
   const capacity = capacityInfo();
   const formas = (state.slotPolarities ?? []).filter(Boolean).length;
+  const wasted = (state.slotPolarities ?? []).filter((polarity, index) => {
+    const weapon = weaponData.get(state.weapon);
+    const innate = index === STANCE_SLOT ? weapon?.stancePolarity
+      : index === EXILUS_SLOT ? weapon?.exilusPolarity
+      : weapon?.polarities?.[index];
+    return polarity && innate && polarity === innate;
+  }).length;
   const over = capacity.used > capacity.total;
   $('capacity').innerHTML = `<div class="cap-bar${over ? ' over' : ''}">
       <i style="width:${Math.min(100, (capacity.used / capacity.total) * 100).toFixed(0)}%"></i>
     </div>
     <span class="cap-text${over ? ' over' : ''}">${capacity.used} / ${capacity.total}</span>
-    ${formas ? `<span class="badge" title="forma applied">${formas}F</span>` : ''}`;
+    ${formas ? `<span class="badge${wasted ? ' warn' : ''}" title="formas applied${wasted ? ` (${wasted} redundant: same as the slot's innate polarity)` : ''}">${formas}F</span>` : ''}`;
   // Dropping a dragged slot outside any card removes it.
   container.ondragover = (event) => {
     if (dragFrom?.kind === 'slot') event.preventDefault();
@@ -466,6 +492,8 @@ function renderWeaponMeta(result) {
   const weapon = result.weapon;
   // `type` is usually the first mod class, so don't print it twice.
   const classes = weapon.modClasses.filter((name) => name !== weapon.type);
+  const meta = weaponData.get(state.weapon);
+  $('weapon-art').innerHTML = meta?.image ? `<img src="/img/${meta.image}" alt="" />` : '';
   $('weapon-meta').innerHTML = `<span class="chip">${weapon.type}</span>
     <span class="chip">MR ${weapon.masteryRank}</span>
     <span class="chip">${(weapon.disposition ?? 1).toFixed(1)}★ riven</span>
@@ -779,6 +807,7 @@ function syncInputs() {
   $('aoe-input').value = String(state.aoeDistance ?? 0);
   $('aoe-value').textContent = state.aoeDistance ? `${state.aoeDistance} m` : 'centre';
   $('element-bonus').value = elementBonusText(state.elementBonus);
+  $('reactor').checked = Boolean(state.reactor);
   renderBuffList();
 }
 

@@ -48,6 +48,22 @@ const IMAGE_BY_MOD = (() => {
 })();
 const imageNameOf = (modName: string): string | null => IMAGE_BY_MOD.get(modName) ?? null;
 
+/** Weapon artwork and melee stance polarity, from the same export. */
+const WEAPON_IMAGE = new Map<string, string>();
+const WEAPON_STANCE = new Map<string, string>();
+for (const file of ['Primary', 'Secondary', 'Melee', 'Arch-Gun', 'Arch-Melee', 'SentinelWeapons']) {
+  try {
+    const raw = JSON.parse(readFileSync(new URL(`../data/raw/wfcd-${file}.json`, import.meta.url).pathname, 'utf8')) as any[];
+    for (const weapon of raw) {
+      if (typeof weapon?.name !== 'string') continue;
+      if (typeof weapon.imageName === 'string') WEAPON_IMAGE.set(weapon.name, weapon.imageName);
+      if (typeof weapon.stancePolarity === 'string') WEAPON_STANCE.set(weapon.name, weapon.stancePolarity);
+    }
+  } catch {
+    /* export missing; the UI degrades to no art */
+  }
+}
+
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -184,6 +200,8 @@ const server = createServer(async (req, res) => {
           name: w.name, category: w.category, type: w.type, masteryRank: w.masteryRank,
           // Needed by the client to work out mod capacity and polarity matches.
           polarities: w.polarities, exilusPolarity: w.exilusPolarity, modClasses: w.modClasses,
+          stancePolarity: WEAPON_STANCE.get(w.name) ?? null,
+          image: WEAPON_IMAGE.get(w.name) ?? null,
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
       return json(res, 200, list);
