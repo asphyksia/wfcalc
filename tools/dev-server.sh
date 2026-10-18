@@ -1,11 +1,15 @@
 #!/bin/sh
 # Restart the dev server on a given port, replacing whatever was listening there.
-# `fuser -k` is used with an explicit port rather than `pkill -f`: a pattern match on the
-# command line also matches the shell running pkill, which kills the caller.
+# The stale process is found with pgrep on its own command line, never with `pkill -f` (that
+# pattern also matches the shell running pkill, which kills the caller) and not with `fuser -k`
+# (it cannot read /proc/net/tcp under proot and exits without killing anything, which left the
+# old server answering while the new one died on EADDRINUSE).
 set -e
 PORT="${1:-7801}"
 cd "$(dirname "$0")/.."
-fuser -k "${PORT}/tcp" >/dev/null 2>&1 || true
+for pid in $(pgrep -f "server.ts --port ${PORT}\b" 2>/dev/null); do
+  kill "$pid" 2>/dev/null || true
+done
 sleep 1
 nohup ./bin/wfcalc serve --port "$PORT" --host 0.0.0.0 >"/tmp/wfcalc-${PORT}.log" 2>&1 &
 for _ in 1 2 3 4 5 6 7 8 9 10; do

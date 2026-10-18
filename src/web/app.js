@@ -951,7 +951,12 @@ function syncInputs() {
   renderBuffList();
 }
 
+let eventsBound = false;
+
 function bindEvents() {
+  // main() can run again from the retry button; listeners must not stack up.
+  if (eventsBound) return;
+  eventsBound = true;
   for (const tab of document.querySelectorAll('.tab')) tab.onclick = () => showTab(tab.dataset.tab);
 
   $('weapon-input').addEventListener('change', async (event) => {
@@ -1132,19 +1137,41 @@ async function loadModsForWeapon() {
   $('arcane-list').innerHTML = arcanes.map((arcane) => `<option value="${arcane.name}">${(arcane.description || '').split('\n')[0].slice(0, 44)}</option>`).join('');
 }
 
+/**
+ * Boot failures used to leave a blank page: main() had no catch, so one failed request among
+ * the five static lists silently stopped everything. Now it reports and offers a retry.
+ */
+function showBootError(error) {
+  const target = $('stats');
+  if (!target) return;
+  const detail = String(error?.message ?? error ?? 'unknown error');
+  target.innerHTML = `<p class="error">Could not load the data: ${detail.replace(/</g, '&lt;')}</p>
+    <p class="hint">The page needs the wfcalc server; check that it is running and reachable.</p>
+    <button id="boot-retry">retry</button>`;
+  $('boot-retry')?.addEventListener('click', () => {
+    target.innerHTML = '';
+    void main();
+  });
+}
+
 async function main() {
-  loadFromUrl();
-  await loadStaticLists();
-  bindEvents();
-  syncInputs();
-  renderSaved();
-  if (state.weapon) {
-    await loadModsForWeapon();
-    renderSlots();
-  } else {
-    $('stats').innerHTML = '<p class="hint">Pick a weapon to start.</p>';
+  try {
+    loadFromUrl();
+    await loadStaticLists();
+    bindEvents();
+    syncInputs();
+    renderSaved();
+    if (state.weapon) {
+      await loadModsForWeapon();
+      renderSlots();
+    } else {
+      $('stats').innerHTML = '<p class="hint">Pick a weapon to start.</p>';
+    }
+    recalc();
+  } catch (error) {
+    console.error('wfcalc boot failed', error);
+    showBootError(error);
   }
-  recalc();
 }
 
 main();
