@@ -637,8 +637,8 @@ function renderResults(result) {
   // Headline numbers, like Overframe's "total damage" block.
   $('weapon-summary').innerHTML = `
     <div class="kpi"><span>damage / shot</span><b>${fmt(result.averageShotDamage, 0)}</b></div>
-    <div class="kpi"><span>burst dps</span><b>${fmt(result.burstDps, 0)}</b></div>
-    <div class="kpi"><span>sustained</span><b>${fmt(result.sustainedDps, 0)}</b></div>
+    <div class="kpi" title="Damage per second while the magazine lasts"><span>burst dps</span><b>${fmt(result.burstDps, 0)}</b></div>
+    <div class="kpi" title="Average DPS including reloads"><span>sustained</span><b>${fmt(result.sustainedDps, 0)}</b></div>
     ${target ? `<div class="kpi accent"><span>ttk lv${target.level}</span><b>${target.timeToKill === null ? '—' : `${fmt(target.timeToKill, 2)}s`}</b></div>` : ''}
   `;
 

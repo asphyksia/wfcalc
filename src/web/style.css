@@ -362,6 +362,17 @@ details > *:not(summary) { margin-top: 8px; }
 .weapon-art img { width: 96px; height: 96px; object-fit: contain; opacity: 0.9; filter: drop-shadow(0 2px 6px #0008); }
 .weapon-fields { flex: 1; min-width: 0; }
 
+/* The weapon name reads as a build title (Overframe's h1 is 3rem of #44b7ff) while staying the
+   picker: same element, no behaviour lost. */
+.build-header #weapon-input {
+  font-size: 24px; font-weight: 700; color: var(--accent);
+  background: transparent; border-color: transparent; padding: 0 2px 2px;
+  letter-spacing: -0.01em;
+}
+.build-header #weapon-input:hover { border-color: var(--border); background: var(--panel-2); }
+.build-header #weapon-input:focus { background: var(--panel-2); }
+.build-header .field:has(#weapon-input) > span { opacity: .75; }
+
 /* ── empty slot: big dim polarity glyph ──────────────────────────────── */
 .slot-glyph {
   display: flex; align-items: center; justify-content: center;
