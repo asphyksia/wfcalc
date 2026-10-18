@@ -72,6 +72,8 @@ function modCardMarkup(mod, options = {}) {
       </div>
       <div class="mcard-compat">${(mod.classes ?? [])[0] ?? ''}</div>
       <div class="mcard-stars">${'★'.repeat(stars)}</div>
+      <input class="rank mcard-rank" type="range" min="0" max="${mod.maxRank ?? 0}" value="${options.rank ?? mod.maxRank ?? 0}"
+             data-index="${options.index ?? ''}" oninput="this.closest('.slot')?.querySelector('.rank-proxy')?.dispatchEvent(new Event('input'))" />
       ${equipped ? '<span class="mcard-badge">equipped</span>' : ''}
     </div>`;
 }
