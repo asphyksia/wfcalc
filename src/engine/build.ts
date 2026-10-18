@@ -574,6 +574,13 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     damage[type as DamageType] = (damage[type as DamageType] ?? 0) + (amount as number);
   }
 
+  // Direct Damage bonuses (Galvanized Aptitude) multiply the finished damage, so they are
+  // applied after the elemental combination like faction damage.
+  const directDamageBonus = 1 + (collected.byTarget.get('directDamage') ?? 0);
+  if (directDamageBonus !== 1) {
+    for (const key of Object.keys(damage) as DamageType[]) damage[key] = (damage[key] ?? 0) * directDamageBonus;
+  }
+
   // Flat base damage is added on top, spread over the weapon's damage distribution.
   if (flatBase > 0) {
     const distributed = flatBase * damageBonus;

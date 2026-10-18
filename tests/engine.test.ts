@@ -729,3 +729,40 @@ test('compound conditions use the stack count, not the boolean gate', () => {
   });
   close(noAim.critChance, 0.25);
 });
+
+/**
+ * Calibration against Overframe (Haalvu build, 2026-10):
+ *   Galvanized Chamber, Galvanized Aptitude, Hellfire, Thermite Rounds, Critical Delay,
+ *   Primed Shred, Vital Sense, Serration.
+ * Overframe reports multishot 1.8, crit 75%, crit damage 5.5x, status 45.6%, fire rate
+ * 17.55 and 393.5 total damage with the Galvanized Aptitude condition active.
+ */
+test('matches the Overframe Haalvu build: arsenal stats', () => {
+  const galvanizedAptitude = mod('Galvanized Aptitude', 10, [
+    '+80% Status Chance', 'On Kill:', '+40% Direct Damage per Status Type affecting the target for 20s. Stacks up to 2x.',
+  ]);
+  const criticalDelay = mod('Critical Delay', 10, ['+200% Critical Chance', '-20% Fire Rate']);
+  const primedShred = mod('Primed Shred', 10, ['+55% Fire Rate', '+2.2 Punch Through']);
+  const thermite = mod('Thermite Rounds', 5, ['+60% Heat', '+60% Status Chance']);
+  const galvChamber = mod('Galvanized Chamber', 10, ['+80% Multishot', 'On Kill:', '+30% Multishot for 20s. Stacks up to 5x.']);
+
+  const haalvu = weapon({ tau: 33, critChance: 0.25, critMultiplier: 2.5, statusChance: 0.19, fireRate: 13, magazineSize: 150, reloadTime: 1 });
+  const snap = snapshot([haalvu], [galvanizedAptitude, criticalDelay, primedShred, thermite, galvChamber, hellfire, vitalSense, serration]);
+
+  const mods = ['Galvanized Chamber', 'Galvanized Aptitude', 'Hellfire', 'Thermite Rounds', 'Critical Delay', 'Primed Shred', 'Vital Sense', 'Serration'];
+  const bare = resolveBuild(snap, { weapon: 'Test Weapon', mods });
+  // Pre-conditional arsenal values, as Overframe shows them per damage type.
+  close(bare.multishot, 1.8, 1e-9);
+  close(bare.critChance, 0.75, 1e-9);           // 25% x (1 + 200%)
+  close(bare.critMultiplier, 5.5, 1e-9);        // 2.5 x (1 + 120%)
+  close(bare.statusChance, 0.456, 1e-9);        // 19% x (1 + 80% + 60%)
+  close(bare.fireRate, 17.55, 1e-6);            // 13 x (1 + 55% - 20%)
+  close(bare.damage.perProjectile.tau ?? 0, 87.5, 1e-2);   // 33 x 2.65
+  close(bare.damage.perProjectile.heat ?? 0, 131.2, 1e-2); // 49.5 x 2.65
+  close(bare.damage.projectileTotal, 218.7, 1e-1);
+
+  // With Galvanized Aptitude active the total is 218.7 x (1 + 80%) = 393.5: Direct Damage
+  // multiplies the Serration result instead of sharing its bucket.
+  const stacked = resolveBuild(snap, { weapon: 'Test Weapon', mods, conditions: { onKill: 2, statusTypes: 1 } });
+  close(stacked.damage.projectileTotal, 393.5, 1e-1);
+});

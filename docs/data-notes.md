@@ -119,6 +119,10 @@ Cloudflare. Do not use it.
     `1 / max(charge_time)` from the attacks array. The validator caught this one — it was
     making Lanka's DPS zero.
 
+26. **"Direct Damage" is not "Damage".** Galvanized Aptitude/Savvy/Shot use the `directDamage`
+    bucket, which multiplies after base damage mods. Mapping the text to `baseDamage` makes
+    the mod additive with Serration and understates the result by ~28%.
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully

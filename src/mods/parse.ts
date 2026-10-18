@@ -82,7 +82,10 @@ const TARGET_RULES: Array<[RegExp, Mapped]> = [
   [/^damage on first shot in magazine$/, { target: 'baseDamage', op: 'add' }],
   [/^damage on first shot$/, { target: 'baseDamage', op: 'add' }],
 
-  [/^(?:melee |direct |base |rifle |pistol |shotgun |bow |sniper )?damage$/, { target: 'baseDamage', op: 'add' }],
+  // "Direct Damage" (Galvanized Aptitude/Savvy/Shot) is a SEPARATE multiplier bucket from
+  // base damage mods: it multiplies Serration's result instead of adding to it.
+  [/^(?:direct|weapon) damage$/, { target: 'directDamage', op: 'add' }],
+  [/^(?:melee |base |rifle |pistol |shotgun |bow |sniper )?damage$/, { target: 'baseDamage', op: 'add' }],
   [/^damage$/, { target: 'baseDamage', op: 'add' }],
 
   [/^(?:critical chance|crit chance)$/, { target: 'critChance', op: 'add' }],

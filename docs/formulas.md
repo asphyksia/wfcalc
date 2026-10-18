@@ -55,6 +55,18 @@ Mods have `maxRank + 1` equal steps, so rank `r` of a `maxRank` mod is
 `value × (r + 1) / (maxRank + 1)`: Serration R0 = +15%, R9 = +150%, R10 = +165%
 (the wiki quotes the R9 example: `18 × (1 + 1.5) = 45`).
 
+### Direct Damage (`Galvanized Aptitude` / `Savvy` / `Shot`)
+
+"Direct Damage" is a **separate multiplier bucket**, not part of the base-damage bucket:
+it multiplies the result of the damage mods instead of adding to them.
+
+```
+total = base × (1 + damage mods) × (1 + direct damage) × …
+```
+
+Verified against Overframe on the Haalvu build: `218.7 × 1.8 = 393.5`, where `1.8` is
+Galvanized Aptitude at two stacks. Treating it as additive with Serration gave 284.6.
+
 ### Faction damage
 
 `Bane of Grineer` and friends are a separate multiplier bucket
@@ -291,6 +303,24 @@ Computed as rates rather than shots so status damage counts: shields first (only
 shield-capable damage), then health using direct damage plus DoT DPS. Toxin bypasses
 shields (except Treasurer and Hounds). Time comes from the sustained fire rate, which
 accounts for the magazine and reload cycle.
+
+## Calibration result (2026-10)
+
+Validated against an independent calculator (Overframe) on a real Haalvu build:
+
+| Stat | Overframe | wfcalc |
+|---|---|---|
+| Multishot | 1.80 | 1.80 |
+| Critical chance | 75% | 75% |
+| Critical damage | 5.5x | 5.5x |
+| Status / projectile | 45.6% | 45.6% |
+| Fire rate | 17.55 | 17.55 |
+| Tau damage | 87.5 | 87.5 |
+| Heat damage | 131.2 | 131.2 |
+| Total (Aptitude active) | 393.5 | 393.5 |
+
+That exercise found two real bugs: fire modes with an empty export damage dict resolving to
+zero, and "Direct Damage" being merged into the base-damage bucket.
 
 ## Verification
 
