@@ -87,6 +87,16 @@ for (const weapon of weapons) {
   if (Math.abs(again.averageShotDamage - bare.averageShotDamage) > 1e-9) fail('determinism', weapon.name, 'differs between runs');
 }
 
+// Every fire mode must carry damage: an empty attack dict in the export must inherit
+// the weapon's distribution instead of becoming zero (Haalvu's alt-fire did).
+for (const weapon of weapons) {
+  const weaponHasDamage = Object.values(weapon.stats).some((value) => typeof value === 'number' && value > 0);
+  for (const fireMode of weapon.modes) {
+    const modeTotal = DAMAGE_TYPES.reduce((sum, type) => sum + (fireMode.stats[type] ?? 0), 0);
+    if (weaponHasDamage && !(modeTotal > 0)) fail('fire mode damage', `${weapon.name} / ${fireMode.name}`, 'zero damage');
+  }
+}
+
 console.log('2. linearity in base damage');
 for (const weapon of weapons) {
   // Doubling every damage type must exactly double the per-projectile damage

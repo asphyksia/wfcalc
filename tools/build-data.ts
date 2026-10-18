@@ -197,6 +197,12 @@ function emptyStats(): WeaponStats {
 }
 
 /** Reads a WFCD `damage` dictionary (arsenal damage per type). */
+/** True when a damage dictionary carries no damage type at all. */
+function isEmptyDamage(damage: Loose | undefined): boolean {
+  if (!damage || typeof damage !== 'object') return true;
+  return !Object.entries(damage).some(([key, value]) => key !== 'total' && typeof value === 'number' && value > 0);
+}
+
 function statsFromDamage(damage: Loose | undefined, base: WeaponStats, damagePerShot?: number[]): WeaponStats {
   const stats: WeaponStats = { ...base };
   for (const t of DAMAGE_TYPES) stats[t] = 0;
@@ -248,7 +254,9 @@ function buildModes(weapon: Loose, base: WeaponStats): WeaponMode[] {
   const attacks: Loose[] = Array.isArray(weapon.attacks) ? weapon.attacks : [];
   const modes: WeaponMode[] = [];
   for (const attack of attacks) {
-    const stats = statsFromDamage(attack.damage, base);
+    // Some weapons (Haalvu) ship an empty damage dict per attack: the mode then shares the
+    // weapon's damage distribution and only overrides crit/status/rate.
+    const stats = isEmptyDamage(attack.damage) ? { ...base } : statsFromDamage(attack.damage, base);
     stats.critChance = Number(attack.crit_chance ?? 0) / 100;
     stats.critMultiplier = Number(attack.crit_mult ?? 1);
     stats.statusChance = Number(attack.status_chance ?? 0) / 100;
