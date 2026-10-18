@@ -65,8 +65,10 @@ export const findWarframe = (snap: Snapshot, query: string) => findByName(snap.w
 /** Mods that fit a weapon, cheapest filter to build pickers from. */
 export function modsForWeapon(snap: Snapshot, weapon: WeaponData): ModData[] {
   const classes = new Set(weapon.modClasses.map((c) => c.toLowerCase()));
-  // Family-wide classes that fit every weapon of the category.
-  const wildcards = new Set(['mod', 'antique']);
+  // No wildcard for the bare "Mod" and "Antique" classes: those are fusion cores, transmute
+  // cores and Operator focus arcanes, none of which can be equipped on a weapon. Letting them
+  // through put 28 unmodellable entries in a rifle's candidate list.
+  const wildcards = new Set<string>();
   const categoryWildcards: Record<string, string[]> = {
     primary: ['primary'],
     secondary: ['secondary'],
