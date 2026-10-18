@@ -16,6 +16,13 @@ const ELEMENT_COLORS = {
   viral: '#4aa88a', true: '#dcdcdc', void: '#b07fd0', tau: '#d0a05b',
 };
 
+/** Warframe polarity colours, used to tint mod cards. */
+const POLARITY_COLORS = {
+  madurai: '#e2664f', vazarin: '#4f9de2', naramon: '#c9d24a', zenurik: '#b07fd0',
+  unairu: '#7ac77a', penjaga: '#4ac7bb', umbra: '#e0b04a', universal: '#9aa3b5',
+};
+const polarityColor = (polarity) => POLARITY_COLORS[String(polarity ?? '').toLowerCase()] ?? POLARITY_COLORS.universal;
+
 const emptyState = () => ({
   weapon: '',
   mods: [], // [{ name, rank }]
@@ -44,6 +51,8 @@ let state = emptyState();
 let allMods = [];
 let allBuffs = [];
 let calculationId = 0;
+/** Mod name -> share of burst DPS, refreshed on every calculation. */
+const lastContributions = new Map();
 
 const $ = (id) => document.getElementById(id);
 const fmt = (value, digits = 0) =>
@@ -129,6 +138,10 @@ function showTab(name) {
 
 /** ---------- rendering: build ---------- */
 
+/** Index of the slot being dragged, shared by the slot grid and the library. */
+let dragFrom = null;
+let dragPayload = null;
+
 function renderSlots() {
   const container = $('slots');
   container.innerHTML = '';
@@ -141,16 +154,46 @@ function renderSlots() {
     const row = document.createElement('div');
     row.className = `slot${mod.name ? ' filled' : ''}${exilus ? ' exilus' : ''}`;
     const description = (info?.description ?? '').split('\n')[0];
+    if (info?.polarity) row.style.borderLeftColor = polarityColor(info.polarity);
+    const share = lastContributions.get(mod.name);
     // Card layout: a small toolbar (rank + remove) above the name, then the mod's own text.
     row.innerHTML = `
       <div class="slot-top">
         <span class="rank-value">${mod.name ? `R${mod.rank ?? maxRank}` : ''}</span>
+        <span class="mod-share">${mod.name && share ? `+${(share * 100).toFixed(0)}%` : ''}</span>
         <button class="remove" data-index="${index}" title="remove">×</button>
       </div>
       <div class="mod-name" data-index="${index}" tabindex="0" role="button"
            aria-label="edit mod">${mod.name ? mod.name.replace(/</g, '&lt;') : `<span class="placeholder">${exilus ? 'exilus slot' : 'empty slot'}</span>`}</div>
       ${mod.name ? `<div class="mod-desc">${description}</div>` : ''}
       <input class="rank" type="range" min="0" max="${maxRank}" value="${mod.rank ?? maxRank}" data-index="${index}" />`;
+
+    // Drag a filled slot onto another to swap; drag it out of the grid to remove.
+    if (mod.name) {
+      row.draggable = true;
+      row.addEventListener('dragstart', (event) => {
+        dragFrom = { kind: 'slot', index };
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', mod.name);
+        row.classList.add('dragging');
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        dragFrom = null;
+      });
+    }
+    row.addEventListener('dragover', (event) => {
+      if (!dragFrom && !dragPayload) return;
+      event.preventDefault();
+      row.classList.add('drop-target');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('drop-target'));
+    row.addEventListener('drop', (event) => {
+      event.preventDefault();
+      row.classList.remove('drop-target');
+      event.stopPropagation();
+      applyDrop(index);
+    });
     container.appendChild(row);
   });
 
@@ -170,6 +213,20 @@ function renderSlots() {
     container.appendChild(add);
   }
   $('mod-count').textContent = state.mods.filter((mod) => mod.name).length;
+  // Dropping a dragged slot outside any card removes it.
+  container.ondragover = (event) => {
+    if (dragFrom?.kind === 'slot') event.preventDefault();
+  };
+  container.ondrop = (event) => {
+    if (dragFrom?.kind !== 'slot') return;
+    event.preventDefault();
+    const index = dragFrom.index;
+    dragFrom = null;
+    state.mods.splice(index, 1);
+    renderSlots();
+    recalc();
+  };
+  renderLibrary();
 
   // The name is a label (so it can wrap) that becomes the input while editing.
   container.querySelectorAll('.mod-name').forEach((label) => {
@@ -222,13 +279,75 @@ function renderSlots() {
   });
 }
 
+/** Moves whatever was dragged into `index`. */
+function applyDrop(index) {
+  if (dragFrom?.kind === 'slot') {
+    const from = dragFrom.index;
+    if (from === index) return;
+    const a = state.mods[from];
+    state.mods[from] = state.mods[index] ?? { name: '', rank: undefined };
+    state.mods[index] = a;
+    if (!state.mods[from].name) state.mods.splice(from, 1);
+  } else if (dragFrom?.kind === 'library' && dragPayload) {
+    state.mods[index] = { name: dragPayload, rank: undefined };
+  }
+  dragFrom = null;
+  dragPayload = null;
+  renderSlots();
+  recalc();
+}
+
+/**
+ * The mod library: the mods that fit the weapon, as a searchable grid of cards. Clicking one
+ * fills the first empty slot; dragging one drops it wherever you want.
+ */
+function renderLibrary() {
+  const query = ($('mod-filter')?.value ?? '').toLowerCase();
+  // Fusion cores and other inventory noise are not equippable mods.
+  const JUNK = /^(Ancient Fusion Core|Flawed )/i;
+  const list = allMods
+    .filter((mod) => !JUNK.test(mod.name))
+    .filter((mod) => !query || mod.name.toLowerCase().includes(query) || (mod.description ?? '').toLowerCase().includes(query))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  $('mod-list').innerHTML = list
+    .slice(0, 120)
+    .map(
+      (mod) => `<button class="lib-card${state.mods.some((entry) => entry.name === mod.name) ? ' equipped' : ''}"
+        draggable="true" data-mod="${mod.name.replace(/"/g, '&quot;')}"
+        style="border-left-color:${polarityColor(mod.polarity)}">
+        <span class="lib-name">${mod.name}</span>
+        <span class="lib-desc">${(mod.description || '').split('\n')[0].slice(0, 42)}</span>
+      </button>`,
+    )
+    .join('') || '<p class="hint">No mod matches that search.</p>';
+
+  for (const card of $('mod-list').querySelectorAll('.lib-card')) {
+    const name = card.dataset.mod;
+    card.addEventListener('dragstart', (event) => {
+      dragFrom = { kind: 'library' };
+      dragPayload = name;
+      event.dataTransfer.effectAllowed = 'copy';
+      event.dataTransfer.setData('text/plain', name);
+    });
+    card.addEventListener('dragend', () => {
+      dragFrom = null;
+      dragPayload = null;
+    });
+    card.addEventListener('click', () => {
+      const empty = state.mods.findIndex((entry) => !entry.name);
+      const target = empty >= 0 ? empty : state.mods.length < MAX_SLOTS + 1 ? state.mods.length : -1;
+      if (target < 0) return;
+      state.mods[target] = { name, rank: undefined };
+      renderSlots();
+      recalc();
+    });
+  }
+}
+
 const renderModList = debounce((filter) => {
-  $('mod-list').innerHTML = allMods
-    .filter((mod) => mod.name.toLowerCase().includes(filter))
-    .slice(0, 400)
-    .map((mod) => `<option value="${mod.name}">${(mod.description || '').split('\n')[0].slice(0, 48)}</option>`)
-    .join('');
-}, 120);
+  renderLibrary();
+}, 80);
 
 function renderBuffList() {
   $('buff-list').innerHTML = allBuffs
@@ -342,6 +461,16 @@ function renderResults(result) {
 
   // Per-mod contribution: the share of the burst DPS that disappears without that mod.
   const contributions = result.contributions ?? [];
+  lastContributions.clear();
+  for (const entry of contributions) lastContributions.set(entry.name, entry.deltaPct);
+  // Refresh the "+62%" badge on each slot card without re-rendering the grid.
+  document.querySelectorAll('#slots .slot').forEach((slot, index) => {
+    const badge = slot.querySelector('.mod-share');
+    const name = state.mods[index]?.name;
+    if (!badge) return;
+    const share = name ? lastContributions.get(name) : undefined;
+    badge.textContent = share && share > 0.005 ? `+${(share * 100).toFixed(0)}%` : '';
+  });
   $('contributions').innerHTML = contributions.length
     ? contributions
         .slice()
