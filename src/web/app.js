@@ -251,6 +251,7 @@ function renderResults(result) {
     <div class="card"><span>sustained dps</span><b>${fmt(result.sustainedDps, 0)}</b><small>reload ${fmt(result.reloadTime, 2)}s</small></div>
     ${result.activeBuffs?.length ? `<div class="card"><span>buffs</span><b>${result.activeBuffs.length}</b><small>${result.activeBuffs.join(', ')}</small></div>` : ''}
     ${target && target.factionMultiplier && Math.abs(target.factionMultiplier - 1) > 0.001 ? `<div class="card"><span>faction</span><b>×${target.factionMultiplier.toFixed(2)}</b><small>${target.faction ?? ''}</small></div>` : ''}
+    ${result.critVariance && result.critVariance.pellets >= 2 ? `<div class="card"><span>crit spread</span><b>${result.critVariance.expectedCrits.toFixed(1)} / ${result.critVariance.pellets.toFixed(0)}</b><small>${pct(result.critVariance.atLeastOneCrit)} of shots crit</small></div>` : ''}
     ${dotDps > 0 ? `<div class="card"><span>status dps</span><b>${fmt(dotDps, 0)}</b><small>${dot.length} type(s)</small></div>` : ''}
     ${result.comboMultiplier > 1 ? `<div class="card"><span>combo</span><b>${result.comboMultiplier.toFixed(1)}x</b><small>${state.comboHits} hits</small></div>` : ''}
     ${target ? `<div class="card accent"><span>time to kill lv${target.level}</span><b>${target.timeToKill === null ? '—' : fmt(target.timeToKill, 2) + 's'}</b><small>${fmt(target.shotsToKill, 1)} shots</small></div>` : ''}

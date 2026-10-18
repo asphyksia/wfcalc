@@ -243,7 +243,26 @@ total(d) = arsenal - radial + radial × factor(d)
 Verified: Kuva Bramma at the centre 2718.9 per projectile, at 4 m 1754.6, at 9 m 717.9
 (end 8.3 m, reduction 0.9 → the radial part keeps 10%).
 
-## 11. Time to kill
+## 11. Flat bonuses, crit spread and arcanes
+
+- **Flat vs multiplicative**: mods scale the base stat (`crit × (1 + Σ)`) while a few
+  effects are added to the final value. Arcane Avenger is flat: `30% base + 45% = 75%`,
+  not `30% × 1.45 = 43.5%`.
+- **Warframe arcanes** go through the same effect pipeline as mods, so their conditions
+  (`on_damaged`, `on_critical_hit`, `onWeakPointHit`) use the same stack toggles.
+- **Molt Augmented** grants Ability Strength, which is computed *before* buffs are
+  resolved, so it raises Roar/Eclipse automatically.
+- **Crit spread** (display only, the maths stays on expectations):
+
+```
+expected crits   = pellets × critChance
+P(at least one)  = 1 - (1 - critChance)^pellets
+```
+
+- **Helminth**: the ability dataset carries a `Subsumable` flag; asking for a buff the
+  chosen frame cannot have produces a warning instead of a silent wrong answer.
+
+## 12. Time to kill
 
 Computed as rates rather than shots so status damage counts: shields first (only
 shield-capable damage), then health using direct damage plus DoT DPS. Toxin bypasses

@@ -369,6 +369,9 @@ function arcaneSlot(category: string): string | null {
   return map[category] ?? null;
 }
 
+/** Arcanes that add critical chance as a flat amount instead of scaling the base stat. */
+const FLAT_CRIT_ARCANES = new Set(['Arcane Avenger']);
+
 function buildArcanes(): Record<string, ArcaneData> {
   const out: Record<string, ArcaneData> = {};
   for (const arcane of readJson('wfcd-Arcanes.json')) {
@@ -386,7 +389,9 @@ function buildArcanes(): Record<string, ArcaneData> {
       // WFCD ships one levelStats entry per rank, so max rank is length - 1.
       maxRank: Math.max(0, ranks.length - 1),
       description: ranks.length ? String(ranks[ranks.length - 1].join(' / ')) : '',
-      effects: parsed.effects,
+      effects: FLAT_CRIT_ARCANES.has(name)
+        ? parsed.effects.map((effect) => (effect.target === 'critChance' ? { ...effect, op: 'flat' as const } : effect))
+        : parsed.effects,
       slot: arcaneSlot(String(arcane.type ?? '')),
     };
   }
@@ -519,6 +524,16 @@ function buildIncarnons(weapons: Record<string, WeaponData>): Record<string, any
 
 function buildAbilities(): Record<string, AbilityData> {
   const raw = readJsonFile('ability-stats.json');
+  // Subsumable = the Helminth can put this ability on another frame.
+  const subsumable = new Set<string>();
+  try {
+    const module = readLua('module-ability.lua');
+    for (const entry of Object.values<Loose>(module.Ability ?? {})) {
+      if (entry.Subsumable && typeof entry.Name === 'string') subsumable.add(entry.Name);
+    }
+  } catch {
+    console.warn('could not read Module:Ability/data; Helminth flags missing');
+  }
   const out: Record<string, AbilityData> = {};
   for (const entry of raw) {
     out[entry.ability] = {
@@ -530,6 +545,7 @@ function buildAbilities(): Record<string, AbilityData> {
       segments: (entry.segments ?? []).map((segment: Loose) => ({ label: String(segment.label), max: segment.max })),
       duration: entry.duration ?? null,
       range: entry.range ?? null,
+      subsumable: subsumable.has(entry.ability),
     };
   }
   console.log(`abilities: ${Object.keys(out).length}`);

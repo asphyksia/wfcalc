@@ -12,6 +12,7 @@
  * Ability Strength is a percentage: 100 = unmodded, 284 = a typical Intensify build.
  */
 import type { AbilityData, DamageType, Effect, Snapshot } from '../types.ts';
+import type { Conditions } from './build.ts';
 
 export type BuffKind =
   | 'damage' // multiplies total weapon damage (same bucket as Serration)
@@ -149,10 +150,35 @@ export function buffEffects(snapshot: Snapshot, definition: BuffDefinition, stre
 export function abilityStrengthFromMods(
   snapshot: Snapshot,
   mods: Array<string | { name: string; rank?: number }>,
+  arcanes: Array<string | { name: string; rank?: number }> = [],
+  conditions: Conditions = {},
 ): { strength: number; bonus: number; mods: string[]; warnings: string[] } {
   let bonus = 0;
   const used: string[] = [];
   const warnings: string[] = [];
+  // Warframe arcanes can grant Ability Strength too (Molt Augmented: +0.24% per kill x250).
+  for (const entry of arcanes) {
+    const wanted = typeof entry === 'string' ? entry : entry.name;
+    const rank = typeof entry === 'string' ? undefined : entry.rank;
+    const arcane = snapshot.arcanes[wanted]
+      ?? snapshot.arcanes[Object.keys(snapshot.arcanes).find((key) => key.toLowerCase() === wanted.toLowerCase()) ?? ''];
+    if (!arcane) {
+      warnings.push(`warframe arcane not found: ${wanted}`);
+      continue;
+    }
+    if (arcane.slot !== 'warframe') {
+      warnings.push(`${arcane.name} is a ${arcane.slot} arcane, not a Warframe arcane`);
+      continue;
+    }
+    const rankFraction = rank === undefined || arcane.maxRank <= 0 ? 1 : Math.max(0, Math.min(1, (rank + 1) / (arcane.maxRank + 1)));
+    for (const effect of arcane.effects) {
+      if (effect.target !== 'abilityStrength') continue;
+      const stacks = effect.condition ? Number(conditions[effect.condition] ?? 0) : 1;
+      if (stacks <= 0) continue;
+      bonus += effect.value * rankFraction * Math.min(stacks, effect.maxStacks ?? stacks);
+    }
+    used.push(arcane.name);
+  }
   for (const entry of mods) {
     const wanted = typeof entry === 'string' ? entry : entry.name;
     const rank = typeof entry === 'string' ? undefined : entry.rank;
@@ -172,11 +198,15 @@ export function abilityStrengthFromMods(
 }
 
 /** Every buff that is currently available, for CLI/UI listings. */
-export function availableBuffs(snapshot: Snapshot): Array<{ id: string; ability: string; frame: string; augments: boolean }> {
+export function availableBuffs(
+  snapshot: Snapshot,
+): Array<{ id: string; ability: string; frame: string; augments: boolean; subsumable: boolean }> {
   return BUFFS.filter((buff) => snapshot.abilities[buff.ability]).map((buff) => ({
     id: buff.id,
     ability: buff.ability,
     frame: snapshot.abilities[buff.ability].frame,
     augments: Boolean(buff.augment),
+    // Helminth: a subsumable ability can be carried by any frame.
+    subsumable: Boolean(snapshot.abilities[buff.ability].subsumable),
   }));
 }

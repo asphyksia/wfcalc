@@ -168,7 +168,7 @@ export type EffectTarget =
   | string;
 
 /** What the effect multiplies into. `add` accumulates in a (1 + Σ) bucket. */
-export type EffectOp = 'add' | 'mult' | 'convert';
+export type EffectOp = 'add' | 'mult' | 'convert' | 'flat';
 
 export interface Effect {
   /** Stat axis this effect touches. */
@@ -267,6 +267,8 @@ export interface AbilityData {
   segments: AbilityStat[];
   duration: number | null;
   range: number | null;
+  /** True when the Helminth can transfer this ability to another Warframe. */
+  subsumable: boolean;
 }
 
 /** One choice inside an Incarnon evolution tier. */

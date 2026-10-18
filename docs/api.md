@@ -55,6 +55,8 @@ Weapon arcanes whose slot fits the weapon, with max rank and description.
   "buffs": ["roar", "toxic-lash"],
   "abilityStrength": 284,
   "frameMods": [{ "name": "Intensify" }],
+  "frame": "Rhino",
+  "warframeArcanes": ["Arcane Avenger"],
   "riven": { "stats": ["damage", "multishot"], "malus": "zoom", "roll": 1.05, "rank": 8 },
   "debuffs": { "viralStacks": 10, "corrosiveStacks": 4 },
   "incarnon": ["EVO2:0", "EVO4:1"],
@@ -79,6 +81,8 @@ Weapon arcanes whose slot fits the weapon, with max rank and description.
 - `incarnon` picks evolution tiers (`"EVO2:0"` = first option of tier EVO2; see `GET /api/incarnons`).
 - `aoeDistance` (metres) applies the weapon's own AoE falloff; omitted means blast centre.
 - `comboHits` drives the melee combo multiplier; `heavyAttack` applies it to damage.
+- `frame` is optional: it validates Helminth availability of the requested buffs.
+- `warframeArcanes` apply to the weapon and to Ability Strength (Molt Augmented).
 - `debuffs` are status stacks kept up on the target: Viral amplifies health damage, Corrosive strips armour.
 - `conditions` toggles conditional mods: `onKill` (stacks), `onWeakPointHit`,
   `onWeakPointKill`, `onReload`, `aiming`, `sliding`, `holstered`, `statusTypes` (count).
@@ -102,7 +106,8 @@ Response (abridged):
                     "toHealth": 711.74, "procShare": 0.935 }],
     "shotsToKill": 27.4, "timeToKill": 57.51,
     "dot": [{ "type": "slash", "procsPerSecond": 0.13, "tickDamage": 952, "ticks": 6, "dps": 760 }],
-    "totalDps": 6360
+    "totalDps": 6360,
+    "critVariance": { "pellets": 22, "expectedCrits": 3.96, "atLeastOneCrit": 0.987 }
   },
   "warnings": [],
   "unsupportedMods": [],

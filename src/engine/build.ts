@@ -53,6 +53,10 @@ export interface Build {
   abilityStrength?: number;
   /** Caster's Warframe mods; Ability Strength is derived from them when given. */
   frameMods?: Array<string | BuildMod>;
+  /** Caster's Warframe arcanes (Arcane Avenger, Molt Augmented...). */
+  warframeArcanes?: Array<string | BuildMod>;
+  /** Caster's Warframe name, used to validate which buffs it can actually bring. */
+  frame?: string;
   /** Riven mod stats for this weapon. */
   riven?: RivenSpec;
   /** Status debuffs on the target, in DotContext terms (viralStacks, corrosiveStacks). */
@@ -116,6 +120,8 @@ export interface ResolvedBuild {
   incarnonLines: string[];
   /** Melee combo multiplier in effect (1 when no combo). */
   comboMultiplier: number;
+  /** Per-shot crit spread, useful for shotguns where the average hides a wide range. */
+  critVariance: { pellets: number; expectedCrits: number; atLeastOneCrit: number };
   /** Total Status Damage bonus (multiplies DoT ticks). */
   statusDamageBonus: number;
   /** Status effects forced by mods (Hunter Munitions and friends). */
@@ -338,12 +344,37 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     rivenLines.push(...riven.lines);
   }
 
-  // Ability Strength comes from the frame's mods when they are provided.
-  const frameStrength = build.frameMods?.length
-    ? abilityStrengthFromMods(snapshot, build.frameMods)
+  // Ability Strength comes from the frame's mods and arcanes when they are provided.
+  const frameStrength = build.frameMods?.length || build.warframeArcanes?.length
+    ? abilityStrengthFromMods(snapshot, build.frameMods ?? [], build.warframeArcanes ?? [], conditions)
     : null;
   if (frameStrength) for (const warning of frameStrength.warnings) collected.warnings.push(`frame: ${warning}`);
   const abilityStrength = frameStrength ? frameStrength.strength : build.abilityStrength ?? 100;
+
+  // Warframe arcanes also buff the weapon directly (Arcane Avenger: +45% crit chance).
+  for (const entry of build.warframeArcanes ?? []) {
+    const wanted = typeof entry === 'string' ? entry : entry.name;
+    const rank = typeof entry === 'string' ? undefined : entry.rank;
+    const arcane = snapshot.arcanes[wanted]
+      ?? snapshot.arcanes[Object.keys(snapshot.arcanes).find((key) => normalizeName(key) === normalizeName(wanted)) ?? ''];
+    if (!arcane) {
+      collected.warnings.push(`warframe arcane not found: ${wanted}`);
+      continue;
+    }
+    if (arcane.slot !== 'warframe') {
+      collected.warnings.push(`${arcane.name} is a ${arcane.slot} arcane, not a Warframe arcane`);
+      continue;
+    }
+    sources.push({
+      name: arcane.name,
+      maxRank: arcane.maxRank,
+      rank,
+      // Ability Strength is already handled by the strength calculation above.
+      effects: arcane.effects.filter((effect) => effect.target !== 'abilityStrength'),
+      partial: false,
+      incompatible: [],
+    });
+  }
 
   // Warframe buffs from the registry.
   const activeBuffs: string[] = [];
@@ -352,6 +383,13 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     if (!definition) {
       collected.warnings.push(`unknown buff: ${id}`);
       continue;
+    }
+    // Helminth: a buff is only available if the frame has it natively or can subsume it.
+    const ability = snapshot.abilities[definition.ability];
+    if (build.frame && ability && normalizeName(ability.frame) !== normalizeName(build.frame) && !ability.subsumable && !definition.augment) {
+      collected.warnings.push(
+        `${definition.ability} belongs to ${ability.frame} and is not subsumable; ${build.frame} cannot use it`,
+      );
     }
     const effects = buffEffects(snapshot, definition, abilityStrength);
     if (!effects.length) {
@@ -380,6 +418,10 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
         continue;
       }
       switch (effect.op) {
+        case 'flat':
+          // Flat additions (Arcane Avenger: +45% crit chance) are not scaled by the base stat.
+          collected.byTarget.set(`${effect.target}Flat`, (collected.byTarget.get(`${effect.target}Flat`) ?? 0) + value);
+          break;
         case 'convert':
           if (effect.convertsTo && effect.element) {
             collected.conversions.push({ from: effect.element as BaseElement, to: effect.convertsTo, share: value });
@@ -523,9 +565,9 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   const projectileTotal = Object.values(damage).reduce((sum, value) => sum + (value ?? 0), 0);
 
   // ------------------------------------------------------------------- crit etc.
-  const critChance = (stats.critChance ?? 0) * (1 + bonus('critChance'));
+  const critChance = (stats.critChance ?? 0) * (1 + bonus('critChance')) + bonus('critChanceFlat');
   const critMultiplier = (stats.critMultiplier ?? 1) * (1 + bonus('critDamage'));
-  const statusChance = Math.min(1, (stats.statusChance ?? 0) * (1 + bonus('statusChance')));
+  const statusChance = Math.min(1, (stats.statusChance ?? 0) * (1 + bonus('statusChance')) + bonus('statusChanceFlat'));
   const multishot = (stats.multishot ?? 1) * (1 + bonus('multishot'));
   const fireRate = (stats.fireRate ?? 1) * (1 + bonus('fireRate'));
   const reloadTime = (stats.reloadTime ?? 0) / (1 + bonus('reloadSpeed'));
@@ -547,6 +589,15 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   const heavyMultiplier = build.heavyAttack ? comboMultiplier : 1;
   const shotDamage = projectileTotal * multishot * headshotMultiplier * heavyMultiplier;
   const averageShotDamage = shotDamage * averageCritMultiplier;
+
+  // How many of the pellets crit: with 10 pellets at 35% you get ~3.5 crits, and the
+  // chance of a shot with no crit at all is (1 - 0.35)^10 ≈ 1.3%.
+  const pellets = multishot;
+  const critVariance = {
+    pellets,
+    expectedCrits: pellets * critChance,
+    atLeastOneCrit: critChance >= 1 ? 1 : 1 - Math.pow(1 - Math.min(1, critChance), pellets),
+  };
 
   const burstDps = averageShotDamage * fireRate;
   const damagePerMagazine = averageShotDamage * Math.max(1, magazineSize);
@@ -577,6 +628,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     rivenLines,
     incarnonLines,
     comboMultiplier,
+    critVariance,
     statusDamageBonus: bonus('statusDamage'),
     forcedProcs: collected.forcedProcs,
     abilityStrength,

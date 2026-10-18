@@ -283,7 +283,10 @@ test('toxin bypasses shields when the enemy allows it', () => {
 
 /** Minimal ability entry: one labelled stat, like the wiki infobox gives us. */
 function ability(name: string, frame: string, value: number, label = 'value'): AbilityData {
-  return { ability: name, frame, page: name, kind: 'ability', value, segments: [{ label, max: value }], duration: 30, range: 25 };
+  return {
+    ability: name, frame, page: name, kind: 'ability', value,
+    segments: [{ label, max: value }], duration: 30, range: 25, subsumable: true,
+  };
 }
 
 function arcane(name: string, slot: string, maxRank: number, topRankStats: string[]): ArcaneData {
@@ -554,4 +557,51 @@ test('Incarnon options can be picked by name or by tier index', () => {
   const byIndex = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], incarnon: ['EVO2:0'] });
   close(byName.critChance, 0.2 * 2);
   close(byIndex.multishot, 1.5);
+});
+
+test('flat crit bonuses (Arcane Avenger) are added, not multiplied', () => {
+  const avenger: ArcaneData = {
+    id: 'Arcane Avenger', name: 'Arcane Avenger', category: 'Warframe Arcane', rarity: 'Rare', maxRank: 5,
+    description: 'On Damaged: 21% chance for +45% Critical Chance for 12s',
+    effects: [{ target: 'critChance', op: 'flat', value: 0.45, condition: 'on_damaged', raw: '+45% Critical Chance' }],
+    slot: 'warframe',
+  };
+  const snap = snapshot([weapon({ impact: 100, critChance: 0.3 })], [], [], { arcanes: [avenger] });
+  const withoutBuff = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], warframeArcanes: ['Arcane Avenger'] });
+  const withBuff = resolveBuild(snap, {
+    weapon: 'Test Weapon', mods: [], warframeArcanes: ['Arcane Avenger'], conditions: { on_damaged: 1 },
+  });
+  close(withoutBuff.critChance, 0.3); // condition not met
+  close(withBuff.critChance, 0.3 + 0.45); // flat, not 0.3 x 1.45
+});
+
+test('Molt Augmented feeds Ability Strength from its stacks', () => {
+  const molt: ArcaneData = {
+    id: 'Molt Augmented', name: 'Molt Augmented', category: 'Warframe Arcane', rarity: 'Legendary', maxRank: 5,
+    description: 'On Kill: +0.24% Ability Strength. Stacks up to 250x',
+    effects: [{ target: 'abilityStrength', op: 'add', value: 0.0024, condition: 'onKill', maxStacks: 250, raw: '+0.24% Ability Strength' }],
+    slot: 'warframe',
+  };
+  const snap = snapshot([weapon({ impact: 100 })], [], [], { arcanes: [molt], abilities: [ability('Roar', 'Rhino', 50)] });
+  const full = resolveBuild(snap, {
+    weapon: 'Test Weapon', mods: [], buffs: ['roar'], warframeArcanes: ['Molt Augmented'], conditions: { onKill: 250 },
+  });
+  // 100 + 0.24 x 250 = 160% strength -> Roar 50% x 1.6
+  close(full.abilityStrength, 160);
+  close(full.factionBonus.all ?? 0, 0.8);
+});
+
+test('crit spread reports expected crits and the chance of at least one', () => {
+  const snap = snapshot([weapon({ impact: 10, multishot: 10, critChance: 0.35 })], []);
+  const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: [] });
+  close(resolved.critVariance.pellets, 10);
+  close(resolved.critVariance.expectedCrits, 3.5);
+  close(resolved.critVariance.atLeastOneCrit, 1 - Math.pow(0.65, 10));
+});
+
+test('a non-subsumable buff from another frame only warns', () => {
+  const snap = snapshot([weapon({ impact: 100 })], [], [], { abilities: [ability('Sonar', 'Banshee', 5)] });
+  snap.abilities.Sonar.subsumable = false;
+  const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], buffs: ['sonar'], frame: 'Rhino' });
+  assert.ok(resolved.warnings.some((warning) => warning.includes('not subsumable')));
 });

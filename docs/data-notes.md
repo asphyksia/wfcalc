@@ -101,6 +101,13 @@ Cloudflare. Do not use it.
     `damage` block already includes the radial hit at the centre, so applying falloff means
     subtracting that portion and adding it back scaled — not adding the radial on top.
 
+21. **Arcanes scope their buff in the text**: "+90% Fire Rate to Primary Weapons". Without
+    stripping that tail, every scoped arcane parses as unknown.
+
+22. **Arcane crit bonuses are flat**, not multiplicative on the base stat. They are flagged
+    with `op: 'flat'` in the pipeline (currently Arcane Avenger; extend the set as more
+    are verified).
+
 ## Coverage
 
 `npm run coverage` prints the current state (83% of weapon-relevant mods fully

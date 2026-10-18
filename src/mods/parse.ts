@@ -226,6 +226,8 @@ function stripQualifiers(text: string): string {
     .replace(/\s*(?:stacks? with|per) combo multiplier\b/gi, '')
     .replace(/\s*per combo count\b/gi, '')
     .replace(/\s*on (?:your )?(?:next shot|next attack|melee strikes?|strikes?)\b/gi, '')
+    // Arcanes scope their buff: "+90% Fire Rate to Primary Weapons", "+180% Damage to Melee Weapons".
+    .replace(/\s*(?:to|on|for|with) (?:your )?(?:primary|secondary|melee|shotgun|pistol|rifle|bow|sniper|arch-?gun)\b.*$/gi, '')
     .replace(/\s*when (?:aiming|sliding|holstered|airborne|blocking)\b/gi, '')
     .replace(/\s*while (?:aiming|aim gliding|sliding|airborne|blocking|holstered)\b/gi, '')
     .replace(/\s*\([^)]*\)\s*$/g, '')

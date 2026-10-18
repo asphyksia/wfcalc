@@ -112,6 +112,7 @@ function calculate(body: any) {
     riven: resolved.rivenLines,
     incarnon: resolved.incarnonLines,
     comboMultiplier: resolved.comboMultiplier,
+    critVariance: resolved.critVariance,
     sustainedDps: resolved.sustainedDps,
     elements: resolved.elements,
     procs: statusProcs(resolved),

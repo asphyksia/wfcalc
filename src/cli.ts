@@ -111,6 +111,8 @@ function buildFromArgs(snapshot: Snapshot, args: Args, mods: string[]): Build {
     arcanes: flagAll(args, 'arcane').map(parseModArg),
     buffs,
     abilityStrength: flag(args, 'strength') ? Number(flag(args, 'strength')) : undefined,
+    frame: flag(args, 'frame'),
+    warframeArcanes: flagAll(args, 'frame-arcane').flatMap((entry) => entry.split(',')).map((e) => parseModArg(e.trim())).filter((e) => e.name),
     frameMods: flagAll(args, 'frame-mods')
       .flatMap((entry) => entry.split(','))
       .map((entry) => parseModArg(entry.trim()))
@@ -190,6 +192,7 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
           riven: resolved.rivenLines,
           incarnon: resolved.incarnonLines,
           comboMultiplier: resolved.comboMultiplier,
+          critVariance: resolved.critVariance,
           warnings: resolved.warnings,
           unsupportedMods: resolved.unsupportedMods,
           inactiveConditions: resolved.inactiveConditions,
@@ -237,6 +240,13 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
       );
     }
     console.log(`   ${'total'.padEnd(12)} ${num(hit.totalDps).padStart(34)} dps including status`);
+  }
+  if (resolved.multishot >= 2 && resolved.critChance > 0) {
+    const variance = resolved.critVariance;
+    console.log(
+      `  pellets      ${num(variance.expectedCrits, 2)} crits expected of ${num(variance.pellets, 1)}` +
+        `   ${pct(variance.atLeastOneCrit)} of shots land at least one`,
+    );
   }
   if (hit.bestType) {
     console.log(`  best type    ${hit.bestType.type} ×${hit.bestType.multiplier.toFixed(2)}`);
@@ -326,7 +336,7 @@ function main(): void {
         const ability = snapshot.abilities[definition.ability];
         console.log(
           `${buff.id.padEnd(18)} ${buff.frame.padEnd(10)} ${String(ability.value ?? '-').padStart(5)}  ` +
-            `${definition.kind.padEnd(18)}${buff.augments ? '(augment)' : ''}  ${definition.note ?? ''}`,
+            `${definition.kind.padEnd(18)}${buff.augments ? '(augment)' : buff.subsumable ? '(subsumable)' : ''}  ${definition.note ?? ''}`,
         );
       }
       console.log(`\n${BUFFS.length} buff(s) modelled. Use --buff <id> --strength <percent>.`);
@@ -377,7 +387,8 @@ function main(): void {
   wfcalc serve                          web UI + JSON API (see docs/api.md)
 
 Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
-         --strength 284  --frame-mods "Intensify,Blind Rage"  --riven damage,multishot
+         --frame Rhino  --frame-mods "Intensify,Blind Rage"  --frame-arcane "Molt Augmented"
+         --strength 284  --riven damage,multishot
          --incarnon "EVO2:0,EVO4:1"  --riven-roll 1.05
          --viral 10  --corrosive 10  (status debuffs on the target)
          --combo-hits 220  --heavy   (melee combo multiplier / heavy attack)
