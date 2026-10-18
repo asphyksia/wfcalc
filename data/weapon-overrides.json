@@ -1,0 +1,20 @@
+{
+  "_comment": "Per-weapon corrections for fields the WFCD export gets wrong or omits. Each entry is verified against Overframe's oracle by `node tools/calibrate.ts --battery`. Keep the note: it is the evidence.",
+  "Nataruk": {
+    "note": "Export reloadTime is 0.05 (nock animation only); the arsenal and Overframe both show 0.15.",
+    "reloadTime": 0.15
+  },
+  "Fulmin Prime": {
+    "note": "Export magazineSize is 8; Overframe reports 80, i.e. the export is a factor 10 short.",
+    "magazineSize": 80
+  },
+  "Felarx": {
+    "note": "Felarx reloads shell by shell: the export gives the per-shell time (3.7s), Overframe the full empty reload (6.5s). Sustained DPS needs the latter.",
+    "reloadTime": 6.5
+  },
+  "Grimoire": {
+    "note": "Export has no magazineSize and a 2s reloadTime; Overframe reports 10 rounds and a negligible reload.",
+    "magazineSize": 10,
+    "reloadTime": 0.01
+  }
+}

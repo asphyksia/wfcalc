@@ -766,3 +766,28 @@ test('matches the Overframe Haalvu build: arsenal stats', () => {
   const stacked = resolveBuild(snap, { weapon: 'Test Weapon', mods, conditions: { onKill: 2, statusTypes: 1 } });
   close(stacked.damage.projectileTotal, 393.5, 1e-1);
 });
+
+test('"(x2 for Bows)" doubles the effect on bow-type weapons only', () => {
+  const shred = mod('Shred', 5, ['+30% Fire Rate (x2 for Bows)', '+1.2 Punch Through']);
+  const rifle = { ...weapon({ impact: 100, fireRate: 10 }), name: 'Rifle Test', id: 'Rifle Test' };
+  const bow: WeaponData = { ...rifle, name: 'Bow Test', id: 'Bow Test', type: 'Bow', modClasses: ['Rifle', 'Bow'] };
+  const snap = snapshot([rifle, bow], [shred]);
+  const onRifle = resolveBuild(snap, { weapon: 'Rifle Test', mods: ['Shred'] });
+  const onBow = resolveBuild(snap, { weapon: 'Bow Test', mods: ['Shred'] });
+  close(onRifle.fireRate, 10 * 1.3);
+  close(onBow.fireRate, 10 * 1.6);
+});
+
+test('Cannonade mods lock the fire rate, ignoring other mods', () => {
+  const cannonade = mod('Semi-Rifle Cannonade', 5, ['+240% Damage', '+1.5 Punch Through'], {
+    description: 'Only compatible with Semi-Auto Trigger. Fire Rate cannot be modified.',
+  });
+  cannonade.effects.push({ target: 'fireRateLock', op: 'add', value: 1, raw: 'Fire Rate cannot be modified' });
+  const criticalDelay = mod('Critical Delay', 5, ['+200% Critical Chance', '-20% Fire Rate']);
+  const semi = { ...weapon({ impact: 100, fireRate: 4 }), type: 'Rifle' };
+  const snap = snapshot([semi], [cannonade, criticalDelay]);
+  const withCannonade = resolveBuild(snap, { weapon: 'Test Weapon', mods: ['Semi-Rifle Cannonade', 'Critical Delay'] });
+  close(withCannonade.fireRate, 4); // locked: Critical Delay's -20% does not apply
+  const withoutCannonade = resolveBuild(snap, { weapon: 'Test Weapon', mods: ['Critical Delay'] });
+  close(withoutCannonade.fireRate, 4 * 0.8);
+});

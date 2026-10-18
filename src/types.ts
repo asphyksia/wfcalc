@@ -186,6 +186,8 @@ export interface Effect {
   perStatusType?: boolean;
   /** True when the value multiplies by the melee combo multiplier (Blood Rush, Weeping Wounds). */
   scalesWithCombo?: boolean;
+  /** True when the mod's text says "(x2 for Bows)": the value doubles on bows. */
+  doublesForBows?: boolean;
   /** True when the value is a flat amount (e.g. ``+1.2 Punch Through``), not a fraction. */
   flat?: boolean;
   /** Maximum stacks of a stacking effect. */

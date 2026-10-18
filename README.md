@@ -178,7 +178,7 @@ node tools/calibrate.ts --build 1036746
 with wfcalc and diffs it against Overframe's own modifier block (`WEAPON_CRIT_CHANCE`,
 `WEAPON_FIRE_ITERATIONS`, ...). Results land in [docs/calibration-results.md](docs/calibration-results.md).
 
-Latest run: **79/120 builds match on every applicable stat**. The remaining mismatches are
+Latest run: **170/200 builds match on every applicable stat**. The remaining mismatches are
 grouped by signature; the open ones are listed in [docs/data-notes.md](docs/data-notes.md).
 
 ## Comparing a single build by hand

@@ -442,7 +442,9 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
       const rankFraction = source.maxRank > 0 ? rankScale({ maxRank: source.maxRank } as ModData, source.rank) : 1;
       // Combo-scaling mods scale with (multiplier - 1): at 12x, Blood Rush is +40% x 11.
       const comboFactor = effect.scalesWithCombo ? Math.max(0, comboMultiplier - 1) : 1;
-      const value = effect.value * rankFraction * stacks * comboFactor;
+      // "(x2 for Bows)": the mod text doubles the effect on bows.
+      const bowFactor = effect.doublesForBows && /bow/i.test(weapon.type) ? 2 : 1;
+      const value = effect.value * rankFraction * stacks * comboFactor * bowFactor;
       if (effect.op === 'mult' && effect.target === 'elementMultiplier' && effect.element) {
         // "x2.5 Heat damage" (Accelerant): multiplies that damage type only.
         collected.elementMultipliers.set(effect.element, (collected.elementMultipliers.get(effect.element) ?? 1) * (1 + value));
@@ -609,7 +611,9 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   // a chance of another. Clamping threw that information away.
   const statusChance = (stats.statusChance ?? 0) * (1 + bonus('statusChance')) + bonus('statusChanceFlat');
   const multishot = (stats.multishot ?? 1) * (1 + bonus('multishot'));
-  const fireRate = (stats.fireRate ?? 1) * (1 + bonus('fireRate'));
+  // "Fire Rate cannot be modified" (Cannonade mods) locks the rate to the weapon's own.
+  const fireRateLocked = (collected.byTarget.get('fireRateLock') ?? 0) > 0;
+  const fireRate = fireRateLocked ? stats.fireRate ?? 1 : (stats.fireRate ?? 1) * (1 + bonus('fireRate'));
   const reloadTime = (stats.reloadTime ?? 0) / (1 + bonus('reloadSpeed'));
   // Magazine is an integer in game: 6 x 2.1 shows as 13, not 12.6.
   const magazineSize = Math.max(1, Math.round((stats.magazineSize ?? 1) * (1 + bonus('magazine'))));

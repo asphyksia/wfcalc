@@ -322,6 +322,15 @@ Validated against an independent calculator (Overframe) on a real Haalvu build:
 That exercise found two real bugs: fire modes with an empty export damage dict resolving to
 zero, and "Direct Damage" being merged into the base-damage bucket.
 
+## Calibration
+
+`npm run calibrate` compares public Overframe builds against wfcalc field by field using the
+game's own modifier keys. Latest run: **170/200 builds match on every applicable stat**.
+
+Two cheap mechanics it surfaced, both now modelled: "(x2 for Bows)" doubling and the
+Cannonade "Fire Rate cannot be modified" lock. Per-weapon data errors live in
+`data/weapon-overrides.json`, each with the evidence that justifies it.
+
 ## Verification
 
 Three layers, in `npm run validate` and `tests/`:

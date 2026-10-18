@@ -111,6 +111,14 @@ function buildMods(unmatchedReport: string[]): Record<string, ModData> {
       : [[String(entry.Description ?? '')].filter(Boolean)];
 
     const parsed = parseModEffects(ranks);
+    // Cannonade mods carry a rule that no stat line expresses: "Fire Rate cannot be modified".
+    const description = String(entry.Description ?? '');
+    if (/fire rate cannot be modified/i.test(description)) {
+      parsed.effects.push({ target: 'fireRateLock', op: 'add', value: 1, raw: 'Fire Rate cannot be modified' });
+    }
+    if (/only compatible with semi-auto trigger/i.test(description)) {
+      parsed.effects.push({ target: 'requiresSemiTrigger', op: 'add', value: 1, raw: 'Semi-Auto triggers only' });
+    }
     const partial = parsed.unmatched.length > 0;
     if (partial) {
       partialCount++;
@@ -280,6 +288,7 @@ function buildModes(weapon: Loose, base: WeaponStats): WeaponMode[] {
 
 function buildWeapons(): Record<string, WeaponData> {
   const out: Record<string, WeaponData> = {};
+  const overrides = loadWeaponOverrides();
   for (const [file, category] of CATEGORY_FILES) {
     for (const weapon of readJson(file)) {
       const name = String(weapon.name ?? '').trim();
@@ -291,6 +300,14 @@ function buildWeapons(): Record<string, WeaponData> {
       if (out[name]) continue;
 
       const stats = baseStats(weapon);
+      // Apply curated corrections (documented in data/weapon-overrides.json).
+      const override = overrides[name];
+      if (override) {
+        for (const [field, value] of Object.entries(override)) {
+          if (field === 'note') continue;
+          if (typeof value === 'number' && field in stats) (stats as any)[field] = value;
+        }
+      }
       const modes = buildModes(weapon, stats);
       out[name] = {
         id: name,
@@ -312,6 +329,24 @@ function buildWeapons(): Record<string, WeaponData> {
   }
   console.log(`weapons: ${Object.keys(out).length}`);
   return out;
+}
+
+// ---------------------------------------------------------------- overrides
+
+/**
+ * Corrections for weapons whose export data is wrong or missing, verified against
+ * Overframe's oracle. See data/weapon-overrides.json for the evidence per entry.
+ */
+function loadWeaponOverrides(): Record<string, { note?: string; [key: string]: unknown }> {
+  const file = join(RAW, '..', 'weapon-overrides.json');
+  let raw: Record<string, any>;
+  try {
+    raw = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    return {};
+  }
+  delete raw._comment;
+  return raw;
 }
 
 // ------------------------------------------------------------------ enemies

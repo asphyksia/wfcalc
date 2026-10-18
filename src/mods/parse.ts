@@ -227,6 +227,8 @@ function stripQualifiers(text: string): string {
     .replace(/\s*multishot cannot be modified\.?/gi, '')
     // Combo scaling is a multiplier on the value, handled by the engine; strip the wording.
     .replace(/\s*(?:stacks? with|per) combo multiplier\b/gi, '')
+    // "(x2 for Bows)" is also handled by the engine: keep the words until the flag is read.
+    .replace(/\s*\(x2 for bows\)/gi, ' (x2 for Bows)')
     .replace(/\s*per combo count\b/gi, '')
     .replace(/\s*on (?:your )?(?:next shot|next attack|melee strikes?|strikes?)\b/gi, '')
     // Arcanes scope their buff: "+90% Fire Rate to Primary Weapons", "+180% Damage to Melee Weapons".
@@ -441,6 +443,8 @@ export function parseModEffects(ranks: string[][]): ParsedStats {
     if (header?.maxStacks) effect.maxStacks = header.maxStacks;
     if (maxStacks !== undefined) effect.maxStacks = maxStacks;
     if (/combo multiplier|combo count/i.test(num.rest)) effect.scalesWithCombo = true;
+    // "(x2 for Bows)": fire rate and similar stats double on bows.
+    if (/x2 for bows/i.test(num.rest)) effect.doublesForBows = true;
     if (perStatusType) effect.perStatusType = true;
     if (num.unit === null) effect.flat = true;
     if (mapped.op === 'convert') effect.value = Math.abs(effect.value);

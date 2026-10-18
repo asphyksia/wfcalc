@@ -133,15 +133,29 @@ Cloudflare. Do not use it.
     capping stacks, "Direct Damage" merged into the base bucket, status chance being clamped
     to 100%, and a non-integer magazine.
 
-29. **Open calibration mismatches** (79/120 builds match; these are the rest):
+29. **Mod text sometimes changes the value by weapon class**: "(x2 for Bows)" doubles the
+    stat on bows. The parser flags it (`doublesForBows`) and the engine applies the factor;
+    stripping the parenthetical before reading it silently gave Nataruk 0.80 instead of 1.14.
+
+30. **"Fire Rate cannot be modified"** (Cannonade mods) is a rule with no stat line. It is
+    injected from the wiki description as a `fireRateLock` effect, and the engine then
+    ignores every fire rate bonus including penalties.
+
+31. **`data/weapon-overrides.json`** holds per-weapon corrections for fields the export gets
+    wrong, each with its evidence: Nataruk's reload, Fulmin Prime's magazine, Felarx's
+    per-shell reload, Grimoire's missing magazine. Prefer a rule when the ratio is constant
+    across weapons; use an override when it is one weapon's quirk.
+
+32. **Open calibration mismatches** (79/120 builds match; these are the rest):
     - **Bows** (`Nataruk`): Overframe's reload is 0.15 s where the export says 0.05 s, and its
       fire rate is ~9% higher. Probably a nock/charge term we do not model.
     - **Per-shell shotguns** (`Felarx`): Overframe reports a full empty reload (6.5 s) where the
       export gives the per-shell time (3.7 s). Affects sustained DPS, not burst.
     - **Battery/tome weapons** (`Fulmin Prime` magazine 8 vs 80, `Grimoire`): the export's
       `magazineSize` is unreliable for these; Grimoire has no magazine field at all.
-    - Assorted `fire rate` ~x0.8 deltas worth a second look (likely a rank-scaling difference
-      on a fire-rate mod).
+    - `Ocucor` multishot is 1.0 low and `Phantasma Prime` 1.1 high; both are weapons with
+      special mechanics (tendrils, held beam). Needs a look at the export fields.
+    - Assorted `fire rate` / `crit chance` deltas in the same ballpark.
 
 ## Coverage
 

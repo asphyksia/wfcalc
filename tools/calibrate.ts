@@ -81,7 +81,7 @@ async function collect(count: number): Promise<any[]> {
  * our default mode choice; charge weapons are the reason (the arsenal block is the quick
  * shot while Overframe reports the charged one).
  */
-function pickMode(input: ReturnType<typeof resolveBuildInput>, oracle: NonNullable<ReturnType<typeof oracleOf>>) {
+function pickMode(input: NonNullable<ReturnType<typeof resolveBuildInput>>, oracle: NonNullable<ReturnType<typeof oracleOf>>) {
   const weapon = snapshot.weapons[input.weapon];
   const variants: Array<string | undefined> = [undefined, ...(weapon?.modes ?? []).map((mode) => mode.name)];
   let best: { mode?: string; resolved: ReturnType<typeof resolveBuild>; diffs: ReturnType<typeof diffOracle> } | null = null;
