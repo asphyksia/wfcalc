@@ -141,16 +141,24 @@ function renderSlots() {
     const row = document.createElement('div');
     row.className = `slot${mod.name ? ' filled' : ''}${exilus ? ' exilus' : ''}`;
     const description = (info?.description ?? '').split('\n')[0];
+    // Card layout: a small toolbar (rank + remove) above the name, then the mod's own text.
     row.innerHTML = `
-      <input class="mod-name" list="mod-list" value="${(mod.name ?? '').replace(/"/g, '&quot;')}" data-index="${index}"
-             placeholder="${exilus ? 'exilus' : 'empty slot'}" />
-      <input class="rank" type="range" min="0" max="${maxRank}" value="${mod.rank ?? maxRank}" data-index="${index}" />
-      <span class="rank-value">R${mod.rank ?? maxRank}</span>
-      <button class="remove" data-index="${index}" title="remove">×</button>
-      ${mod.name ? `<div class="mod-desc">${description}</div>` : ''}`;
+      <div class="slot-top">
+        <span class="rank-value">${mod.name ? `R${mod.rank ?? maxRank}` : ''}</span>
+        <button class="remove" data-index="${index}" title="remove">×</button>
+      </div>
+      <div class="mod-name" data-index="${index}" tabindex="0" role="button"
+           aria-label="edit mod">${mod.name ? mod.name.replace(/</g, '&lt;') : `<span class="placeholder">${exilus ? 'exilus slot' : 'empty slot'}</span>`}</div>
+      ${mod.name ? `<div class="mod-desc">${description}</div>` : ''}
+      <input class="rank" type="range" min="0" max="${maxRank}" value="${mod.rank ?? maxRank}" data-index="${index}" />`;
     container.appendChild(row);
   });
 
+  if (!state.weapon) {
+    container.innerHTML = '<p class="hint">Pick a weapon to see the mods that fit it.</p>';
+    $('mod-count').textContent = '0';
+    return;
+  }
   if (state.mods.length < total) {
     const add = document.createElement('button');
     add.className = 'add-slot';
@@ -163,17 +171,38 @@ function renderSlots() {
   }
   $('mod-count').textContent = state.mods.filter((mod) => mod.name).length;
 
-  container.querySelectorAll('.mod-name').forEach((input) => {
-    input.addEventListener('input', (event) => {
-      const index = Number(event.target.dataset.index);
-      state.mods[index].name = event.target.value;
-      state.mods[index].rank = undefined;
-      renderModList(event.target.value.toLowerCase());
-      recalc();
-    });
-    input.addEventListener('change', () => {
-      renderSlots();
-      recalc();
+  // The name is a label (so it can wrap) that becomes the input while editing.
+  container.querySelectorAll('.mod-name').forEach((label) => {
+    const edit = () => {
+      const index = Number(label.dataset.index);
+      const input = document.createElement('input');
+      input.className = 'mod-name editing';
+      input.setAttribute('list', 'mod-list');
+      input.value = state.mods[index].name ?? '';
+      input.dataset.index = String(index);
+      label.replaceWith(input);
+      input.focus();
+      input.select();
+      input.addEventListener('input', (event) => {
+        state.mods[index].name = event.target.value;
+        state.mods[index].rank = undefined;
+        renderModList(event.target.value.toLowerCase());
+      });
+      input.addEventListener('change', () => {
+        renderSlots();
+        recalc();
+      });
+      input.addEventListener('blur', () => {
+        renderSlots();
+        recalc();
+      });
+    };
+    label.addEventListener('click', edit);
+    label.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        edit();
+      }
     });
   });
   container.querySelectorAll('.rank').forEach((input) => {
@@ -227,10 +256,12 @@ function renderWeaponMeta(result) {
     return;
   }
   const weapon = result.weapon;
+  // `type` is usually the first mod class, so don't print it twice.
+  const classes = weapon.modClasses.filter((name) => name !== weapon.type);
   $('weapon-meta').innerHTML = `<span class="chip">${weapon.type}</span>
     <span class="chip">MR ${weapon.masteryRank}</span>
     <span class="chip">${(weapon.disposition ?? 1).toFixed(1)}★ riven</span>
-    <span class="chip">${weapon.modClasses.join(' / ')}</span>`;
+    ${classes.length ? `<span class="chip">${classes.join(' / ')}</span>` : ''}`;
   const modes = weapon.modes ?? [];
   $('mode-field').hidden = modes.length === 0;
   if (modes.length) {
@@ -265,7 +296,6 @@ function renderResults(result) {
   // Stats as a dense label/value list, the way the arsenal and Overframe present them.
   const rows = [
     ['section', 'Weapon'],
-    ['Accuracy', null],
     ['Critical chance', pct(result.critChance)],
     ['Critical damage', `×${fmt(result.critMultiplier, 2)}`],
     ['Fire rate', `${fmt(result.fireRate, 2)}/s`],
@@ -284,7 +314,7 @@ function renderResults(result) {
   rows.push(['Sustained dps', fmt(result.sustainedDps, 0)]);
   if (dot.length) rows.push(['Status dps', fmt(dotDps, 0)]);
   if (result.critVariance && result.critVariance.pellets >= 2) {
-    rows.push(['Crit spread', `${result.critVariance.expectedCrits.toFixed(1)}/${result.critVariance.pellets.toFixed(0)} pellets`]);
+    rows.push(['Crit spread', `${result.critVariance.expectedCrits.toFixed(1)} of ${result.critVariance.pellets.toFixed(1)} · ${pct(result.critVariance.atLeastOneCrit)} land one`]);
   }
   if (target) {
     rows.push(['Shots to kill', fmt(target.shotsToKill, 1)]);
@@ -317,10 +347,10 @@ function renderResults(result) {
         .slice()
         .sort((a, b) => b.deltaPct - a.deltaPct)
         .map(
-          (entry) => `<div class="bar-row">
+          (entry) => `<div class="bar-row" title="${entry.name}${entry.conditional ? ' (conditional: activate its stacks to see its value)' : ''}">
             <span class="bar-label" title="${entry.name}">${entry.name.length > 14 ? `${entry.name.slice(0, 13)}…` : entry.name}</span>
             <div class="bar"><i style="width:${Math.max(0, Math.min(100, entry.deltaPct * 100)).toFixed(1)}%;background:#6fc3df"></i></div>
-            <span class="bar-value">${entry.deltaPct >= 0 ? '+' : ''}${pct(entry.deltaPct)}</span>
+            <span class="bar-value">${entry.deltaPct > 0 ? `+${pct(entry.deltaPct)}` : entry.conditional ? 'conditional' : pct(entry.deltaPct)}</span>
           </div>`,
         )
         .join('')

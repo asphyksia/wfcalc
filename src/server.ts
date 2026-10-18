@@ -99,10 +99,15 @@ function calculate(body: any) {
         mods: mods.filter((_, position) => position !== index),
       });
       const delta = resolved.burstDps - without.burstDps;
+      // A mod whose only effects are conditional is worth 0 until its condition is active;
+      // flagging it avoids it looking like a bug.
+      const conditional =
+        snapshot.mods[name ?? '']?.effects.every((effect) => effect.condition) ?? false;
       return {
         name: name ?? '?',
         deltaDps: delta,
         deltaPct: resolved.burstDps > 0 ? delta / resolved.burstDps : 0,
+        conditional,
       };
     });
   }

@@ -282,6 +282,18 @@ Haalvu build above matches on 8/8 stats including total damage.
 Mod ids in `slots` are Overframe-internal, so the mod list has to be supplied once per
 build; `data/raw/overframe-mods.json` accumulates the mapping as builds are compared.
 
+## Reviewing the UI without a desktop
+
+Chromium is available on Arch Linux ARM (`pacman -S chromium`), so the layout can be
+screenshotted headlessly instead of guessed at:
+
+```sh
+wfcalc serve --host 0.0.0.0 &
+npm run shot                        # phone viewport, empty state
+npm run shot -- --build haalvu      # with a realistic build loaded
+npm run shot -- --width 1280 --height 900 --out /tmp/desktop.png
+```
+
 ## Development
 
 ```sh

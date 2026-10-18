@@ -7,6 +7,7 @@
   font-synthesis: none;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -76,22 +77,27 @@ input[type="number"] { padding: 6px 8px; }
 
 /* ── mods as cards */
 .slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-@media (min-width: 620px) { .slots { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 620px) { .slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .slots { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .slot {
   position: relative; background: var(--panel-2); border: 1px solid var(--border);
-  border-radius: 8px; padding: 8px 8px 6px; display: flex; flex-direction: column; gap: 5px;
-  min-height: 74px;
+  border-radius: 8px; padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 3px;
+  min-height: 80px;
 }
 .slot.filled { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
 .slot.exilus { border-style: dashed; }
+.mod-name.editing { border: 1px solid var(--accent); background: var(--panel-3); padding: 3px 5px; border-radius: 6px; }
+.mod-name .placeholder { color: var(--muted); font-weight: 400; }
+/* toolbar row: rank on the left, remove on the right */
+.slot-top { display: flex; align-items: center; justify-content: space-between; min-height: 14px; margin: -2px -2px 0; }
 .slot .mod-name {
-  background: transparent; border: 0; padding: 0; font-size: 12px; font-weight: 500;
-  width: 100%; text-overflow: ellipsis;
+  background: transparent; border: 0; padding: 0; font-size: 12.5px; font-weight: 500;
+  width: 100%; white-space: normal; line-height: 1.25;
 }
-.slot .rank { position: absolute; top: 6px; right: 22px; width: 54px; opacity: 0; transition: opacity 0.15s; }
+.slot .rank { width: 100%; opacity: 0; transition: opacity 0.15s; margin-top: auto; }
 .slot:hover .rank, .slot .rank:focus { opacity: 1; }
-.slot .rank-value { position: absolute; top: 7px; right: 24px; font-size: 10px; color: var(--muted); pointer-events: none; }
-.slot .remove { position: absolute; top: 4px; right: 4px; padding: 0 5px; line-height: 1.3; font-size: 13px; color: var(--muted); background: transparent; border: 0; }
+.slot .rank-value { font-size: 9.5px; color: var(--muted); letter-spacing: 0.04em; }
+.slot .remove { padding: 0 2px; line-height: 1; font-size: 14px; color: var(--muted); background: transparent; border: 0; }
 .slot .mod-desc { font-size: 10px; color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .add-slot { grid-column: 1 / -1; background: transparent; border: 1px dashed var(--border); color: var(--muted); padding: 8px; font-size: 12px; }
 .arcane-slot { margin-top: 10px; }
@@ -106,7 +112,7 @@ input[type="number"] { padding: 6px 8px; }
 
 /* ── bars */
 .bars { display: flex; flex-direction: column; gap: 4px; }
-.bar-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) 88px; gap: 8px; align-items: center; font-size: 12px; }
+.bar-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 92px; gap: 8px; align-items: center; font-size: 12px; }
 .bar-label { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar { background: var(--panel-3); border-radius: 4px; height: 8px; overflow: hidden; }
 .bar i { display: block; height: 100%; }
