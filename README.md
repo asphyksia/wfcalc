@@ -163,6 +163,24 @@ layers. `npm run validate` is the machine-checkable part and exits non-zero on f
 The validator has already earned its keep: it caught a charge weapon whose export
 `fireRate` is 0 (Lanka), which made its DPS zero.
 
+## Comparing against Overframe
+
+Overframe's site is behind Cloudflare, but its JSON API is not:
+
+```sh
+node tools/overframe.ts https://overframe.gg/build/1036746/ \
+  --weapon Haalvu \
+  --mods "Galvanized Chamber,Galvanized Aptitude,Hellfire,Thermite Rounds,Critical Delay,Primed Shred,Vital Sense,Serration" \
+  --arcane "Primary Crux" --conditions onKill=2
+```
+
+It pulls `GET /api/v1/builds/<id>` (mods with ranks plus the game's own modifier block:
+`WEAPON_CRIT_CHANCE`, `WEAPON_FIRE_ITERATIONS`, ...) and diffs it against wfcalc. The
+Haalvu build above matches on 8/8 stats including total damage.
+
+Mod ids in `slots` are Overframe-internal, so the mod list has to be supplied once per
+build; `data/raw/overframe-mods.json` accumulates the mapping as builds are compared.
+
 ## Development
 
 ```sh
