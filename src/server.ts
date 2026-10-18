@@ -22,6 +22,9 @@ import { availableBuffs } from './engine/buffs.ts';
 const WEB_ROOT = new URL('./web/', import.meta.url).pathname;
 /** Mod artwork cache: fetched once from the WFCD export repo, then served locally. */
 const IMG_ROOT = new URL('../data/img/', import.meta.url).pathname;
+/** Full in-game card art served by the wiki (frame included), cached the same way. */
+const CARD_ROOT = new URL('../data/cards/', import.meta.url).pathname;
+const CARD_UPSTREAM = 'https://wiki.warframe.com/w/Special:FilePath';
 const IMG_UPSTREAM = 'https://raw.githubusercontent.com/WFCD/warframe-items/master/data/img';
 const args = process.argv.slice(2);
 const portArg = args.indexOf('--port');
@@ -230,6 +233,7 @@ const server = createServer(async (req, res) => {
           classes: m.classes,
           conclave: m.conclave,
           image: imageNameOf(m.name),
+          card: m.cardImage,
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
       return json(res, 200, list);
@@ -270,6 +274,36 @@ const server = createServer(async (req, res) => {
       const body = await readBody(req);
       const result = calculate(body);
       return json(res, result.error ? 404 : 200, result);
+    }
+
+    // Full mod cards from the wiki: frame, name and stat baked in. Cached on first use,
+    // which keeps the tool offline after the first look at a mod.
+    if (url.pathname.startsWith('/card/')) {
+      const file = url.pathname.slice(6);
+      if (!/^[A-Za-z0-9._-]+\.(png|jpe?g|webp)$/i.test(file)) {
+        return json(res, 400, { error: 'bad card name' });
+      }
+      await mkdir(CARD_ROOT, { recursive: true });
+      const cached = join(CARD_ROOT, file);
+      let bytes: Buffer;
+      try {
+        bytes = await readFile(cached);
+      } catch {
+        const upstream = await fetch(`${CARD_UPSTREAM}/${encodeURIComponent(file)}?width=220`, {
+          headers: { 'user-agent': 'wfcalc/0.1 (personal damage calculator)' },
+        });
+        if (!upstream.ok) {
+          res.writeHead(404, { 'content-type': 'text/plain' });
+          return res.end('no card');
+        }
+        bytes = Buffer.from(await upstream.arrayBuffer());
+        await writeFile(cached, bytes);
+      }
+      res.writeHead(200, {
+        'content-type': file.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg',
+        'cache-control': 'public, max-age=2592000',
+      });
+      return res.end(bytes);
     }
 
     // Mod artwork: cached on first request, then served from disk.

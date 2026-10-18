@@ -242,11 +242,16 @@ function renderSlots() {
         <span class="mod-share">${mod.name && share ? `+${(share * 100).toFixed(0)}%` : ''}</span>
         <button class="remove" data-index="${index}" title="remove">×</button>
       </div>
-      ${info?.image ? `<img class="mod-art" src="/img/${info.image}" alt="" loading="lazy" draggable="false" />`
-        : `<div class="slot-glyph" style="color:${polarityColor(slotPolarityName)}">${glyph(slotPolarityName) || '·'}</div>`}
-      <div class="mod-name" data-index="${index}" tabindex="0" role="button"
+      ${info?.card
+        ? `<img class="card-art" src="/card/${info.card}" alt="" loading="lazy" draggable="false"
+             onerror="this.classList.add('broken');this.removeAttribute('src')" />`
+        : info?.image
+          ? `<img class="card-art" src="/img/${info.image}" alt="" loading="lazy" draggable="false"
+               onerror="this.classList.add('broken');this.removeAttribute('src')" />`
+          : `<div class="slot-glyph" style="color:${polarityColor(slotPolarityName)}">${glyph(slotPolarityName) || '·'}</div>`}
+      <div class="mod-name${mod.name ? ' sr-only' : ''}" data-index="${index}" tabindex="0" role="button"
            aria-label="edit mod">${mod.name ? mod.name.replace(/</g, '&lt;') : `<span class="placeholder">${exilus ? 'exilus slot' : 'empty slot'}</span>`}</div>
-      ${mod.name ? `<div class="mod-desc">${description}</div>` : ''}
+      ${mod.name && !info?.card ? `<div class="mod-desc">${description}</div>` : ''}
       <input class="rank" type="range" min="0" max="${maxRank}" value="${mod.rank ?? maxRank}" data-index="${index}" />`;
 
     // Drag a filled slot onto another to swap; drag it out of the grid to remove.
@@ -440,7 +445,8 @@ function renderLibrary() {
         draggable="true" data-mod="${mod.name.replace(/"/g, '&quot;')}${mod.classes?.length ? ` data-type="${mod.classes[0]}"` : ''}${mod.rarity ? ` data-rarity="${mod.rarity}"` : ''}"
         style="border-left-color:${polarityColor(mod.polarity)}">
         <span class="polarity" style="color:${polarityColor(mod.polarity)}">${glyph(mod.polarity)}</span>
-        ${mod.image ? `<img class="lib-art" src="/img/${mod.image}" alt="" loading="lazy" draggable="false" />` : ''}
+        ${mod.card ? `<img class="lib-card-art" src="/card/${mod.card}" alt="" loading="lazy" draggable="false"
+             onerror="this.classList.add('broken');this.removeAttribute('src')" />` : ''}
         <span class="lib-name">${mod.name}</span>
         <span class="lib-desc">${(mod.description || '').split('\n')[0].slice(0, 36)}</span>
       </button>`,

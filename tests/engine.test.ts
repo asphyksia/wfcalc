@@ -61,6 +61,7 @@ function mod(name: string, maxRank: number, topRankStats: string[], overrides: P
     maxRank,
     description: topRankStats.join('\n'),
     effects,
+    cardImage: null,
     partial: false,
     outOfScopeLines: [],
     incompatible: [],

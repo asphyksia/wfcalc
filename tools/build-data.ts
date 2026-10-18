@@ -136,6 +136,7 @@ function buildMods(unmatchedReport: string[]): Record<string, ModData> {
       maxRank: Number(entry.MaxRank ?? 0),
       description: String(entry.Description ?? '').replace(/\r\n?/g, '\n').trim(),
       effects: parsed.effects,
+      cardImage: typeof entry.Image === 'string' ? entry.Image : null,
       partial,
       outOfScopeLines: parsed.outOfScope,
       incompatible: luaArray(entry.Incompatible).filter((x): x is string => typeof x === 'string'),

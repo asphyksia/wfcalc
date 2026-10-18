@@ -213,6 +213,8 @@ export interface ModData {
   description: string;
   /** Effects at max rank. Per-rank scaling is `value * rank / maxRank` for linear mods. */
   effects: Effect[];
+  /** Wiki filename of the full in-game card (frame, name, stat), e.g. "SerrationMod.png". */
+  cardImage: string | null;
   /** True when some lines could not be mapped and are not known utility. */
   partial: boolean;
   /** Lines that are real effects this model cannot use (movement, healing, slide attacks). */
