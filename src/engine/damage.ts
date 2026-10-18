@@ -100,8 +100,13 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
     // The armour modifier multiplies damage in the 'multiply' and 'both' readings; in the
     // default reading it acts on the armour value instead (see armorDamageReduction).
     const armorModifierOnDamage = armorModel === 'armor-scaling' ? 1 : 1 + armorMod;
+    // Wiki (Armor): "When damage is reduced from armor, each damage type has a minimum damage
+    // of 1" — a Braton always does at least 3 against an armoured target. Verified in game:
+    // an unmodded Soma Prime (3 damage types) deals exactly 3 to a level 101 Elite Frontier
+    // Lancer, where every type would otherwise round to under 1.
+    const armorFloor = armor ? 1 : 0;
     // Viral amplifies all damage dealt to health, direct hits included.
-    const toHealth = raw * (1 + healthMod) * (1 - dr) * viral * armorModifierOnDamage;
+    const toHealth = Math.max(raw * (1 + healthMod) * (1 - dr) * viral * armorModifierOnDamage, armorFloor);
 
     const shieldMod = shieldType ? healthModifier(snapshot, type, shieldType) : 0;
     const bypassesShield = type === 'toxin' && scaled.enemy.toxinBypassesShields;

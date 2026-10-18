@@ -33,3 +33,25 @@ only ground truth the project has; everything else is the wiki, the export, or O
   following the mod text) is the last failing comparison, ratio x1.25.
 - **The armour-modifier model**: needs one damage number from a level 150 Bombard. See
   `docs/formulas.md`.
+
+## Armour floor (verified 2026-10)
+
+Unmodded **Soma Prime** (12 damage: 1.2 impact / 4.8 puncture / 6 slash, three damage types)
+against an **Elite Frontier Lancer, level 101**: **3 damage**.
+
+At that level the enemy sits at the 2700 armour cap, so every damage type works out below 1.
+The wiki states the rule explicitly ("a Braton will always do a minimum of 3 damage against
+an armored target"). The observation therefore **confirms the minimum-of-1-per-damage-type
+rule**, which the engine was not implementing, and it is now enforced in `damage.ts`.
+
+It does **not** discriminate between the three armour-modifier models: with all three types
+floored, every model predicts exactly 3.
+
+To settle the model we need a case that does *not* hit the floor — a modded weapon, or a
+lower-level target. Predicted ratios against a Bombard with pure Radiation:
+
+| Level | armour | modifier scales armour | modifier multiplies damage | both |
+|---|---|---|---|---|
+| 20 | 932 | 0.74 | 0.82 | 1.29 |
+| 40 | 2022 | 0.61 | 0.39 | 1.07 |
+| 60 | 2700 | 0.55 | 0.17 | 0.96 |

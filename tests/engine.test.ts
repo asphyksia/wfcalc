@@ -821,3 +821,21 @@ test('Gladiator set adds crit chance per combo step', () => {
   // +10% per piece x (12 - 1) = +110% crit chance.
   close(at12x.critChance, 0.2 + 0.1 * 11);
 });
+
+test('each damage type deals at least 1 against an armoured target (verified in game)', () => {
+  // Wiki (Armor): "a Braton will always do a minimum of 3 damage against an armored target"
+  // because it has three damage types. Confirmed in game: an unmodded Soma Prime deals
+  // exactly 3 to a level 101 Elite Frontier Lancer.
+  const soma = weapon({ impact: 1.2, puncture: 4.8, slash: 6, critChance: 0, critMultiplier: 1 });
+  const snap = snapshot([soma], [], [bombard]);
+  const hit = hitEnemy(snap, build(snap, []), scaleEnemy(snap, bombard, 150));
+  // Every type is floored to 1, so the hit is exactly 3 damage.
+  close(hit.damagePerShotHealth, 3);
+});
+
+test('the floor does not apply to targets without armour', () => {
+  const weak = weapon({ impact: 0.1, critChance: 0, critMultiplier: 1 });
+  const snap = snapshot([weak], [], [dummy]);
+  const hit = hitEnemy(snap, build(snap, []), scaleEnemy(snap, dummy, 1));
+  close(hit.damagePerShotHealth, 0.1);
+});
