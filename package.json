@@ -22,6 +22,7 @@
     "validate": "node tools/validate.ts",
     "overframe": "node tools/overframe.ts",
     "calibrate": "node tools/calibrate.ts",
+    "calibrate:refresh": "node tools/calibrate.ts --refresh",
     "overframe-db": "node tools/fetch-overframe-db.ts",
     "sync": "node tools/sync.ts",
     "sync-check": "node tools/sync.ts --check",

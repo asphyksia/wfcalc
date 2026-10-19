@@ -8,7 +8,7 @@
  * Mod/arcane names come from data/raw/overframe-db.json, learned by
  * `node tools/fetch-overframe-db.ts`. Exit code is non-zero when anything mismatches.
  */
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadSnapshot } from '../src/data.ts';
 import { resolveBuild, type Build } from '../src/engine/build.ts';
@@ -25,10 +25,13 @@ import {
   resolveBuildInput,
   sleep,
   weaponNameFromUrl,
+  type Oracle,
+  type ResolvedBuildInput,
 } from './lib/overframe.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const REPORT = join(ROOT, 'docs/calibration-results.md');
+const FIXTURE = join(ROOT, 'data/calibration-builds.json');
 
 const args = process.argv.slice(2);
 const flag = (name: string): string | undefined => {
@@ -36,6 +39,7 @@ const flag = (name: string): string | undefined => {
   return index >= 0 ? args[index + 1] : undefined;
 };
 const verbose = args.includes('--verbose');
+const refresh = args.includes('--refresh');
 
 const db = loadOverframeDb();
 const exceptions = loadOracleExceptions();
@@ -55,17 +59,20 @@ const FIELD_LABEL: Record<string, string> = {
 /** Fetches builds for weapons we know, newest first. */
 async function collect(count: number): Promise<any[]> {
   const out: any[] = [];
+  const seen = new Set<number | string>();
   let page = 1;
   while (out.length < count && page <= 60) {
     const { results } = await listBuilds(page, 100);
     if (!results.length) break;
     for (const summary of results) {
       if (out.length >= count) break;
+      if (seen.has(summary.id)) continue;
       const weaponName = weaponNameFromUrl(summary.url ?? '');
       if (!weaponName || !findWeaponName(snapshot, weaponName)) continue;
       try {
         const build = await getBuild(summary.id);
         if (!oracleOf(build)) continue;
+        seen.add(summary.id);
         out.push(build);
       } catch {
         continue;
@@ -105,11 +112,90 @@ function pickMode(input: NonNullable<ReturnType<typeof resolveBuildInput>>, orac
   return { mode: best.mode, resolved: best.resolved, diffs: best.diffs };
 }
 
+
+interface PinnedBuild {
+  id: number;
+  title: string;
+  weapon: string;
+  mods: Array<{ name: string; rank: number }>;
+  arcanes: Array<{ name: string; rank: number }>;
+  oracle: Oracle;
+}
+
+interface CalibrationFixture {
+  source: string;
+  generatedAt: string;
+  builds: PinnedBuild[];
+}
+
+function readFixture(): CalibrationFixture | null {
+  if (!existsSync(FIXTURE)) return null;
+  try {
+    return JSON.parse(readFileSync(FIXTURE, 'utf8')) as CalibrationFixture;
+  } catch {
+    return null;
+  }
+}
+
+const pinnedInput = (entry: PinnedBuild): ResolvedBuildInput => ({
+  weapon: entry.weapon,
+  mods: entry.mods,
+  arcanes: entry.arcanes,
+  unknown: [],
+});
+
+/**
+ * Fetches a fresh battery from Overframe once and pins it. Everything the comparison needs is
+ * stored (names, ranks and the oracle block), so the default run is offline and deterministic.
+ * Only builds whose mods and weapon resolve in the snapshot are kept.
+ */
+async function refreshFixture(count: number): Promise<CalibrationFixture> {
+  // Overframe builds can carry mods or a weapon the snapshot does not know; collect extra so
+  // the pinned battery still reaches `count` after filtering.
+  const wanted = Math.max(count * 4, count + 50);
+  console.log(`fetching up to ${wanted} Overframe builds for a battery of ${count}…`);
+  const raw = await collect(wanted);
+  const seen = new Set<number>();
+  const builds: PinnedBuild[] = [];
+  let noOracle = 0;
+  let noWeapon = 0;
+  let unknownMods = 0;
+  for (const build of raw) {
+    const id = Number(build.id);
+    if (!Number.isFinite(id) || seen.has(id)) continue;
+    const oracle = oracleOf(build);
+    const input = resolveBuildInput(build, db, snapshot);
+    if (!oracle) { noOracle++; continue; }
+    if (!input) { noWeapon++; continue; }
+    if (input.unknown.length) { unknownMods++; continue; }
+    seen.add(id);
+    builds.push({
+      id,
+      title: String(build.title ?? ''),
+      weapon: input.weapon,
+      mods: input.mods,
+      arcanes: input.arcanes,
+      oracle,
+    });
+  }
+  const fixture: CalibrationFixture = {
+    source: 'overframe.gg/api/v1/builds',
+    generatedAt: new Date().toISOString().slice(0, 10),
+    builds: builds.slice(0, count),
+  };
+  writeFileSync(FIXTURE, `${JSON.stringify(fixture, null, 2)}\n`);
+  console.log(`  rejected: ${noOracle} without an oracle, ${noWeapon} without a known weapon, ${unknownMods} with unknown mods`);
+  console.log(`pinned ${fixture.builds.length} builds (from ${raw.length} fetched) -> ${FIXTURE.slice(ROOT.length)}`);
+  return fixture;
+}
+
+const existingFixture = readFixture();
 const one = flag('build');
 if (one) {
-  const build = await getBuild(one);
-  const oracle = oracleOf(build);
-  const input = resolveBuildInput(build, db, snapshot);
+  const pinned = existingFixture?.builds.find((entry) => entry.id === Number(one));
+  const build = pinned ?? await getBuild(one);
+  const oracle = pinned?.oracle ?? oracleOf(build);
+  const input = pinned ? pinnedInput(pinned) : resolveBuildInput(build, db, snapshot);
   if (!oracle || !input) {
     console.log('could not resolve this build (missing oracle, weapon or mods)');
     process.exit(1);
@@ -148,38 +234,37 @@ if (one) {
 }
 
 const count = Number(flag('battery') ?? 50);
-console.log(`fetching up to ${count} Overframe builds…`);
-const builds = await collect(count);
-console.log(`${builds.length} usable builds\n`);
+const fixture = refresh ? await refreshFixture(count) : existingFixture;
+if (!fixture) {
+  console.error(`no calibration fixture at ${FIXTURE.slice(ROOT.length)}`);
+  console.error('run: npm run calibrate -- --refresh');
+  process.exit(1);
+}
+const builds = fixture.builds.slice(0, count);
+console.log(`${fixture.builds.length} pinned builds (${fixture.generatedAt}), comparing ${builds.length}\n`);
 
-const mismatches: Array<{ build: any; weapon: string; diffs: ReturnType<typeof diffOracle>; unknown: string[] }> = [];
+const mismatches: Array<{ build: PinnedBuild; weapon: string; diffs: ReturnType<typeof diffOracle>; unknown: string[] }> = [];
 let matched = 0;
 let skipped = 0;
 
-for (const build of builds) {
-  const oracle = oracleOf(build);
-  const input = resolveBuildInput(build, db, snapshot);
-  if (!oracle || !input) {
-    skipped++;
-    continue;
-  }
+for (const entry of builds) {
+  const input = pinnedInput(entry);
   let diffs;
   try {
-    diffs = pickMode(input, oracle).diffs;
+    diffs = pickMode(input, entry.oracle).diffs;
   } catch {
     skipped++;
     continue;
   }
   if (diffs.length === 0) {
     matched++;
-    if (verbose) console.log(`  ok   ${build.id} ${input.weapon}`);
+    if (verbose) console.log(`  ok   ${entry.id} ${input.weapon}`);
   } else {
-    mismatches.push({ build, weapon: input.weapon, diffs, unknown: input.unknown });
+    mismatches.push({ build: entry, weapon: input.weapon, diffs, unknown: [] });
     if (verbose) {
-      console.log(`  FAIL ${build.id} ${input.weapon}: ${diffs.map((d) => `${FIELD_LABEL[d.field]} ${d.actual.toFixed(3)} vs ${d.expected.toFixed(3)}`).join('; ')}`);
+      console.log(`  FAIL ${entry.id} ${input.weapon}: ${diffs.map((d) => `${FIELD_LABEL[d.field]} ${d.actual.toFixed(3)} vs ${d.expected.toFixed(3)}`).join('; ')}`);
     }
   }
-  await sleep(20);
 }
 
 console.log(`\nmatched: ${matched}/${matched + mismatches.length}${skipped ? ` (${skipped} skipped)` : ''}`);
@@ -197,7 +282,7 @@ if (mismatches.length) {
   for (const [key, n] of [...groups].sort((a, b) => b[1] - a[1]).slice(0, 15)) console.log(`  ${String(n).padStart(4)}  ${key}`);
   console.log('\nworst offenders:');
   for (const failure of mismatches.slice(0, 10)) {
-    console.log(`  ${failure.build.id} ${failure.weapon}: ${failure.diffs.map((d) => d.field).join(', ')}${failure.unknown.length ? ` [unknown: ${failure.unknown.slice(0, 2).join(', ')}]` : ''}`);
+    console.log(`  ${failure.build.id} ${failure.weapon}: ${failure.diffs.map((d) => d.field).join(', ')}`);
   }
 }
 
@@ -206,10 +291,11 @@ writeFileSync(
   [
     '# Calibration results',
     '',
-    `Generated ${new Date().toISOString().slice(0, 10)} by \`npm run calibrate\`. Every row is a`,
-    'public Overframe build compared field by field (multishot, critical chance, critical',
+    `Pinned battery fetched from Overframe on ${fixture.generatedAt} (${fixture.builds.length} builds).`,
+    'Every row is a public build compared field by field (multishot, critical chance, critical',
     'damage, status chance, fire rate, magazine, reload) against wfcalc, using the game\'s own',
-    'modifier keys from `overframe.gg/api/v1`.',
+    'modifier keys from `overframe.gg/api/v1`. The battery is `data/calibration-builds.json`;',
+    'refresh it deliberately with `npm run calibrate -- --refresh`.',
     '',
     `- builds compared: **${matched + mismatches.length}**`,
     `- matching: **${matched}**`,
