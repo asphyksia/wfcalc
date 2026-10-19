@@ -154,3 +154,15 @@ test('the Incarnon form replaces the weapon profile, not just its perks', () => 
   const withForm = Object.values(snapshot.weapons).filter((weapon) => weapon.incarnonForm).length;
   assert.ok(withForm > 60, `only ${withForm} weapons carry an Incarnon profile`);
 });
+
+test('search names the mods whose value is conditional', () => {
+  const result = search(snapshot, {
+    weapon: 'Soma Prime', enemy: 'Bombard', level: 150, limit: 1,
+    mustInclude: ['Galvanized Chamber'],
+    base: { conditions: { onKill: 12, statusTypes: 2 } },
+  });
+  const build = result.builds[0];
+  assert.ok(build.conditionalMods.includes('Galvanized Chamber'),
+    `expected Galvanized Chamber in ${build.conditionalMods.join(', ')}`);
+  assert.ok(build.conditionalMods.every((name) => snapshot.mods[name].effects.some((effect) => effect.condition)));
+});

@@ -85,6 +85,8 @@ export interface SearchBuild {
   warnings: string[];
   /** Weapon arcanes this build assumes (empty when none). */
   arcanes: Array<{ name: string; rank?: number }>;
+  /** Mods whose value depends on a condition (`--stacks`, aiming, ...). */
+  conditionalMods: string[];
   /** Incarnon evolutions this build assumes, as "EVO2:0" selections. */
   incarnon: string[];
   /** Evolution names, for showing to the player. */
@@ -456,6 +458,7 @@ function searchOnce(snapshot: Snapshot, request: SearchRequest): SearchResult {
       multishot: scored.resolved.multishot,
       warnings: scored.resolved.warnings,
       arcanes: (base.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
+      conditionalMods: names.filter((name) => (snapshot.mods[name]?.effects ?? []).some((effect) => effect.condition)),
       incarnon: [...incarnonSelection],
       incarnonNames: [...incarnonSelection].map((selection) => {
         const [tier, index] = selection.split(':');

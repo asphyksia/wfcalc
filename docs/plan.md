@@ -10,7 +10,7 @@ Last updated: 2026-10-19.
 
 | | |
 |---|---|
-| Tests | **127 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
+| Tests | **129 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration vs Overframe | **35/35** pinned public builds (`node tools/calibrate.ts`), offline, ranged only |
 | Types | `npm run check` clean |
@@ -97,6 +97,7 @@ Rules that have prevented repeated mistakes:
 | A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, `--brief=answer` for repeated calls, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
 | A6 | **`wfcalc batch`**: JSONL of calc/ability records priced in one process, one line per record, `--json` as compact rounded JSONL. Bad records do not abort the batch; exit 1. The JSON->Build mapping moved to `src/request.ts`, shared with the server. | `tests/cli.test.ts`; `tools/agent-eval.ts` case "batch" |
 | A7 | **Agent eval**: `npm run eval` pins ten real questions (best build, strip, melee Incarnon, CO, ability, errors, partial mods, batch) and fails if an answer or the brief size regresses. Runs in CI. | `tools/agent-eval.ts`, 10/10 |
+| A17 | **Conditional mods are named (F3)**: search builds carry `conditionalMods`, the brief says `conditional Galvanized Chamber, ...`, and the human output says which flag activates them. | A search with `--must "Galvanized Chamber"` lists it as conditional; tests pin the field and the brief |
 | A16 | **Incarnon second hits and ability targets (C2, first half)**: the form's AoE/explosion is merged into the shot at the blast centre, with its own falloff under `--aoe-distance`; direct-only multipliers (Condition Overload, Galvanized Aptitude) are scaled by the direct share so they do not inflate the radial hit. Abilities accept `--targets N` (all at full damage inside the radius). | Braton form 50 → 100 total, 95 at 3 m; Ceramic Dagger + CO 3 statuses = direct 1,190 + explosion 350 = 1,540; Miasma 5 targets = 1,575 per cast; tests pin all three |
 | A15 | **Mod coverage (D1)**: utility lines were being counted as unknown, so Bow had 2/6 partial mods and Melee 6/122. Parenthetical qualifiers, secondary-weapon buffs, range, Tennokai, block/damage-taken, slam pull and Shattering Impact's armour chip are now out of scope, not unknown; Split Flights' multishot is fully applied. | Bow 2/6 → **0/6**, Melee 6/122 → **1/122** (Strain Infection), weapon-relevant unknown lines 16 → 9 (98% fully modelled); `tests/coverage.test.ts` pins it |
 | A14 | **Pinned calibration (D2)**: `tools/calibrate.ts` now reads `data/calibration-builds.json` (35 public Overframe builds with weapon, mods, arcanes and the oracle block) instead of sampling a new set on every run. `--refresh` fetches and rewrites the battery; only builds whose weapon and mods resolve are kept, and the list API's page bug is deduplicated. | Two consecutive runs produce the same report hash; CI runs the calibration offline; 35/35 |
@@ -160,10 +161,9 @@ CPU; it is what the search does and does not consider, and what the answer fails
 | F6 | **Nyx's Psychic Bolts is not a strip ability in the data.** The curated strip list has Avalanche, Terrify, Seeking Shuriken and Polarize only. | The user had to pass `--armor-strip 100`; `--strip-from "Psychic Bolts"` fails. Add the known 100% strips (Psychic Bolts, Fusion Strike...) to the curated list. |
 | F7 | **`--status-types` is a global manual assumption.** Galvanized Aptitude's damage scales with it; the build itself applies Viral + Tau (2), but the caller must know and pass it. | A self-consistent search could infer the status types from the build's own damage profile (and known external procs) instead of a flag. Careful: this is circular with the optimiser, so measure before changing. |
 
-F1, F2, F5 and F6 are **done** (A9). Remaining: **F3** (name the conditional mods in a search
-result), **F4** (tie-break around unmodelled drawbacks such as Heavy Caliber's accuracy) and
-**F7** (infer status types instead of a global flag). F4 and F7 need a model decision; F3 is a
-small output change.
+F1, F2, F3, F5 and F6 are **done** (A9, A17). Remaining: **F4** (tie-break around unmodelled
+drawbacks such as Heavy Caliber's accuracy) and **F7** (infer status types instead of a global
+flag). F4 and F7 need a model decision.
 
 
 ---
@@ -207,7 +207,7 @@ Useful commands: `wfcalc abilities`, `wfcalc ability <name> --strength N --enemy
 ```sh
 cd wfcalc
 git log --oneline | head -5      # the top commit
-npm test                          # 127 tests
+npm test                          # 129 tests
 npm run eval                      # 10 pinned agent cases
 node tools/validate.ts            # 0 violations
 node tools/calibrate.ts           # 35/35 pinned, offline

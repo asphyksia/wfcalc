@@ -101,7 +101,8 @@ part of the build: do not omit it from the answer.
 ## What must travel with the answer
 
 - **Target** (enemy + level) and objective.
-- **Capacity and Forma** (`59/60 cap · 3F` in `calc` and `search`), and the **arcane** if any.
+- **Capacity and Forma** (`59/60 cap · 3F` in `calc` and `search`), the **arcane**, and the
+  **conditional mods** (`conditional Galvanized Chamber, ...` means those need `--stacks`).
 - **Assumptions**: max ranks, Catalyst, combo (melee assumes 12x / 220 hits), active conditions,
   Ability Strength. `--brief` prints them after the builds.
 - **`partial` mods / warnings**: those numbers are a **lower bound**. Say so.

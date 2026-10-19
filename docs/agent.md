@@ -87,6 +87,9 @@ Terrify at 60% plus one aura at 18% leaves 22% of the armour, not 33%. Shatterin
 on base armour, so its effect scales with the enemy's level. The effective armour after all of
 it is returned as `armor`, so show it.
 
+`conditionalMods` names the mods whose value depends on a condition; say which condition has to
+be true (`--stacks onKill=12`, `--aiming`, ...) instead of presenting their upside as free.
+
 A returned build is **legal by construction**: at most eight mods, within capacity, within the
 Forma budget, no two mods of the same family, no Exilus mod in a standard slot, no trigger-locked
 Cannonade mod on the wrong trigger.

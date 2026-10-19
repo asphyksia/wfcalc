@@ -143,6 +143,7 @@ Response (abridged):
     "burstDps": 20000, "sustainedDps": 15000, "totalDps": 17000,
     "timeToKill": 6.9, "shotsToKill": 12,
     "arcanes": [{ "name": "Primary Merciless", "rank": 5 }],
+    "conditionalMods": ["Galvanized Chamber", "Galvanized Aptitude"],
     "incarnon": ["EVO2:0"], "incarnonNames": ["EVO2 Final Fusillade"]
   }],
   "assumptions": ["Melee combo assumed at 12x (220 hits)"],

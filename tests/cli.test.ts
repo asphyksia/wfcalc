@@ -266,3 +266,12 @@ test('ability --targets reports the whole cast', () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /5 targets = 1,575/);
 });
+
+test('search briefs name the conditional mods', () => {
+  const result = runRaw([
+    'search', 'Soma Prime', '--enemy', 'Bombard', '--level', '150', '--top', '1',
+    '--must', 'Galvanized Chamber', '--stacks', 'onKill=12', '--status-types', '2', '--brief',
+  ]);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /conditional Galvanized Chamber/);
+});
