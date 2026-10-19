@@ -29,9 +29,6 @@ const IMG_ROOT = new URL('../data/img/', import.meta.url).pathname;
 /** Full in-game card art served by the wiki (frame included), cached the same way. */
 const CARD_ROOT = new URL('../data/cards/', import.meta.url).pathname;
 const CARD_UPSTREAM = 'https://wiki.warframe.com/w/Special:FilePath';
-/** Overframe's card frame/background art (rarity frames, side lights, lower tabs). */
-const FRAME_ROOT = new URL('../data/frames/', import.meta.url).pathname;
-const FRAME_UPSTREAM = 'https://overframe.gg/static/images/mod';
 const IMG_UPSTREAM = 'https://raw.githubusercontent.com/WFCD/warframe-items/master/data/img';
 const args = process.argv.slice(2);
 const portArg = args.indexOf('--port');
@@ -377,37 +374,6 @@ const server = createServer(async (req, res) => {
       const body = await readBody(req);
       const result = calculate(body);
       return json(res, result.error ? 404 : 200, result);
-    }
-
-    // Card frame art (rarity frames, backgrounds), cached the same way.
-    if (url.pathname.startsWith('/frame/')) {
-      const file = url.pathname.slice(7);
-      if (!/^[A-Za-z0-9._-]+\.(png|jpe?g|webp)$/i.test(file)) {
-        return json(res, 400, { error: 'bad frame name' });
-      }
-      await mkdir(FRAME_ROOT, { recursive: true });
-      const cached = join(FRAME_ROOT, file);
-      let bytes: Buffer;
-      try {
-        bytes = await readFile(cached);
-      } catch {
-        // The main domain sits behind Cloudflare, which rejects non-browser agents.
-        const upstream = await fetch(`${FRAME_UPSTREAM}/${file}`, {
-          headers: {
-            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36',
-            referer: 'https://overframe.gg/',
-            accept: 'image/png,image/*;q=0.8',
-          },
-        });
-        if (!upstream.ok) {
-          res.writeHead(404, { 'content-type': 'text/plain' });
-          return res.end('no frame');
-        }
-        bytes = Buffer.from(await upstream.arrayBuffer());
-        await writeFile(cached, bytes);
-      }
-      res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=2592000' });
-      return res.end(bytes);
     }
 
     // Full mod cards from the wiki: frame, name and stat baked in. Cached on first use,

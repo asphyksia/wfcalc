@@ -432,7 +432,7 @@ The **data** has its own terms and they are not all compatible with commercial u
   no build IDs, titles or pages are shipped.
 - Warframe artwork, names and marks belong to Digital Extremes. No artwork is redistributed in
   this repository: the server fetches mod cards and images on demand and caches them locally
-  (`data/cards/`, `data/img/`, `data/frames/`, all gitignored). If you plan to charge for an app
+  (`data/cards/` and `data/img/`, both gitignored; card frames are CSS-only). If you plan to charge for an app
   around this, read Digital Extremes' fan content and EULA terms first.
 
 Not legal advice, but the practical reading: GPLv3 does not stop you from monetising. The wiki's

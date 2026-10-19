@@ -50,7 +50,7 @@ function headline(mod, rank) {
 
 /**
  * One mod card: artwork, rarity frame, headline stat, drain, name, stats, compatibility and
- * rank stars — Overframe's Mod component, whose frame is CSS rather than a baked image, so
+ * rank stars — the game's mod card, whose frame is CSS rather than a baked image, so
  * the card always renders even when the artwork fails.
  */
 function modCardMarkup(mod, options = {}) {
@@ -63,7 +63,7 @@ function modCardMarkup(mod, options = {}) {
   // the max-rank cost with no slot to halve it.
   const drain = options.drain ?? (mod.baseDrain ?? 0) + rank;
   const statLines = (mod.description ?? '').split('\n').filter(Boolean);
-  // Overframe colours the frame by rarity, with a distinct one for Galvanized mods.
+  // The frame is coloured by rarity, with a distinct one for Galvanized mods.
   const rarity = /galvan/i.test(mod.name)
     ? 'galvanized'
     : String(mod.rarity ?? 'common').toLowerCase();
@@ -672,9 +672,9 @@ function renderWeaponMeta(result) {
   if (board) {
     board.style.setProperty('--silhouette', meta?.image ? `url("/img/${meta.image}")` : 'none');
   }
-  // The weapon's flavour text, the way Overframe prints it under the build name.
+  // The weapon's flavour text, the way the game prints it under the build name.
   const description = String(meta?.description ?? '').trim();
-  // Forma count, the way the arsenal and Overframe show it next to mastery rank.
+  // Forma count, the way the arsenal shows it next to mastery rank.
   const formas = (state.slotPolarities ?? []).filter(Boolean).length;
   $('weapon-meta').innerHTML = `<span class="chip">${weapon.type}</span>
     <span class="chip">MR ${weapon.masteryRank}</span>
@@ -710,7 +710,7 @@ function renderResults(result) {
   const dotDps = dot.reduce((sum, entry) => sum + entry.dps, 0);
   const critAvg = 1 + result.critChance * (result.critMultiplier - 1);
 
-  // Headline numbers, like Overframe's "total damage" block.
+  // Headline numbers, like the game's "total damage" block.
   $('weapon-summary').innerHTML = `
     <div class="kpi"><span>damage / shot</span><b>${fmt(result.averageShotDamage, 0)}</b></div>
     <div class="kpi" title="Damage per second while the magazine lasts"><span>burst dps</span><b>${fmt(result.burstDps, 0)}</b></div>
@@ -718,7 +718,7 @@ function renderResults(result) {
     ${target ? `<div class="kpi accent"><span>ttk lv${target.level}</span><b>${target.timeToKill === null ? '—' : `${fmt(target.timeToKill, 2)}s`}</b></div>` : ''}
   `;
 
-  // Stats as a dense label/value list, the way the arsenal and Overframe present them.
+  // Stats as a dense label/value list, the way the arsenal presents them.
   const rows = [
     ['section', 'Weapon'],
     ['Crit ch.', pct(result.critChance)],
