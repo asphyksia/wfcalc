@@ -80,6 +80,7 @@ current state, the working method and what is left to do.
 | `--covenant-damage 4000` | Damage prevented, for Harrow's Covenant |
 | `--viral 10`, `--corrosive 10` | Status stacks kept up on the target |
 | `--incarnon "EVO2:0,EVO4:1"` | Incarnon evolutions per tier (see `wfcalc incarnon`) |
+| `--incarnon form` | Transformed profile with no evolution perks |
 | `--combo-hits 220` / `--heavy` | Melee combo counter and heavy attack |
 | `--aoe-distance 4` | Distance to the blast centre for AoE weapons (falloff) |
 | `--enemy NAME`, `--level N` | Target and level (default Bombard at 100) |

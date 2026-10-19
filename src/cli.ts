@@ -647,6 +647,7 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
          --frame Rhino  --frame-mods "Intensify,Blind Rage"  --frame-arcane "Molt Augmented"
          --strength 284  --riven damage,multishot
          --incarnon "EVO2:0,EVO4:1"  --riven-roll 1.05
+         --incarnon form           use the transformed profile with no evolution perks
          --element-bonus heat:60    (Kuva/Tenet elemental bonus)
          --covenant-damage 4000    (damage prevented for Harrow's Covenant)
          --viral 10  --corrosive 10  (status debuffs on the target)

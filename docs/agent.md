@@ -149,6 +149,12 @@ State these when they matter instead of guessing:
   tree has 18. On a Torid against a level 150 Bombard that is 13.7k → 71.7k dps.
   Perks with no parsed stats are invisible to the optimiser; read the tree with
   `wfcalc incarnon <weapon> --json` and force a choice with `--incarnon "EVO2:0,EVO4:1"`.
+  `--incarnon form` uses the transformed profile without perks, which is the way in for the
+  five melee forms (their attacks are the wiki's "Spectral Axe/Dagger/Blade"). The melee
+  forms' explosion is a second hit on the same shot and is **not** in the number; the result
+  says so in `incarnon`. Spectral direct hits also ignore melee damage mods and the combo
+  multiplier in the game (wiki); the engine does not know that yet, so treat melee Incarnon
+  results as an upper bound.
 - **Rivens must be spelled out**: `--riven damage,multishot,-zoom --riven-roll 1.05`.
 - **Conditional mods default to inactive.** Galvanized stacks, on-kill effects and "while
   aiming" need `--stacks onKill=5` or similar; otherwise the build is scored lower than it plays.

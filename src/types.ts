@@ -141,6 +141,12 @@ export interface WeaponData {
    * from the wiki's weapon database. Mods apply on top of these, as in the game.
    */
   incarnonForm?: WeaponStats;
+  /**
+   * Extra hits the transformed weapon fires on the same shot ("Incarnon Form AoE", the melee
+   * forms' "Spectral Axe Explosion"). The single-profile model adds only the direct hit, so
+   * they are kept here to be reported instead of silently dropped.
+   */
+  incarnonFormExtra?: Array<{ name: string; damage: Partial<Record<DamageType, number>> }>;
   /** Flavour text from the game data, shown under the weapon name. */
   description?: string;
   /** The arsenal stat block: what the game shows as the weapon's damage. */

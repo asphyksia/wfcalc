@@ -238,6 +238,13 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   if (build.incarnon?.length && weapon.incarnonForm) {
     stats = { ...weapon.incarnonForm };
     incarnonLines.push('Incarnon form profile');
+    // The form can fire a second hit on the same shot ("Incarnon Form AoE", the melee forms'
+    // spectral explosion). This model carries one damage profile, so the result says the hit
+    // exists instead of pretending the shot is complete.
+    for (const extra of weapon.incarnonFormExtra ?? []) {
+      const damage = Object.entries(extra.damage).map(([type, value]) => `${value} ${type}`).join(' + ');
+      incarnonLines.push(`${extra.name} not modelled (+${damage})`);
+    }
   }
 
   // Kuva/Tenet elemental bonus: a player-chosen element worth 25-60% of base damage,
@@ -359,6 +366,12 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     const options = snapshot.incarnons[weapon.name] ?? [];
     if (!options.length) collected.warnings.push(`no Incarnon data for ${weapon.name}`);
     for (const choice of build.incarnon) {
+      // "form" uses the transformed profile with no evolution perks, for weapons whose tree is
+      // not in the dataset (Okina Prime shares Okina's on the wiki but has no page of its own).
+      if (normalizeName(choice) === 'form') {
+        incarnonLines.push('form only, no evolution perks');
+        continue;
+      }
       // Accepts "EVO2", "EVO2:1" (option index) and "EVO2:Lone Blade" (option name).
       const separator = choice.indexOf(':');
       const tierPart = separator >= 0 ? choice.slice(0, separator) : null;

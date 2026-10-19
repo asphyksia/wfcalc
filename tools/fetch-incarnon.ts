@@ -51,9 +51,15 @@ function parseEvolutions(wikitext: string): IncarnonOption[] {
   for (const row of body.split(/\n\|-/)) {
     const tierMatch = /EVO\d/.exec(row);
     if (tierMatch) tier = tierMatch[0];
+    // EVO1 is the unlock itself, not a choice: its bullets describe how to transform and the
+    // wiki does not always bold "Incarnon Form", so the name search below would pick a number
+    // out of the prose ("6x", "0.5"). The form's own profile is read from the weapon database.
+    if (tier === 'EVO1') continue;
 
-    // The option name is the first bolded phrase of the row.
-    const nameMatch = /'''([^']{2,60})'''/.exec(row);
+    // The option name is the first bolded phrase of the row. Apostrophes are allowed inside
+    // ("Templar's Wrath"): excluding them made the match fall through to the first bullet's
+    // number, which is how "EVO2: +150" ended up in the data.
+    const nameMatch = /'''(.{2,60}?)'''/.exec(row);
     if (!nameMatch) continue;
     const name = clean(nameMatch[1]);
     if (!name || /Evolution Challenge|Incarnon Form$/i.test(name)) continue;
@@ -105,9 +111,11 @@ function parseEvolutions(wikitext: string): IncarnonOption[] {
 async function main(): Promise<void> {
   await mkdir(OUT_DIR, { recursive: true });
   const snapshot = loadSnapshot();
-  // Weapons whose data already exposes an Incarnon mode are the ones with a tree.
+  // A transformed profile means the weapon has a tree: ranged weapons name the mode
+  // "Incarnon Form", melee weapon names are free-form ("Spectral Dagger") and appear only
+  // in `incarnonForm`.
   const candidates = Object.values(snapshot.weapons)
-    .filter((weapon) => weapon.modes.some((mode) => /incarnon/i.test(mode.name)))
+    .filter((weapon) => weapon.incarnonForm || weapon.modes.some((mode) => /incarnon/i.test(mode.name)))
     .map((weapon) => weapon.name)
     .slice(0, limit === Infinity ? undefined : limit);
 

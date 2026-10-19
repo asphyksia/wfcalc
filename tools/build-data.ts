@@ -325,10 +325,23 @@ function buildModes(weapon: Loose, base: WeaponStats): WeaponMode[] {
  * WFCD does not export the transformed weapon at all, so without this the calculator applied
  * the evolution perks on top of the base weapon's numbers, which is not what the game does:
  * a Torid Incarnon fires a 51 Toxin beam with 29% crit at 8/s, not a 100 Toxin grenade at 1.5/s.
- * The wiki lists it as one more attack, named "Incarnon Form".
+ * The wiki lists it as one more attack, named "Incarnon Form"; melee weapons have no such
+ * attack and instead name theirs "Spectral Axe", "Spectral Dagger", "Spectral Blade", each
+ * with an "... Explosion" child that this single-profile model does not add.
  */
-function readIncarnonForms(): Record<string, { damage: Loose; critChance: number; critMultiplier: number; statusChance: number; fireRate: number; multishot: number; magazineSize: number }> {
-  const out: Record<string, { damage: Loose; critChance: number; critMultiplier: number; statusChance: number; fireRate: number; multishot: number; magazineSize: number }> = {};
+interface RawIncarnonForm {
+  damage: Loose;
+  critChance: number;
+  critMultiplier: number;
+  statusChance: number;
+  fireRate: number;
+  multishot: number;
+  magazineSize: number;
+  extra: Array<{ name: string; damage: Partial<Record<DamageType, number>> }>;
+}
+
+function readIncarnonForms(): Record<string, RawIncarnonForm> {
+  const out: Record<string, RawIncarnonForm> = {};
   const files = ['module-weapons-primary.lua', 'module-weapons-secondary.lua', 'module-weapons-melee.lua'];
   for (const file of files) {
     let root: Loose;
@@ -344,8 +357,20 @@ function readIncarnonForms(): Record<string, { damage: Loose; critChance: number
       const attacks: Loose[] = Array.isArray(entry?.Attacks)
         ? entry.Attacks
         : Object.values<Loose>(entry?.Attacks ?? {});
-      const form = attacks.find((attack: Loose) => /incarnon form/i.test(String(attack?.AttackName ?? '')));
+      const nameOf = (attack: Loose): string => String(attack?.AttackName ?? '');
+      // The transformed shot is the direct hit; radial children ("... AoE", "... Explosion")
+      // are separate attacks, not the form itself.
+      const form = attacks.find((attack: Loose) => /incarnon form/i.test(nameOf(attack)) && !/aoe|radial|explosion/i.test(nameOf(attack)))
+        ?? attacks.find((attack: Loose) => /spectral/i.test(nameOf(attack)) && !/explosion/i.test(nameOf(attack)));
       if (!form) continue;
+      const extra = attacks
+        .filter((attack: Loose) => /aoe|radial|explosion/i.test(nameOf(attack)) && String(attack?.AttackParentIndex) === String(form.AttackIndex))
+        .map((attack: Loose) => ({
+          name: nameOf(attack),
+          damage: Object.fromEntries(
+            Object.entries<number>(attack.Damage ?? {}).filter(([, value]) => typeof value === 'number' && value > 0),
+          ) as Partial<Record<DamageType, number>>,
+        }));
       out[name] = {
         damage: (form.Damage ?? {}) as Loose,
         critChance: Number(form.CritChance ?? 0),
@@ -354,6 +379,7 @@ function readIncarnonForms(): Record<string, { damage: Loose; critChance: number
         fireRate: Number(form.FireRate ?? 0),
         multishot: Number(form.Multishot ?? 1),
         magazineSize: Number.isFinite(Number(form.AmmoCost)) ? Number(form.AmmoCost) : 0,
+        extra,
       };
     }
   }
@@ -362,10 +388,7 @@ function readIncarnonForms(): Record<string, { damage: Loose; critChance: number
 }
 
 /** Turns a raw Incarnon form into full stats, on top of the weapon's own damage-type keys. */
-function incarnonFormStats(
-  raw: { damage: Loose; critChance: number; critMultiplier: number; statusChance: number; fireRate: number; multishot: number; magazineSize: number },
-  base: WeaponStats,
-): WeaponStats {
+function incarnonFormStats(raw: RawIncarnonForm, base: WeaponStats): WeaponStats {
   const stats = statsFromDamage(raw.damage, base);
   stats.critChance = raw.critChance;
   stats.critMultiplier = raw.critMultiplier;
@@ -430,7 +453,12 @@ function buildWeapons(): Record<string, WeaponData> {
         stats,
         modes,
         hasRivenSlot: category !== 'sentinel',
-        ...(incarnonForms[name] ? { incarnonForm: incarnonFormStats(incarnonForms[name], stats) } : {}),
+        ...(incarnonForms[name]
+          ? {
+              incarnonForm: incarnonFormStats(incarnonForms[name], stats),
+              ...(incarnonForms[name].extra.length ? { incarnonFormExtra: incarnonForms[name].extra } : {}),
+            }
+          : {}),
       };
     }
   }
@@ -699,7 +727,8 @@ function buildIncarnons(weapons: Record<string, WeaponData>): Record<string, any
   let inherited = 0;
   for (const weapon of Object.values(weapons)) {
     if (raw[weapon.name]) continue;
-    if (!weapon.modes.some((mode) => /incarnon/i.test(mode.name))) continue;
+    // Melee forms have no "Incarnon Form" mode, so the profile is the signal that a tree exists.
+    if (!weapon.incarnonForm && !weapon.modes.some((mode) => /incarnon/i.test(mode.name))) continue;
     let candidate = baseWeaponName(weapon.name);
     while (candidate) {
       if (raw[candidate]) {
