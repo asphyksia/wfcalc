@@ -45,3 +45,10 @@ One entry per run: what changed upstream and how calibration moved.
 - wiki pages changed: Category:Exilus Weapon Mods, Damage_Type_Modifier, Module:Weapons/data/melee, Module:Weapons/data/primary, Module:Weapons/data/secondary, Riven_Mods
 - calibration sample: **60/60**
 - `tools/drift.ts`: 495 divergence(s) over 2431 comparisons weapons where our copy disagrees with the mirror:
+
+## 2026-10-19
+
+- WFCD export: 20f8d942 (2026-10-18T02:44:10Z)
+- wiki pages changed: Riven_Mods
+- calibration sample: **35/35**
+- `tools/drift.ts`: 495 divergence(s) over 2431 comparisons weapons where our copy disagrees with the mirror:

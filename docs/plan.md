@@ -10,7 +10,7 @@ Last updated: 2026-10-19.
 
 | | |
 |---|---|
-| Tests | **147 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
+| Tests | **148 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration vs Overframe | **35/35** pinned public builds (`node tools/calibrate.ts`), offline, ranged only |
 | Types | `npm run check` clean |
@@ -97,6 +97,7 @@ Rules that have prevented repeated mistakes:
 | A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, `--brief=answer` for repeated calls, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
 | A6 | **`wfcalc batch`**: JSONL of calc/ability records priced in one process, one line per record, `--json` as compact rounded JSONL. Bad records do not abort the batch; exit 1. The JSON->Build mapping moved to `src/request.ts`, shared with the server. | `tests/cli.test.ts`; `tools/agent-eval.ts` case "batch" |
 | A7 | **Agent eval**: `npm run eval` pins ten real questions (best build, strip, melee Incarnon, CO, ability, errors, partial mods, batch) and fails if an answer or the brief size regresses. Runs in CI. | `tools/agent-eval.ts`, 10/10 |
+| A28 | **Riven base values were near zero (found in the full refresh)**: the wiki's Riven_Mods table changed shape and the parser was reading the wrong cells, so every riven read like +0.02%. The refreshed table gives +165% Damage base; a real-snapshot test pins the order of magnitude. | Soma Prime riven `damage,multishot`: +179.7% / +98.0% (was ~+0.02%); `tests/riven.test.ts` uses the real snapshot |
 | A27 | **Ability distance falloff (C2d)**: Discharge falls linearly to 50% at 20 m; `--ability-distance N` applies the factor to the components and reports it in the brief/JSON. | Discharge 0 m 82.76 per cast vs 20 m 41.38 (x0.50); tests pin the factor and the brief |
 | A26 | **Spores Corrosive ramp (C1d)**: Spores applies ~1.5 Corrosive procs/s, caps at 10 stacks and reports 80% armour strip; its own damage uses the average strip over the window, and the note tells the agent to price the weapon with `--corrosive 10`. | Spores per cast 43.1 on a Bombard, `corrosiveStacks: 10`, `corrosiveArmorMultiplier: 0.2`; tests pin the stack count, strip and note |
 | A25 | **AoE groups (C2c)**: `--targets N` on a weapon with a radial mode gives the primary the whole profile and each extra only the radial share at the same distance; `aoeDistance` is used for both. No chain or radial warns. | Kuva Bramma 5 targets: factor ~4.27 (81.7% radial), 69.4 → 296.4 dps; tests pin the factor and the warning |
