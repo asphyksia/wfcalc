@@ -171,13 +171,24 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
   const attenuation = options.attenuation !== undefined
     ? resolveAttenuation(options.attenuation, scaled.health)
     : resolveAttenuation(automaticAttenuation(scaled.enemy), scaled.health);
-  /** Caps a direct-damage rate by the per-instance and per-second limits, before flat DR. */
+  /**
+   * Caps a direct-damage rate before flat DR.
+   *
+   * Per instance, the wiki gives the hyperbolic formula used by the Hemocyte/Archon family:
+   *   attenuated = damage x MDPI / (damage x multishot + MDPI)
+   * which approaches MDPI/multishot per pellet as the hit grows. The per-second cap is applied
+   * on top; its exponential smoothing is not modelled.
+   */
   const cappedDirect = (dps: number, perShot: number): number => {
     if (!attenuation) return dps;
-    const byInstance = attenuation.mdpi > 0
-      ? Math.min(perShot, attenuation.mdpi) * pullsPerSecond
-      : dps;
-    return Math.min(dps, byInstance, attenuation.mdps > 0 ? attenuation.mdps : Infinity);
+    const pellets = Math.max(1, build.multishot);
+    if (attenuation.mdpi > 0 && perShot > 0) {
+      const perPellet = perShot / pellets;
+      const attenuatedPerPellet = (perPellet * attenuation.mdpi) / (perPellet * pellets + attenuation.mdpi);
+      const byInstance = attenuatedPerPellet * pellets * pullsPerSecond;
+      return Math.min(dps, byInstance, attenuation.mdps > 0 ? attenuation.mdps : Infinity);
+    }
+    return Math.min(dps, attenuation.mdps > 0 ? attenuation.mdps : Infinity);
   };
   const flatFactor = attenuation ? 1 - attenuation.flatDr : 1;
   const statusFactor = attenuation ? flatFactor * (1 - attenuation.statusDr) : 1;

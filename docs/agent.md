@@ -197,9 +197,10 @@ State these when they matter instead of guessing:
   a separate layer before shields/health, neutral except Void (+50%), no armour. Only direct
   damage is credited while it is up; status DoT and Magnetic's status amplification are not
   modelled. Ability `castsToKill` includes the casts needed to break it.
-- **Damage attenuation** is modelled as hard caps: `--attenuation archon` (MDPT 460k, MDPS 935k,
-  20% flat DR, 50% status DR) or `--mdpt/--mdps`; Eidolons apply 200%/100% of max health
-  automatically. The game's exponential smoothing is not modelled, so TTK is conservative.
+- **Damage attenuation**: `--attenuation archon` (MDPT 460k, MDPS 935k, 20% flat DR, 50% status
+  DR) or `--mdpt/--mdps`; Eidolons apply 200%/100% of max health automatically. Per hit it uses
+  the wiki's hyperbolic formula (`damage × MDPI / (damage × multishot + MDPI)`); the per-second
+  exponential smoothing is not modelled, so sustained TTK is conservative.
   There are no published Lich/Sister caps in the data: pass your own. Eidolon joints and
   invulnerability phases, and Lich ranks, are not modelled.
 - **Armour strip covers five abilities** (Avalanche, Terrify, Seeking Shuriken and Psychic Bolts

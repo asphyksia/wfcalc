@@ -264,8 +264,9 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
 - Elemental Ward and Provoke do not buff weapon damage, so they are intentionally absent.
 - **Damage attenuation** for bosses: `--attenuation archon` (MDPT 460k, MDPS 935k, 20% flat DR,
   50% status DR) or `--mdpt/--mdps` for a known custom value; Eidolons apply their
-  health-relative caps automatically. The game's exponential smoothing is not modelled, so the
-  time to kill is conservative.
+  health-relative caps automatically. Per hit it uses the wiki's hyperbolic formula
+  (`damage × MDPI / (damage × multishot + MDPI)`); the per-second exponential smoothing is not
+  modelled, so sustained TTK is still conservative.
 - Umbral set bonuses, Archon Shards and Helminth invigorations for Ability Strength.
 - **Stances**: stance damage multipliers are per-combo-hit execution, not a build
   property, and the wiki keeps them in prose. Out of scope by design.
@@ -417,10 +418,10 @@ each) matches 35/35, offline and deterministic. It does **not** model:
 - **Ability statuses**: Inferno (Heat), Fireball (Heat), Miasma (Viral) and Shuriken (Bleed) are
   curated; Spores' Corrosive and Thermal Sunder's Heat/Cold modes are not. Inferno's direct hit
   is split into the wiki's 1,250 Impact + 1,250 Heat.
-- **Damage attenuation**: the documented caps are applied for Archons/Eidolons and for explicit
-  `--mdpt/--mdps`; the exponential smoothing between hits is not modelled, and Liches/Sisters
-  have no published cap values (pass your own). Eidolon joints/invulnerability phases and Lich
-  ranks are also not modelled.
+- **Damage attenuation**: per-hit attenuation uses the wiki's hyperbolic formula for
+  Archons/Eidolons and explicit `--mdpt/--mdps`; the per-second exponential smoothing is not
+  modelled, and Liches/Sisters have no published cap values (pass your own). Eidolon
+  joints/invulnerability phases and Lich ranks are also not modelled.
 - Weapon multi-target: hitting several enemies with one AoE shot (Torid's chain to five at 75%
   per link) and distance falloff for abilities. `--targets N` on an ability counts enemies at
   full damage inside the radius, not a geometry simulation.

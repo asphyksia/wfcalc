@@ -880,7 +880,8 @@ test('Archon attenuation caps damage per hit and per second', () => {
   const plain = hitEnemy(snap, resolved, scaleEnemy(snap, dummy, 1));
   const capped = hitEnemy(snap, resolved, scaleEnemy(snap, dummy, 1), { attenuation: 'archon' });
   close(plain.timeToKill!, 1);
-  close(capped.timeToKill!, 1_000_000 / 368_000);
+  // Wiki per-hit formula: 1M x 460k / (1M + 460k) = 315,068; x 0.8 flat DR = 252,054.
+  close(capped.timeToKill!, 1_000_000 / ((1_000_000 * 460_000 / (1_000_000 + 460_000)) * 0.8));
   assert.equal(capped.attenuation?.id, 'archon');
   assert.ok(capped.warnings.some((line) => /attenuation archon/.test(line)));
 });
@@ -910,4 +911,14 @@ test('a chained Incarnon adds 75% links behind the primary target', () => {
   const single = hitEnemy(snap, resolved, scaleEnemy(snap, dummy, 1), { targets: 1 });
   assert.equal(single.multiTargetDps, null);
   assert.equal(single.multiTargetFactor, 1);
+});
+
+test('the per-hit attenuation formula accounts for multishot', () => {
+  // Per pellet 500k, 2 pellets: 500k x 460k / (500k x 2 + 460k) = 239,583 per pellet,
+  // 479,166 per trigger, x 0.8 flat DR.
+  const snap = snapshot([weapon({ heat: 500_000, critChance: 0, statusChance: 0, fireRate: 1, magazineSize: 1, reloadTime: 0, multishot: 2 })], []);
+  const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: [] });
+  const hit = hitEnemy(snap, resolved, scaleEnemy(snap, dummy, 1), { attenuation: 'archon' });
+  const perPellet = 500_000 * 460_000 / (500_000 * 2 + 460_000);
+  close(hit.timeToKill!, 1_000_000 / (perPellet * 2 * 0.8));
 });
