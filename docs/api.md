@@ -72,15 +72,21 @@ modifier, armour reduction and a minimum of 1 per damage type.
   "perSecond": true, "durationSeconds": 6, "totalDamage": 1800,
   "armorStrip": null,
   "target": { "enemy": "Bombard", "level": 150, "healthMultiplier": 1.75,
-              "armorReduction": 0.9, "perCast": 315, "castsToKill": 377 },
+              "armorReduction": 0.9, "perCast": 315, "directPerCast": 315,
+              "statusPerCast": 0, "viralStacks": 1,
+              "statusProcs": [{ "type": "viral", "stacks": 1, "damageType": "viral", "total": 0 }],
+              "overguard": 0, "overguardPerCast": 0, "castsToKill": 377 },
   "notes": ["Ability damage is flat: it does not crit, use multi..."]
 }
 ```
 
 Parameters: `name` (required), `strength` (percent, default 100), `enemy`, `level`,
-`armorModel` (`armor-scaling` | `multiply` | `both`), `eximus` (`1`/`true`) and `overguard`
-(an explicit amount). `target.castsToKill` includes the casts needed to break Overguard;
-`target.overguard` and `target.overguardPerCast` are reported separately. An unknown name is a 404 with
+`armorModel` (`armor-scaling` | `multiply` | `both`), `eximus` (`1`/`true`), `overguard`
+(an explicit amount) and `viral` (Viral stacks already on the target; Miasma also applies its
+own). `target.castsToKill` includes the casts needed to break Overguard;
+`target.overguard` and `target.overguardPerCast` are reported separately. `perCast` is direct
+plus the guaranteed statuses (`statusPerCast`); `statusProcs` lists them and `viralStacks` the
+Viral stacks in effect. An unknown name is a 404 with
 `{ "error": "..." }`.
 
 ## `POST /api/search`

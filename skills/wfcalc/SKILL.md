@@ -116,14 +116,17 @@ part of the build: do not omit it from the answer.
 - Do not put an Exilus mod in a standard slot or a Cannonade mod on an automatic weapon.
 - Do not add percentage strips yourself: pass `--strip-from` and `--cp` together, they are
   additive (Terrify 60% + one Corrosive Projection leaves 22% of the armour).
-- Do not quote a single hit for a ticking ability: use its total per cast (Miasma 900,
-  Inferno ~26k at 200%). Shields are left out of `castsToKill`, so it is a floor against Corpus.
+- Do not quote a single hit for a ticking ability: use its total per cast (Miasma 900 direct,
+  1,800 after its own Viral proc; Inferno ~26k at 200%). `statusPerCast` is called out
+  separately when the ability applies Heat, Viral or Bleed. Shields are left out of
+  `castsToKill`, so it is a floor against Corpus.
 - Do not claim endgame certainty. Not modelled: the exponential smoothing of boss damage
   attenuation and Lich/Sister cap values (pass `--mdpt/--mdps`), Eidolon joints and boss
-  invulnerability phases, status DoT/Magnetic amplification on **Overguard**, ability status
-  application, multi-target/AoE, stance modifiers, companions/Archwing/Necramech. Melee and
-  secondary builds have no external calibration yet. Eximus Overguard and the Archon/Eidolon
-  caps *are* modelled.
+  invulnerability phases, status DoT/Magnetic amplification on **Overguard**, multi-target/AoE,
+  stance modifiers, companions/Archwing/Necramech. Ability statuses are modelled only for
+  Inferno (Heat), Miasma (Viral) and Shuriken (Bleed); the rest are not. Melee and secondary
+  builds have no external calibration yet. Eximus Overguard and the Archon/Eidolon caps *are*
+  modelled.
 - Do not present a search result as a measurement; it is the best build under the model.
 - Do not forget the arcane: `calc`/`search` echo it now, and it can be a 3x multiplier.
 

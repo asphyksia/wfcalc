@@ -394,9 +394,14 @@ Usable now for comparing ranged weapon builds, mods, rivens, Incarnon and abilit
 concrete enemy. Calibration against 50 sampled Overframe builds matches on all seven arsenal
 stats. It does **not** model:
 
+- **Ability statuses** are modelled for the abilities whose wiki page states them: Inferno's
+  guaranteed Heat, Miasma's Viral and Shuriken's Bleed. Other abilities' status effects are not.
 - **Overguard** is modelled for Eximus (`--eximus`) and for a known amount (`--overguard N`):
   base 12, wiki level scaling, Void +50%, no armour. Only direct damage is credited while it is
   up (status DoT and Magnetic's status amplification are not modelled).
+- **Ability statuses**: only Inferno (Heat), Miasma (Viral) and Shuriken (Bleed) are curated;
+  Spores, Thermal Sunder and the rest are not. Inferno's direct hit is still modelled as one
+  Impact block, while the wiki splits it into Impact and Heat.
 - **Damage attenuation**: the documented caps are applied for Archons/Eidolons and for explicit
   `--mdpt/--mdps`; the exponential smoothing between hits is not modelled, and Liches/Sisters
   have no published cap values (pass your own). Eidolon joints/invulnerability phases and Lich

@@ -298,7 +298,10 @@ function abilityBriefLine(result: ReturnType<typeof abilityCast>, mode: 'full' |
     ? `strip ${result.armorStrip.fraction !== null ? `${(result.armorStrip.fraction * 100).toFixed(0)}%` : `${num(result.armorStrip.points ?? 0)} pts`}`
     : '';
   const target = result.target
-    ? `vs ${result.target.enemy} ${result.target.level}: ${num(result.target.perCast)}/cast · ${result.target.castsToKill === null ? 'cannot kill' : `${num(result.target.castsToKill)} casts`}`
+    ? `vs ${result.target.enemy} ${result.target.level}: ${num(result.target.perCast)}/cast`
+      + (result.target.statusPerCast > 0 ? ` (+${num(result.target.statusPerCast)} status)` : '')
+      + ` · ${result.target.castsToKill === null ? 'cannot kill' : `${num(result.target.castsToKill)} casts`}`
+      + (result.target.viralStacks > 0 ? ` · ${result.target.viralStacks} viral` : '')
       + (result.target.overguard > 0 ? ` · overguard ${num(result.target.overguard)}` : '')
     : '';
   return [
@@ -750,6 +753,7 @@ function main(): void {
           enemy: flag(args, 'enemy'),
           level: flag(args, 'level') ? Number(flag(args, 'level')) : 30,
           armorModel: flag(args, 'armor-model') as never,
+          viralStacks: flag(args, 'viral') ? Number(flag(args, 'viral')) : undefined,
           ...targetScale(args),
         });
       } catch (error) {
@@ -778,6 +782,15 @@ function main(): void {
       if (result.target) {
         console.log(`  vs ${result.target.enemy} level ${result.target.level}: ${num(result.target.perCast, 0)} per cast`);
         console.log(`  health modifier x${result.target.healthMultiplier.toFixed(2)}, armour removes ${(result.target.armorReduction * 100).toFixed(1)}%`);
+        if (result.target.statusPerCast > 0) {
+          const procs = result.target.statusProcs
+            .filter((proc) => proc.total > 0)
+            .map((proc) => `${proc.stacks}x ${proc.type}`);
+          console.log(`  status       +${num(result.target.statusPerCast)} per cast (${procs.join(', ')})`);
+        }
+        if (result.target.viralStacks > 0) {
+          console.log(`  viral        ${result.target.viralStacks} stack(s) on the target`);
+        }
         if (result.target.overguard > 0) {
           console.log(`  overguard    ${num(result.target.overguard)} (${num(result.target.overguardPerCast)}/cast)`);
         }
@@ -854,6 +867,7 @@ function main(): void {
                 enemy: record.enemy,
                 level: record.level,
                 armorModel: record.armorModel as never,
+                viralStacks: record.viral !== undefined ? Number(record.viral) : undefined,
                 eximus: Boolean(record.eximus),
                 overguard: record.overguard !== undefined ? Number(record.overguard) : undefined,
               });
@@ -971,6 +985,7 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>] (search: auto)  --buff ro
 
 Ability options:
          --strength N          Ability Strength (100 = unmodded)
+         --viral N             Viral stacks already on the target
          --enemy NAME --level N  apply the target's modifiers and armour
 
 Search options:

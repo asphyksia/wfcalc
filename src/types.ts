@@ -332,6 +332,12 @@ export interface DamageAbilityData {
   durationSeconds?: number | null;
   /** A second, ticking component alongside the direct hit (Inferno's ring of fire). */
   extraDot?: { perSecond: number; damageType: string | null; seconds: number } | null;
+  /**
+   * Status effects the ability guarantees on cast. `seedFraction` is the share of the ability's
+   * damage that seeds the DoT (Inferno's meteorite is half Heat); omitted means all of it.
+   * Viral has no DoT: it amplifies health damage instead.
+   */
+  statusProcs?: Array<{ type: DamageType; stacks: number; seedFraction?: number }> | null;
 }
 
 export interface IncarnonOption {

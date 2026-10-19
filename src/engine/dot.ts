@@ -193,7 +193,7 @@ export function computeDot(
     // worked examples do it: ((seed x faction) + 1) x C x (1 + element bonus) x status x faction.
     const rawTick = ((seed * factionMultiplier) + 1) * coefficient * (1 + elementalBonus) * statusDamageBonus * factionMultiplier;
     const armorModifier = armorPool && dotType !== 'true' ? healthModifier(snapshot, dotType, armorPool.type) : 0;
-    const dr = dotType === 'true' ? 0 : armorDamageReduction(armor, armorModifier);
+    const dr = dotType === 'true' ? 0 : armorDamageReduction(armor, armorModifier, context.armorModel);
     const healthMod = dotType === 'true' ? 0 : healthModifier(snapshot, dotType, healthType);
     const tickDamage = rawTick * (1 + healthMod) * (1 - dr) * viral;
 
@@ -209,4 +209,35 @@ export function computeDot(
   }
 
   return entries;
+}
+
+
+/**
+ * One guaranteed status proc, as an ability applies it.
+ *
+ * Abilities have no weapon mods, so the seed is just the ability's damage of that type:
+ * tick = (seed + 1) x C, then health-type and armour modifiers (Slash is True and skips both)
+ * and Viral amplification. This is the same formula computeDot uses for weapon procs.
+ */
+export function statusProcDamage(
+  snapshot: Snapshot,
+  type: DamageType,
+  seed: number,
+  scaled: ScaledEnemy,
+  context: DotContext,
+  viralStacks = 0,
+): { type: DamageType; damageType: DamageType; tickDamage: number; ticks: number; total: number } | null {
+  if (!(DOT_TYPES as readonly string[]).includes(type)) return null;
+  const coefficient = TICK_COEFFICIENT[type];
+  const ticks = TICK_COUNT[type];
+  const dotType = TICK_DAMAGE_TYPE[type];
+  const healthPool = scaled.pools.find((pool) => pool.category === 'health' || pool.category === 'object');
+  const armorPool = scaled.pools.find((pool) => pool.category === 'armor');
+  const healthType = healthPool?.type ?? 'Cloned Flesh';
+  const armor = effectiveArmor(scaled.armor, context);
+  const armorModifier = armorPool && dotType !== 'true' ? healthModifier(snapshot, dotType, armorPool.type) : 0;
+  const dr = dotType === 'true' ? 0 : armorDamageReduction(armor, armorModifier, context.armorModel);
+  const healthMod = dotType === 'true' ? 0 : healthModifier(snapshot, dotType, healthType);
+  const tickDamage = (seed + 1) * coefficient * (1 + healthMod) * (1 - dr) * viralMultiplier(viralStacks);
+  return { type, damageType: dotType, tickDamage, ticks, total: tickDamage * ticks };
 }

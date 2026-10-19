@@ -35,6 +35,18 @@ const ARMOR_STRIP: Record<string, { mode: 'percent' | 'flat'; value: number }> =
   'Psychic Bolts': { mode: 'percent', value: 80 },
 };
 
+/**
+ * Status effects the ability itself guarantees, curated from the ability's wiki page.
+ * Inferno: "100% Heat status chance" on the meteorite, whose damage is half Impact and half
+ * Heat, so the proc's seed is half the listed damage. Miasma: 100% Viral status on cast.
+ * Shuriken: one guaranteed Bleed per shuriken.
+ */
+const STATUS_PROCS: Record<string, Array<{ type: string; stacks: number; seedFraction?: number }>> = {
+  Inferno: [{ type: 'heat', stacks: 1, seedFraction: 0.5 }],
+  Miasma: [{ type: 'viral', stacks: 1 }],
+  Shuriken: [{ type: 'slash', stacks: 1 }],
+};
+
 const ABILITIES: Array<{ frame: string; page: string; ability: string }> = [
   { frame: 'Rhino', page: 'Rhino_Stomp', ability: 'Rhino Stomp' },
   { frame: 'Excalibur', page: 'Slash_Dash', ability: 'Slash Dash' },
@@ -170,6 +182,7 @@ async function main(): Promise<void> {
     armorStrip: { mode: 'percent' | 'flat'; value: number } | null;
     perSecond: boolean; durationSeconds: number | null;
     extraDot: { perSecond: number; damageType: string | null; seconds: number } | null;
+    statusProcs: Array<{ type: string; stacks: number; seedFraction?: number }>;
   }> = [];
   let failures = 0;
 
@@ -200,6 +213,7 @@ async function main(): Promise<void> {
     }
 
     const armorStrip = ARMOR_STRIP[entry.ability] ?? null;
+    const statusProcs = STATUS_PROCS[entry.ability] ?? [];
     const strengthRaw = templateParam(wikitext, 'strength');
     if (!strengthRaw && !armorStrip) {
       console.error(`SKIP  ${entry.ability}: no strength line`);
@@ -236,12 +250,13 @@ async function main(): Promise<void> {
 
     out.push({
       frame: entry.frame, ability: entry.ability, damageType, baseDamage, radius, page: entry.page,
-      armorStrip, perSecond, durationSeconds, extraDot,
+      armorStrip, perSecond, durationSeconds, extraDot, statusProcs,
     });
     console.log(
       `${entry.frame.padEnd(11)} ${entry.ability.padEnd(20)} ${String(baseDamage).padStart(6)}${perSecond ? '/s' : '  '} ${String(damageType ?? '?').padEnd(11)} r=${String(radius ?? '-').padEnd(5)} `
         + `${armorStrip ? `strip ${armorStrip.value}${armorStrip.mode === 'percent' ? '%' : 'pts'} ` : ''}`
-        + `${extraDot ? `+ ${extraDot.perSecond}/s ${extraDot.damageType} x${extraDot.seconds}s` : ''}`,
+        + `${extraDot ? `+ ${extraDot.perSecond}/s ${extraDot.damageType} x${extraDot.seconds}s` : ''}`
+        + `${statusProcs.length ? ` status ${statusProcs.map((p) => `${p.stacks}x${p.type}`).join('+')}` : ''}`,
     );
   }
 

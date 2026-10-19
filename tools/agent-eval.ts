@@ -25,6 +25,8 @@ const GOLDEN = {
   avalancheCast: '3,000 at 200%',
   ceramicIncarnonHit: 1190,
   eximusOverguard: '281,865',
+  miasmaCast: '315/cast',
+  shurikenStatus: '+1,577.1 status',
 };
 
 interface Run {
@@ -161,6 +163,18 @@ const cases: Case[] = [
       const bare = run(['calc', 'Soma Prime', '--mod', 'Serration', '--enemy', 'Bombard', '--level', '150', '--brief']);
       const ttk = (line: string) => Number(/ttk ([\d,.]+)s/.exec(line)![1].replace(/,/g, ''));
       check(ttk(result.stdout) > ttk(bare.stdout), `Overguard must cost time: ${result.stdout} vs ${bare.stdout}`);
+    },
+  },
+  {
+    name: 'ability statuses',
+    question: 'Does Miasma apply Viral, and does Shuriken apply Bleed?',
+    run: () => {
+      const miasma = run(['ability', 'Miasma', '--strength', '100', '--enemy', 'Bombard', '--level', '150', '--brief']);
+      check(miasma.status === 0, `exit ${miasma.status}: ${miasma.stderr}`);
+      contains(miasma.stdout, GOLDEN.miasmaCast);
+      contains(miasma.stdout, '1 viral');
+      const shuriken = run(['ability', 'Shuriken', '--strength', '100', '--enemy', 'Bombard', '--level', '150', '--brief']);
+      contains(shuriken.stdout, GOLDEN.shurikenStatus);
     },
   },
   {

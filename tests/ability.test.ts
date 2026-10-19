@@ -175,3 +175,31 @@ test('the strip resolver turns squad, weapon and ability inputs into one additiv
   assert.throws(() => resolveStrip(snapshot, { stripFrom: 'Miasma' }), /does not strip armour/);
   assert.throws(() => resolveStrip(snapshot, { corrosiveProjections: 5 }), /0 to 4/);
 });
+
+test('Miasma applies one Viral stack and doubles its health damage', () => {
+  const cast = abilityCast(snapshot, 'Miasma', { enemy: 'Bombard', level: 150 });
+  assert.equal(cast.target?.viralStacks, 1);
+  // 150/s x 6s = 900 Viral; the proc doubles it to 1,800 on health, then armour leaves 315.
+  assert.ok(Math.abs((cast.target?.perCast ?? 0) - 315) < 1e-6);
+  const stacked = abilityCast(snapshot, 'Miasma', { enemy: 'Bombard', level: 150, viralStacks: 10 });
+  assert.equal(stacked.target?.viralStacks, 10);
+  assert.ok((stacked.target?.perCast ?? 0) > (cast.target?.perCast ?? 0));
+});
+
+test('Shuriken guarantees one Bleed, which ignores armour', () => {
+  const cast = abilityCast(snapshot, 'Shuriken', { enemy: 'Bombard', level: 150 });
+  const proc = cast.target?.statusProcs.find((entry) => entry.type === 'slash');
+  assert.equal(proc?.stacks, 1);
+  assert.equal(proc?.damageType, 'true');
+  // (750 + 1) x 0.35 x 6 ticks = 1,577.1 True damage.
+  assert.ok(Math.abs((proc?.total ?? 0) - 1577.1) < 1e-6);
+  assert.ok((cast.target?.statusPerCast ?? 0) > 1500);
+});
+
+test('Inferno guarantees a Heat proc seeded by half the meteorite damage', () => {
+  const cast = abilityCast(snapshot, 'Inferno', { enemy: 'Bombard', level: 150 });
+  const proc = cast.target?.statusProcs.find((entry) => entry.type === 'heat');
+  assert.equal(proc?.stacks, 1);
+  assert.ok((proc?.total ?? 0) > 0);
+  assert.ok((cast.target?.statusPerCast ?? 0) > 0);
+});

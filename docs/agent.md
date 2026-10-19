@@ -175,8 +175,10 @@ State these when they matter instead of guessing:
   plays. Say which conditions your answer assumes.
 - **One target, average damage.** No spread, no multi-target, no enemy AI. Time to kill is a
   model of sustained fire including reloads, not a stopwatch.
-- **Ability damage counts its own ticks but not the statuses it applies** (Inferno's guaranteed
-  Heat, Miasma's Viral), and shields are left out of `castsToKill`. Treat it as a floor.
+- **Ability statuses are modelled only where the wiki states them**: Inferno's guaranteed Heat,
+  Miasma's Viral (one stack, doubling health damage) and Shuriken's Bleed. Spores, Thermal Sunder
+  and the rest are not. `target.statusPerCast`, `target.statusProcs` and `target.viralStacks`
+  carry the detail; shields are still left out of `castsToKill`, so treat it as a floor.
 - **Overguard** is modelled for Eximus (`--eximus`) and custom amounts (`--overguard N`):
   a separate layer before shields/health, neutral except Void (+50%), no armour. Only direct
   damage is credited while it is up; status DoT and Magnetic's status amplification are not

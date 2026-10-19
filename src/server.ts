@@ -358,6 +358,7 @@ const server = createServer(async (req, res) => {
           armorModel: (url.searchParams.get('armorModel') ?? undefined) as never,
           eximus: eximus === '1' || eximus === 'true',
           overguard: overguard ? Number(overguard) : undefined,
+          viralStacks: url.searchParams.get('viral') ? Number(url.searchParams.get('viral')) : undefined,
         });
         return json(res, 200, result);
       } catch (error) {

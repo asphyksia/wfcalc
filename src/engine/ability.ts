@@ -11,6 +11,7 @@
  * follows for every ability modelled here.
  */
 import { armorDamageReduction, scaleEnemy, type ArmorModel, type ScaledEnemy } from './enemy.ts';
+import { statusProcDamage, viralMultiplier } from './dot.ts';
 import type { DamageType, Snapshot } from '../types.ts';
 
 export interface AbilityCastOptions {
@@ -23,6 +24,8 @@ export interface AbilityCastOptions {
   eximus?: boolean;
   /** Explicit Overguard amount instead of the Eximus formula. */
   overguard?: number;
+  /** Viral stacks already on the target (the ability may add its own). */
+  viralStacks?: number;
 }
 
 export interface AbilityCast {
@@ -57,8 +60,15 @@ export interface AbilityCast {
     healthMultiplier: number;
     /** Fraction of damage removed by armour. */
     armorReduction: number;
-    /** Damage a single cast deals to this target's health. */
+    /** Damage a single cast deals in total: direct plus the statuses it applies. */
     perCast: number;
+    /** The same split into direct damage and guaranteed status damage. */
+    directPerCast: number;
+    statusPerCast: number;
+    /** Viral stacks (existing plus applied), and the health multiplier they give. */
+    viralStacks: number;
+    /** Guaranteed procs resolved against this target. Viral has no DoT and reports 0. */
+    statusProcs: Array<{ type: DamageType; stacks: number; damageType: DamageType; total: number }>;
     /** Overguard the target has, and the direct damage of one cast against it. */
     overguard: number;
     overguardPerCast: number;
@@ -147,6 +157,15 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
         armorStrip, target: null, notes,
       };
     }
+    // Viral from the ability itself and from stacks the player already keeps up; it amplifies
+    // all damage to health, including the status damage below.
+    const declaredProcs = entry.statusProcs ?? [];
+    const appliedViral = declaredProcs
+      .filter((proc) => proc.type === 'viral')
+      .reduce((sum, proc) => sum + proc.stacks, 0);
+    const viralStacks = Math.max(options.viralStacks ?? 0, appliedViral);
+    const viral = viralMultiplier(viralStacks);
+
     // Each component keeps its own damage type, so each gets its own modifiers.
     const against = (type: DamageType, amount: number): { dealt: number; healthMod: number; dr: number } => {
       const healthMod = healthModifier(snapshot, type, healthType);
@@ -154,14 +173,29 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       const dr = armor ? armorDamageReduction(armorAmount, armorMod, armorModel) : 0;
       const armorOnDamage = armorModel === 'armor-scaling' ? 1 : 1 + armorMod;
       // Same floor rule as weapons: on an armoured target every damage type deals at least 1.
-      return { dealt: Math.max(amount * (1 + healthMod) * (1 - dr) * armorOnDamage, armor ? 1 : 0), healthMod, dr };
+      return { dealt: Math.max(amount * (1 + healthMod) * (1 - dr) * viral * armorOnDamage, armor ? 1 : 0), healthMod, dr };
     };
 
     const main = against(entry.damageType, mainTotal);
     const extra = ticks?.damageType ? against(ticks.damageType as DamageType, ticks.perSecond * ticks.seconds) : null;
-    const perCast = main.dealt + (extra?.dealt ?? 0);
+    const directPerCast = main.dealt + (extra?.dealt ?? 0);
     const healthMod = main.healthMod;
     const dr = main.dr;
+
+    const resolvedProcs = declaredProcs.map((proc) => {
+      if (proc.type === 'viral') return { type: proc.type, stacks: proc.stacks, damageType: proc.type, total: 0 };
+      const seed = scaledDamage * (proc.seedFraction ?? 1);
+      const dot = statusProcDamage(snapshot, proc.type, seed, scaled, { armorModel, armorBase: armor?.amount }, viralStacks);
+      return {
+        type: proc.type,
+        stacks: proc.stacks,
+        damageType: dot?.damageType ?? proc.type,
+        total: (dot?.total ?? 0) * proc.stacks,
+      };
+    });
+    const statusPerCast = resolvedProcs.reduce((sum, proc) => sum + proc.total, 0);
+    const perCast = directPerCast + statusPerCast;
+
     // Overguard is neutral except Void (+50%), ignores armour, and is a separate layer first.
     const againstOverguard = (type: DamageType, amount: number): number =>
       amount * (1 + healthModifier(snapshot, type, 'Overguard'));
@@ -183,12 +217,22 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       healthMultiplier: 1 + healthMod,
       armorReduction: dr,
       perCast,
+      directPerCast,
+      statusPerCast,
+      viralStacks,
+      statusProcs: resolvedProcs,
       overguard: scaled.overguard,
       overguardPerCast,
       castsToKill,
     };
     if (armor) {
       notes.push(`Target armour ${Math.round(armorAmount)} reduces this type by ${(dr * 100).toFixed(1)}%.`);
+    }
+    if (declaredProcs.length) {
+      const lines = resolvedProcs.map((proc) => proc.total > 0
+        ? `${proc.stacks}x ${proc.type}: ${Math.round(proc.total)} damage per cast`
+        : `${proc.stacks}x ${proc.type}: no direct damage, health damage x${viralMultiplier(viralStacks).toFixed(2)}`);
+      notes.push(`Guaranteed status: ${lines.join('; ')}.`);
     }
     notes.push('Shields are ignored here: ability damage does not always bypass them, but the pool varies by ability.');
     if (scaled.overguard > 0) {

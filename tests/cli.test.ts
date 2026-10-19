@@ -240,3 +240,17 @@ test('attenuation is opt-in for Archons and automatic for Eidolons', () => {
   };
   assert.equal(off.attenuation, null);
 });
+
+test('ability statuses are reported in the brief', () => {
+  const miasma = runRaw(['ability', 'Miasma', '--strength', '100', '--enemy', 'Bombard', '--level', '150', '--brief']);
+  assert.equal(miasma.status, 0);
+  assert.match(miasma.stdout, /315\/cast/);
+  assert.match(miasma.stdout, /1 viral/);
+
+  const stacked = runRaw(['ability', 'Miasma', '--viral', '10', '--enemy', 'Bombard', '--level', '150', '--brief']);
+  assert.match(stacked.stdout, /10 viral/);
+
+  const shuriken = runRaw(['ability', 'Shuriken', '--strength', '100', '--enemy', 'Bombard', '--level', '150', '--brief']);
+  assert.equal(shuriken.status, 0);
+  assert.match(shuriken.stdout, /\+1,577\.1 status/);
+});

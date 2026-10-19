@@ -707,6 +707,7 @@ function buildDamageAbilities(): Record<string, DamageAbilityData> {
     radius: number | null; armorStrip?: { mode: 'percent' | 'flat'; value: number } | null;
     perSecond?: boolean; durationSeconds?: number | null;
     extraDot?: { perSecond: number; damageType: string | null; seconds: number } | null;
+    statusProcs?: Array<{ type: string; stacks: number; seedFraction?: number }> | null;
   }>;
   try {
     entries = readJson('damage-abilities.json');
@@ -727,6 +728,7 @@ function buildDamageAbilities(): Record<string, DamageAbilityData> {
       perSecond: Boolean(entry.perSecond),
       durationSeconds: entry.durationSeconds ?? null,
       extraDot: entry.extraDot ?? null,
+      ...(entry.statusProcs?.length ? { statusProcs: entry.statusProcs as DamageAbilityData['statusProcs'] } : {}),
     };
   }
   console.log(`damage abilities: ${Object.keys(out).length}`);
