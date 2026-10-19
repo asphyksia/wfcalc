@@ -88,8 +88,9 @@ part of the build: do not omit it from the answer.
 ## Reading the numbers
 
 - **burst** DPS: while the magazine lasts. **sustained**: reloads included, direct damage only.
-  **total**: against this target, after armour, **including status procs**. This is the number
-  that agrees with TTK: `health / totalDps == timeToKill`.
+  **total**: the rate that removes the target's pools (Overguard, shields, health), after armour
+  and **including status procs**. It agrees with TTK: `pools / totalDps == timeToKill`; on a
+  target with no Overguard or shields that is `health / totalDps`.
 - **ttk** is the model's sustained fire, not a stopwatch. Quote shots too when they ask.
 - **armour** is the effective armour *after* every strip. Show it when strip is involved.
 - A weapon can have huge burst and modest total: the target's armour and health types decide.

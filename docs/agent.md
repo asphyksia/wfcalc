@@ -87,10 +87,12 @@ A returned build is **legal by construction**: at most eight mods, within capaci
 Forma budget, no two mods of the same family, no Exilus mod in a standard slot, no trigger-locked
 Cannonade mod on the wrong trigger.
 
-`--objective dps` scores `totalDps`: damage against the given target after armour and including
-status procs. Scoring direct damage alone makes Weeping Wounds, slash and heat builds invisible
-(on a Nikana Prime, 33.6k real damage per second scored the same as 17.9k). `totalDps` and
-`timeToKill` always agree: `health / totalDps == timeToKill`.
+`--objective dps` scores `totalDps`: the rate that removes the target's pools after armour and
+including status procs (Overguard and shields included). Scoring direct damage alone makes
+Weeping Wounds, slash and heat builds invisible (on a Nikana Prime, 33.6k real damage per second
+scored the same as 17.9k). `totalDps` and `timeToKill` agree by construction:
+`(overguard + shield + health) / totalDps == timeToKill`; on a target with neither Overguard nor
+shields that is the familiar `health / totalDps == timeToKill`.
 
 ## Recipe: judge a build the player already has
 

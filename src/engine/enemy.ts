@@ -118,8 +118,9 @@ export function scaleEnemy(
   const armorFromLevel = enemy.armor * curveMultiplier(ARMOR_CURVE, q);
   const armor = armorFromLevel > 0 ? Math.min(2700, Math.max(200, armorFromLevel)) : 0;
 
-  const overguard = options.overguard !== undefined
-    ? Math.max(0, options.overguard)
+  const explicitOverguard = Number(options.overguard);
+  const overguard = options.overguard !== undefined && Number.isFinite(explicitOverguard)
+    ? Math.max(0, explicitOverguard)
     : options.eximus
       ? overguardForLevel(level)
       : 0;

@@ -49,8 +49,9 @@ One change at a time, in this order:
 Rules that have prevented repeated mistakes:
 
 - A test that **pins the right number** is worth more than three that check it does not crash.
-  Examples: the 22% of armour left after Terrify + Corrosive Projection, `health/totalDps ==
-  timeToKill`, and brute force against the Incarnon search's choice.
+  Examples: the 22% of armour left after Terrify + Corrosive Projection, `pools/totalDps ==
+  timeToKill` (health alone when there is no Overguard/shield), and brute force against the
+  Incarnon search's choice.
 - If the result looks absurd, **it is a bug**: "a level 150 Bombard dies to one cast" and "2361
   dps kills in 271 s" were both true and both wrong.
 - Everything the engine does not model is said in the answer (`warnings`, `notes`,
