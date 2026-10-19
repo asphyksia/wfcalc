@@ -6,10 +6,12 @@
  *  - WARFRAME Wiki raw wikitext/Lua modules (mechanics, modifier axes, damage matrix)
  *
  * Run: node tools/fetch.ts [--force]
- * Existing files are skipped unless --force, so a partial download can be resumed.
+ * Existing files are skipped unless --force, so a partial download can be resumed. The list of
+ * sources is in tools/sources.ts, which tools/sync.ts watches.
  */
 import { mkdir, writeFile, stat } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
+import { WFCD_ITEMS, WIKI_PAGE_SOURCES, WIKI_CATEGORY_SOURCES } from './sources.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const RAW = join(ROOT, 'data/raw');
@@ -18,44 +20,6 @@ const WFCD = 'https://raw.githubusercontent.com/WFCD/warframe-items/master/data/
 const WIKI = 'https://wiki.warframe.com/w';
 // The MediaWiki API lives at the site root, not under /w like the raw wikitext.
 const WIKI_API = 'https://wiki.warframe.com/api.php';
-
-/** WFCD game-export datasets. `as` is the local file name. */
-const wfcdItems = [
-  'Primary',
-  'Secondary',
-  'Melee',
-  'Arch-Gun',
-  'Arch-Melee',
-  'Archwing',
-  'Warframes',
-  'Arcanes',
-  'Enemy',
-  'Mods',
-  'SentinelWeapons',
-  'Sentinels',
-  'Pets',
-];
-
-/** Wiki pages worth keeping verbatim: they document the formulas we implement. */
-const wikiPages: Array<[page: string, file: string]> = [
-  ['Module:Mods/data', 'module-mods.lua'],
-  ['Module:DamageTypes/data', 'module-damagetypes.lua'],
-  ['Module:Warframes/data', 'module-warframes.lua'],
-  ['Damage/Calculation', 'wiki-damage-calculation.wiki'],
-  ['Damage_Type_Modifier', 'wiki-damage-type-modifier.wiki'],
-  ['Enemy_Level_Scaling', 'wiki-enemy-level-scaling.wiki'],
-  ['Riven_Mods', 'wiki-riven-mods.wiki'],
-  // The wiki's weapon database. Its primary/secondary/melee subpages carry the Incarnon form
-  // as an attack of its own ("Incarnon Form"), which WFCD does not export at all.
-  ['Module:Weapons/data/primary', 'module-weapons-primary.lua'],
-  ['Module:Weapons/data/secondary', 'module-weapons-secondary.lua'],
-  ['Module:Weapons/data/melee', 'module-weapons-melee.lua'],
-];
-
-/** Wiki categories: the wiki is the only source that says which mods are Exilus-only. */
-const wikiCategories: Array<[category: string, file: string]> = [
-  ['Exilus Weapon Mods', 'wiki-exilus-mods.json'],
-];
 
 const force = process.argv.includes('--force');
 
@@ -118,7 +82,7 @@ async function main(): Promise<void> {
   await mkdir(RAW, { recursive: true });
 
   const jobs: Array<Promise<void>> = [];
-  for (const item of wfcdItems) {
+  for (const item of WFCD_ITEMS) {
     jobs.push(
       fetchTo(`${WFCD}/${item}.json`, join(RAW, `wfcd-${item}.json`), (text) => {
         const parsed = JSON.parse(text);
@@ -126,7 +90,7 @@ async function main(): Promise<void> {
       }),
     );
   }
-  for (const [page, file] of wikiPages) {
+  for (const [page, file] of WIKI_PAGE_SOURCES) {
     jobs.push(
       fetchTo(`${WIKI}/${encodeURIComponent(page).replace(/%2F/g, '/')}?action=raw`, join(RAW, file), (text) => {
         // Missing pages come back as an HTML error page with status 200.
@@ -135,7 +99,7 @@ async function main(): Promise<void> {
     );
   }
 
-  for (const [category, file] of wikiCategories) {
+  for (const [category, file] of WIKI_CATEGORY_SOURCES) {
     jobs.push(fetchCategory(category, join(RAW, file)));
   }
 

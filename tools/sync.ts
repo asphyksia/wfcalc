@@ -15,8 +15,10 @@
  * and how the calibration moved, so a regression can be traced to a specific week.
  */
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { WIKI_PAGE_SOURCES, WIKI_CATEGORY_SOURCES } from './sources.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const STATE_FILE = join(ROOT, 'data/raw/.upstream-state.json');
@@ -31,6 +33,9 @@ interface UpstreamState {
   wfcd?: { sha: string; date: string };
   /** URL -> Last-Modified for wiki pages (the wiki sends no ETag). */
   lastModified?: Record<string, string>;
+  /** Category label -> hash of its member list. The API sends no Last-Modified, so without
+   *  this every category looked changed on every run and forced a full re-download. */
+  categoryHashes?: Record<string, string>;
 }
 
 const state: UpstreamState = existsSync(STATE_FILE) ? JSON.parse(readFileSync(STATE_FILE, 'utf8')) : {};
@@ -40,19 +45,18 @@ const state: UpstreamState = existsSync(STATE_FILE) ? JSON.parse(readFileSync(ST
  * Wiki categories this project depends on, read through the MediaWiki API. The Exilus one is
  * the only source saying which mods are Exilus-only; WFCD has no such flag.
  */
-const WIKI_CATEGORIES = ['Exilus Weapon Mods'];
+const WIKI_CATEGORIES = WIKI_CATEGORY_SOURCES.map(([category]) => category);
 
-/** Wiki pages and modules this project depends on. */
+/**
+ * Wiki pages and modules this project depends on. The downloaded ones come from the shared
+ * source list, so a page that fetch.ts reads is always watched here. The rest document formulas
+ * or curated data: a change there means "read it and check the engine by hand".
+ */
 const WIKI_PAGES = [
-  'Module:Mods/data',
-  'Module:DamageTypes/data',
-  'Module:Warframes/data',
+  ...WIKI_PAGE_SOURCES.map(([page]) => page),
   'Module:Ability/data',
-  'Damage/Calculation',
   'Armor',
-  'Enemy_Level_Scaling',
   'Damage_over_Time',
-  'Riven_Mods',
   'Status_Effect',
   'Set_Mods',
   'Umbral_Set',
@@ -93,22 +97,43 @@ function categoryUrl(category: string): string {
   return url.toString();
 }
 
-async function changedWikiPages(): Promise<{ changed: string[]; lastModified: Record<string, string> }> {
+async function changedWikiPages(): Promise<{
+  changed: string[];
+  lastModified: Record<string, string>;
+  categoryHashes: Record<string, string>;
+}> {
   const lastModified: Record<string, string> = { ...(state.lastModified ?? {}) };
+  const categoryHashes: Record<string, string> = { ...(state.categoryHashes ?? {}) };
   const changed: string[] = [];
-  const targets: Array<[label: string, url: string]> = [
-    ...WIKI_PAGES.map((page): [string, string] => [
-      page,
-      `https://wiki.warframe.com/w/${encodeURIComponent(page).replace(/%2F/g, '/')}?action=raw`,
-    ]),
-    ...WIKI_CATEGORIES.map((category): [string, string] => [`Category:${category}`, categoryUrl(category)]),
+  const targets: Array<{ label: string; url: string; category?: string }> = [
+    ...WIKI_PAGES.map((page) => ({
+      label: page,
+      url: `https://wiki.warframe.com/w/${encodeURIComponent(page).replace(/%2F/g, '/')}?action=raw`,
+    })),
+    ...WIKI_CATEGORIES.map((category) => ({ label: `Category:${category}`, url: categoryUrl(category), category })),
   ];
   await Promise.all(
-    targets.map(async ([label, url]) => {
+    targets.map(async ({ label, url, category }) => {
       const headers: Record<string, string> = { 'user-agent': 'wfcalc-sync' };
-      const known = state.lastModified?.[url];
-      if (known && !force) headers['if-modified-since'] = known;
       try {
+        if (category) {
+          // A category is a query, not a page: no Last-Modified, no 304. Hash its sorted member
+          // list instead, which costs a few KB and stays stable while the category does.
+          const response = await fetch(url, { headers });
+          if (!response.ok) {
+            changed.push(label);
+            return;
+          }
+          const body = (await response.json()) as { query?: { categorymembers?: Array<{ title: string }> } };
+          const titles = (body.query?.categorymembers ?? []).map((member) => member.title).sort();
+          const hash = createHash('sha256').update(titles.join('\n')).digest('hex');
+          if (!force && state.categoryHashes?.[label] === hash) return;
+          categoryHashes[label] = hash;
+          changed.push(label);
+          return;
+        }
+        const known = state.lastModified?.[url];
+        if (known && !force) headers['if-modified-since'] = known;
         const response = await fetch(url, { headers });
         if (response.status === 304) return;
         if (!response.ok) {
@@ -123,7 +148,7 @@ async function changedWikiPages(): Promise<{ changed: string[]; lastModified: Re
       }
     }),
   );
-  return { changed: changed.sort(), lastModified };
+  return { changed: changed.sort(), lastModified, categoryHashes };
 }
 
 function run(script: string, extra: string[] = []): void {
@@ -151,7 +176,7 @@ function calibrateSample(count: number): { matched: number; total: number; faili
 async function main(): Promise<void> {
   mkdirSync(join(ROOT, 'data/raw'), { recursive: true });
 
-  const outgoing: UpstreamState = { lastModified: state.lastModified };
+  const outgoing: UpstreamState = { lastModified: state.lastModified, categoryHashes: state.categoryHashes };
   let upstreamChanged = false;
 
   console.log('checking upstreams…');
@@ -170,6 +195,7 @@ async function main(): Promise<void> {
 
   const wiki = await changedWikiPages();
   outgoing.lastModified = wiki.lastModified;
+  outgoing.categoryHashes = wiki.categoryHashes;
   if (wiki.changed.length) {
     upstreamChanged = true;
     console.log(`  ${wiki.changed.length} wiki page(s) changed or new:`);
@@ -189,11 +215,14 @@ async function main(): Promise<void> {
   }
 
   console.log('\n1/5 fetching sources…');
-  run('fetch.ts');
-  run('fetch-abilities.ts');
-  run('fetch-damage-abilities.ts');
-  run('fetch-incarnon.ts');
-  run('fetch-sets.ts');
+  // The fetchers skip files that already exist, so a detected change only reaches data/raw if
+  // they are forced. Change detection decides *when* to pay for the download, not *what* to
+  // download: this is the one run that has to see the new upstream.
+  run('fetch.ts', ['--force']);
+  run('fetch-abilities.ts', ['--force']);
+  run('fetch-damage-abilities.ts', ['--force']);
+  run('fetch-incarnon.ts', ['--force']);
+  run('fetch-sets.ts', ['--force']);
   run('fetch-overframe-db.ts');
 
   console.log('\n2/5 rebuilding the snapshot…');
