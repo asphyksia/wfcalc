@@ -1,10 +1,10 @@
 # Calibration results
 
-Pinned battery fetched from Overframe on 2026-10-19 (35 builds).
+Pinned battery of 35 public builds, fetched 2026-10-19.
 Every row is a public build compared field by field (multishot, critical chance, critical
 damage, status chance, fire rate, magazine, reload) against wfcalc, using the game's own
-modifier keys from `overframe.gg/api/v1`. The battery is `data/calibration-builds.json`;
-refresh it deliberately with `npm run calibrate -- --refresh`.
+modifier keys from the external build database. The battery is local
+(`data/calibration-builds.json`, gitignored); refresh it with `npm run calibrate:refresh`.
 
 - builds compared: **35**
 - matching: **35**

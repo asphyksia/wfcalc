@@ -20,16 +20,16 @@
     "eval": "node tools/agent-eval.ts",
     "coverage": "node tools/coverage.ts",
     "validate": "node tools/validate.ts",
-    "overframe": "node tools/overframe.ts",
     "calibrate": "node tools/calibrate.ts",
     "calibrate:refresh": "node tools/calibrate.ts --refresh",
-    "overframe-db": "node tools/fetch-overframe-db.ts",
+    "oracle-db": "node tools/fetch-oracle-db.ts",
     "sync": "node tools/sync.ts",
     "sync-check": "node tools/sync.ts --check",
     "drift": "node tools/drift.ts",
     "audit": "node tools/audit.ts",
     "serve:lan": "node src/server.ts --host 0.0.0.0",
-    "shot": "node tools/shot.ts"
+    "shot": "node tools/shot.ts",
+    "oracle": "node tools/oracle.ts"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

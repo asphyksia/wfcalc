@@ -2,7 +2,7 @@
  * Shared Overframe helpers for the calibration tools.
  *
  * Overframe's public API (`/api/v1/builds/<id>`) gives a build's mod ids, ranks and the
- * game's own modifier block. `tools/fetch-overframe-db.ts` learns what those ids are,
+ * game's own modifier block. `tools/fetch-oracle-db.ts` learns what those ids are,
  * which makes the whole comparison unattended.
  */
 import { existsSync, readFileSync } from 'node:fs';
@@ -21,7 +21,7 @@ export interface OverframeDb {
 
 export function loadOverframeDb(): OverframeDb {
   if (!existsSync(DB_FILE)) {
-    throw new Error('data/raw/overframe-db.json missing — run: node tools/fetch-overframe-db.ts');
+    throw new Error('data/raw/overframe-db.json missing — run: node tools/fetch-oracle-db.ts');
   }
   return JSON.parse(readFileSync(DB_FILE, 'utf8'));
 }

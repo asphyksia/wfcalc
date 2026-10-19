@@ -21,7 +21,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadSnapshot } from '../src/data.ts';
-import { loadOverframeChunks } from './lib/overframe-chunks.ts';
+import { loadOverframeChunks } from './lib/oracle-chunks.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const RAW = join(ROOT, 'data/raw');

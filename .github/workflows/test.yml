@@ -15,6 +15,6 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run eval
-      - run: npm run calibrate
+      # Calibration is local: the pinned battery is not shipped (see README).
       - run: npm run validate
       - run: npm run check

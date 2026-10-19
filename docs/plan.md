@@ -12,7 +12,7 @@ Last updated: 2026-10-19.
 |---|---|
 | Tests | **148 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
-| Calibration vs Overframe | **35/35** pinned public builds (`node tools/calibrate.ts`), offline, ranged only |
+| Calibration | **35/35** public builds, local battery (not shipped); `node tools/calibrate.ts` offline after `calibrate:refresh` |
 | Types | `npm run check` clean |
 | Snapshot | 622 weapons, 1550 mods, 479 enemies, 23 damage/strip abilities, 19 buffs, 74 weapons with an Incarnon form (5 melee) |
 | Coverage | 98% of weapon-relevant mods fully modelled (587/596); 9 unknown lines |
@@ -111,7 +111,7 @@ Rules that have prevented repeated mistakes:
 | A17 | **Conditional mods are named (F3)**: search builds carry `conditionalMods`, the brief says `conditional Galvanized Chamber, ...`, and the human output says which flag activates them. | A search with `--must "Galvanized Chamber"` lists it as conditional; tests pin the field and the brief |
 | A16 | **Incarnon second hits and ability targets (C2, first half)**: the form's AoE/explosion is merged into the shot at the blast centre, with its own falloff under `--aoe-distance`; direct-only multipliers (Condition Overload, Galvanized Aptitude) are scaled by the direct share so they do not inflate the radial hit. Abilities accept `--targets N` (all at full damage inside the radius). | Braton form 50 → 100 total, 95 at 3 m; Ceramic Dagger + CO 3 statuses = direct 1,190 + explosion 350 = 1,540; Miasma 5 targets = 1,575 per cast; tests pin all three |
 | A15 | **Mod coverage (D1)**: utility lines were being counted as unknown, so Bow had 2/6 partial mods and Melee 6/122. Parenthetical qualifiers, secondary-weapon buffs, range, Tennokai, block/damage-taken, slam pull and Shattering Impact's armour chip are now out of scope, not unknown; Split Flights' multishot is fully applied. | Bow 2/6 → **0/6**, Melee 6/122 → **1/122** (Strain Infection), weapon-relevant unknown lines 16 → 9 (98% fully modelled); `tests/coverage.test.ts` pins it |
-| A14 | **Pinned calibration (D2)**: `tools/calibrate.ts` now reads `data/calibration-builds.json` (35 public Overframe builds with weapon, mods, arcanes and the oracle block) instead of sampling a new set on every run. `--refresh` fetches and rewrites the battery; only builds whose weapon and mods resolve are kept, and the list API's page bug is deduplicated. | Two consecutive runs produce the same report hash; CI runs the calibration offline; 35/35 |
+| A14 | **Pinned calibration (D2)**: `tools/calibrate.ts` reads a local battery (`data/calibration-builds.json`, 35 public builds with weapon, mods, arcanes and the oracle block) instead of sampling a new set on every run. `calibrate:refresh` fetches and rewrites it; only builds whose weapon and mods resolve are kept, and the list API's page bug is deduplicated. The battery is **gitignored and not shipped**, so CI skips calibration and the tests skip when it is absent. | Two consecutive local runs produce the same report hash; 35/35; a fresh clone runs tests without it |
 | A13 | **Shields in ability `castsToKill` (C3)**: a cast now removes shields first, with the shield type's damage modifiers and no armour; Toxin bypasses them. `castsToKill` sums Overguard, shield and health casts, and the target exposes `shield`, `shieldPerCast` and `bypassesShield`. | Avalanche at 200% vs a level 150 Corpus Tech: 22,668 shields at 3,000/cast = 8 casts, plus 50 for health = 58 (was 50); the test recomputes the phases independently |
 | A12 | **Ability statuses (C1)**: Inferno's guaranteed Heat, Miasma's Viral (one stack, doubling health damage) and Shuriken's guaranteed Bleed are resolved against the target and folded into `perCast`/`castsToKill`. Targets expose `statusPerCast`, `statusProcs` and `viralStacks`; `--viral N` seeds existing stacks. | Miasma 150/s x 6 = 900 → 315 per cast after its own Viral and Bombard armour (was 157); Shuriken's Bleed is 1,577.1 True per proc; Inferno's Heat proc is 469 on a Bombard. Tests pin all three |
 | A11 | **Damage attenuation (B2, caps)**: `--attenuation archon` applies MDPT 460,000, MDPS 935,000, 20% flat DR and 50% status DR; Eidolons get 200%/100% of max health automatically; `--mdpt/--mdps/--flat-dr/--status-dr` cover a known custom boss. Caps apply per instance and per second before the phase model; TTK is conservative because the exponential smoothing is not modelled. | Synthetic 1M hit on a 1M dummy: 1s → 2.72s under Archon; Eidolon 5M hit on 1M health: 0.2s → 1s; tests pin both and the CLI/API fields |
@@ -205,8 +205,8 @@ tools/sources.ts        the single list of upstream sources (fetch + sync share 
 tools/build-data.ts     WFCD + wiki -> data/snapshot.json
 tools/fetch*.ts         downloads (fetch, abilities, damage abilities, Incarnon, sets)
 tools/sync.ts           change detection, refresh, validate, calibrate, log
-tools/calibrate.ts      Overframe oracle on a pinned battery
-data/calibration-builds.json  the pinned battery (refresh with calibrate:refresh)
+tools/calibrate.ts      public build oracle on a local battery
+data/calibration-builds.json  local, gitignored battery (calibrate:refresh)
 tools/agent-eval.ts     pinned agent questions (npm run eval, CI)
 skills/wfcalc/          agent operating manual (SKILL.md)
 docs/agent.md           contract for an agent
@@ -226,7 +226,7 @@ git log --oneline | head -5      # the top commit
 npm test                          # 145 tests
 npm run eval                      # 10 pinned agent cases
 node tools/validate.ts            # 0 violations
-node tools/calibrate.ts           # 35/35 pinned, offline
+node tools/calibrate.ts           # 35/35 local battery, after calibrate:refresh
 ./tools/dev-server.sh 7801        # only if the web UI is needed
 ```
 

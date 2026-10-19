@@ -6,7 +6,7 @@
  *   node tools/calibrate.ts --battery 80 --fix  only show mismatching builds
  *
  * Mod/arcane names come from data/raw/overframe-db.json, learned by
- * `node tools/fetch-overframe-db.ts`. Exit code is non-zero when anything mismatches.
+ * `node tools/fetch-oracle-db.ts`. Exit code is non-zero when anything mismatches.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -27,7 +27,7 @@ import {
   weaponNameFromUrl,
   type Oracle,
   type ResolvedBuildInput,
-} from './lib/overframe.ts';
+} from './lib/oracle.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const REPORT = join(ROOT, 'docs/calibration-results.md');
@@ -297,11 +297,11 @@ writeFileSync(
   [
     '# Calibration results',
     '',
-    `Pinned battery fetched from Overframe on ${fixture.generatedAt} (${fixture.builds.length} builds).`,
+    `Pinned battery of ${fixture.builds.length} public builds, fetched ${fixture.generatedAt}.`,
     'Every row is a public build compared field by field (multishot, critical chance, critical',
     'damage, status chance, fire rate, magazine, reload) against wfcalc, using the game\'s own',
-    'modifier keys from `overframe.gg/api/v1`. The battery is `data/calibration-builds.json`;',
-    'refresh it deliberately with `npm run calibrate -- --refresh`.',
+    'modifier keys from the external build database. The battery is local',
+    '(`data/calibration-builds.json`, gitignored); refresh it with `npm run calibrate:refresh`.',
     '',
     `- builds compared: **${matched + mismatches.length}**`,
     `- matching: **${matched}**`,

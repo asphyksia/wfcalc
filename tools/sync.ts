@@ -223,7 +223,7 @@ async function main(): Promise<void> {
   run('fetch-damage-abilities.ts', ['--force']);
   run('fetch-incarnon.ts', ['--force']);
   run('fetch-sets.ts', ['--force']);
-  run('fetch-overframe-db.ts');
+  run('fetch-oracle-db.ts');
 
   console.log('\n2/5 rebuilding the snapshot…');
   run('build-data.ts');

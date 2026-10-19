@@ -14,7 +14,7 @@
  *
  * No hashes are hardcoded, so an Overframe deploy does not break this.
  *
- * Run: node tools/fetch-overframe-db.ts
+ * Run: node tools/fetch-oracle-db.ts
  */
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';

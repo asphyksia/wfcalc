@@ -10,7 +10,7 @@
  * The mod ids in `slots` are Overframe-internal, so the mod list has to be given
  * explicitly (or learned into data/raw/overframe-mods.json over time):
  *
- *   node tools/overframe.ts https://overframe.gg/build/1036746/... \
+ *   node tools/oracle.ts https://overframe.gg/build/1036746/... \
  *        --mods "Galvanized Chamber,Galvanized Aptitude,Hellfire,Thermite Rounds,Critical Delay,Primed Shred,Vital Sense,Serration" \
  *        --arcane "Primary Crux" --conditions onKill=2
  *
@@ -35,7 +35,7 @@ const list = (name: string): string[] =>
 
 const buildId = /\/build\/(\d+)/.exec(url)?.[1] ?? (/^\d+$/.test(url) ? url : null);
 if (!buildId) {
-  console.error('usage: node tools/overframe.ts <build-url|id> [--mods "A,B"] [--arcane "X"] [--conditions onKill=2]');
+  console.error('usage: node tools/oracle.ts <build-url|id> [--mods "A,B"] [--arcane "X"] [--conditions onKill=2]');
   process.exit(1);
 }
 

@@ -178,35 +178,32 @@ Or, with cron: `17 4 * * 1 cd ~/work/wfcalc && npm run sync >> sync.log 2>&1`.
 
 ### Drift detection
 
-`npm run drift` joins our weapon data against Overframe's mirror of the same game export,
-by Lotus path, and compares the base stats as ratios (the export stores fire rate in ticks
-per minute, so a flat comparison is meaningless). A field whose ratio is stable across the
-weapons is a unit difference; a weapon that deviates from that median got stale.
+`npm run drift` joins our weapon data against a public mirror of the same game export, by Lotus
+path, and compares the base stats as ratios (the export stores fire rate in ticks per minute, so
+a flat comparison is meaningless). A field whose ratio is stable across weapons is a unit
+difference; a weapon that deviates from that median got stale.
 
 It is a signal, not a verdict: some raw fields sit at their default (Acceltra's
-`criticalHitDamageMultiplier` is 2 in the export while the game and Overframe's own engine
-use 2.8), so crit/status divergences need arbitration. Magazine size and reload have no such
-defaults and are the reliable class — that is how the Fulmin family's factor-of-10 error
-turned up. `npm run sync` runs it on every update.
+`criticalHitDamageMultiplier` is 2 in the export while the game and the mirror's engine use 2.8),
+so crit/status divergences need arbitration. Magazine size and reload have no such defaults and
+are the reliable class — that is how the Fulmin family's factor-of-10 error turned up.
+`npm run sync` runs it on every update.
 
-### Why not sync straight from Overframe's database chunks?
+### Why not use the external database as the primary source?
 
-Because they are a *mirror of the same game export*, keyed by the same Lotus paths, and
-their value here is different: they are the **oracle**. Overframe renders the live game, so
-when our export and Overframe disagree (Acceltra's status chance, Fulmin's magazine) the
-export is the stale one. So:
+Because it is a *mirror of the same game export*, keyed by the same Lotus paths, and its value
+here is different: it is the oracle. It renders the live game, so when our export and the mirror
+disagree (Acceltra's status chance, Fulmin's magazine) the export is the stale one. So:
 
 | Source | Role |
 |---|---|
 | WFCD `warframe-items` | primary data — structured, git-versioned, diffable |
 | WARFRAME Wiki raw modules | primary data — mod list, formulas, sets, abilities |
-| Overframe `api/v1` + `static/_next/.../db/*` | **verifier** — calibration (`npm run calibrate`) and drift detection (`npm run drift`) |
+| External public build database (API + static mirror) | verifier — calibration and drift; provenance in `docs/data-notes.md` |
 
-Using Overframe as the primary source would mean adopting a webpack chunk with their own
-schema as the foundation, and losing the per-commit diffability of a git repository. Making
-it the verifier gets the accuracy benefit — `tools/calibrate.ts` and the drift check below —
-without the coupling. The learned id map (`data/raw/overframe-db.json`) is rebuilt on every
-sync, so an Overframe redeploy never breaks it.
+Using it as the primary source would mean adopting a webpack chunk with its own schema as the
+foundation, and losing the per-commit diffability of a git repository. Making it the verifier
+gets the accuracy benefit without the coupling. The learned id map is rebuilt on every sync.
 
 ## Data
 
@@ -305,48 +302,31 @@ layers. `npm run validate` is the machine-checkable part and exits non-zero on f
 The validator has already earned its keep: it caught a charge weapon whose export
 `fireRate` is 0 (Lanka), which made its DPS zero.
 
-## Automated calibration against Overframe
+## Calibration against public builds
 
-Overframe's HTML is behind Cloudflare, but two things are not: its JSON API and its
-Next.js static host. That is enough to calibrate against real, public builds:
+A public build database is reachable through its JSON API and static host. That is enough to
+validate against real builds without making it a data source:
 
 ```sh
-node tools/fetch-overframe-db.ts        # learn Overframe's mod/item ids (no hardcoded hashes)
-npm run calibrate:refresh               # fetch a fresh battery of public builds
+node tools/fetch-oracle-db.ts        # learn the external mod/item ids (no hardcoded hashes)
+npm run calibrate:refresh               # fetch a local battery of public builds
 node tools/calibrate.ts                 # compare the pinned battery, offline
 node tools/calibrate.ts --build <id>    # one build's stat-by-stat detail
 ```
 
-`tools/calibrate.ts` resolves every mod and arcane from the learned ids, computes the build
-with wfcalc and diffs it against Overframe's own modifier block (`WEAPON_CRIT_CHANCE`,
-`WEAPON_FIRE_ITERATIONS`, ...). The battery is committed as `data/calibration-builds.json`, so
-the default run is deterministic and offline; `calibrate:refresh` is the only network step.
-Results land in [docs/calibration-results.md](docs/calibration-results.md).
+`tools/calibrate.ts` resolves every mod and arcane from the learned ids, computes the build with
+wfcalc and diffs it against the external modifier block (`WEAPON_CRIT_CHANCE`,
+`WEAPON_FIRE_ITERATIONS`, ...). The battery is **local and gitignored**
+(`data/calibration-builds.json`); only the aggregate result is committed in
+[docs/calibration-results.md](docs/calibration-results.md). `calibrate:refresh` is the only
+network step.
 
-Latest battery: **35/35** unique public builds, including **8 melee and 5 secondary** weapons
-(the list API returns the same page for every `page` parameter, which used to create duplicates).
-`tests/calibration.test.ts` keeps the melee/secondary slice honest offline. `npm run audit`
-adds the *why*: mismatch rate per weapon category, per field, and mods over-represented in
-failures. Its last sweep found every failure concentrated in four weapons, one field each. The remaining mismatches are
-grouped by signature; the open ones are listed in [docs/data-notes.md](docs/data-notes.md).
-
-## Comparing a single build by hand
-
-Overframe's site is behind Cloudflare, but its JSON API is not:
-
-```sh
-node tools/overframe.ts https://overframe.gg/build/1036746/ \
-  --weapon Haalvu \
-  --mods "Galvanized Chamber,Galvanized Aptitude,Hellfire,Thermite Rounds,Critical Delay,Primed Shred,Vital Sense,Serration" \
-  --arcane "Primary Crux" --conditions onKill=2
-```
-
-It pulls `GET /api/v1/builds/<id>` (mods with ranks plus the game's own modifier block:
-`WEAPON_CRIT_CHANCE`, `WEAPON_FIRE_ITERATIONS`, ...) and diffs it against wfcalc. The
-Haalvu build above matches on 8/8 stats including total damage.
-
-Mod ids in `slots` are Overframe-internal, so the mod list has to be supplied once per
-build; `data/raw/overframe-mods.json` accumulates the mapping as builds are compared.
+Latest battery: **35/35** unique public builds, including **8 melee and 5 secondary** weapons.
+`tests/calibration.test.ts` runs locally when the battery is present and skips in a fresh clone
+or CI, because the battery is not shipped. `npm run audit` adds the *why*: mismatch rate per
+weapon category, per field, and mods over-represented in failures. Its last sweep found every
+failure concentrated in four weapons, one field each. The remaining mismatches are grouped by
+signature; the open ones are listed in [docs/data-notes.md](docs/data-notes.md).
 
 ## Reviewing the UI without a desktop
 
@@ -369,7 +349,7 @@ npm run eval       # pinned answers for the questions an agent gets
 npm run check      # tsc --noEmit
 npm run coverage   # how much of the mod dataset is understood
 npm run validate   # invariants + cross-checks over the whole dataset
-npm run calibrate  # pinned Overframe battery, offline
+npm run calibrate  # local pinned build battery, offline (refresh first)
 ```
 
 Layout:
@@ -399,8 +379,8 @@ Contributors and beta review records: [CONTRIBUTORS.md](CONTRIBUTORS.md) and
 ## Status and known limitations
 
 Usable now for comparing ranged weapon builds, mods, rivens, Incarnon and abilities against a
-concrete enemy. Calibration against 35 pinned public Overframe builds (seven arsenal stats
-each) matches 35/35, offline and deterministic. It does **not** model:
+concrete enemy. Calibration against 35 pinned public builds (seven arsenal stats each) matches
+35/35 locally; the battery is not shipped. It does **not** model:
 
 - **Ability statuses** are modelled for the abilities whose wiki page states them: Inferno's
   guaranteed Heat, Miasma's Viral and Shuriken's Bleed. Other abilities' status effects are not.
@@ -448,7 +428,8 @@ The **data** has its own terms and they are not all compatible with commercial u
   from it. NC means non-commercial: a paid product built on this snapshot needs permission or a
   data source without that restriction. If you redistribute the snapshot, keep the attribution
   and share-alike terms.
-- Overframe is queried as an oracle for calibration only; its builds are not shipped.
+- External public builds are queried for calibration only. The battery is local and gitignored;
+  no build IDs, titles or pages are shipped.
 - Warframe artwork, names and marks belong to Digital Extremes. No artwork is redistributed in
   this repository: the server fetches mod cards and images on demand and caches them locally
   (`data/cards/`, `data/img/`, `data/frames/`, all gitignored). If you plan to charge for an app

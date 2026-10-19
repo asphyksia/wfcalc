@@ -29,7 +29,7 @@ import {
   resolveBuildInput,
   sleep,
   weaponNameFromUrl,
-} from './lib/overframe.ts';
+} from './lib/oracle.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const args = process.argv.slice(2);
