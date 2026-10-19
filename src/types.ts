@@ -307,6 +307,12 @@ export interface DamageAbilityData {
    * Ability Strength scales both, and it is the weapon that benefits, not the ability.
    */
   armorStrip?: { mode: 'percent' | 'flat'; value: number } | null;
+  /** True when the base damage is per second rather than per cast (Miasma, Thermal Sunder). */
+  perSecond?: boolean;
+  /** How long the effect lasts, in seconds: ticks for a per-second ability, ring lifetime. */
+  durationSeconds?: number | null;
+  /** A second, ticking component alongside the direct hit (Inferno's ring of fire). */
+  extraDot?: { perSecond: number; damageType: string | null; seconds: number } | null;
 }
 
 export interface IncarnonOption {

@@ -107,6 +107,50 @@ function damageTypeOf(wikitext: string, strengthRaw: string): string | null {
   return null;
 }
 
+/** Splits "<a / b / c> (label)<br/><d - e / ...> (other label)" into labelled segments. */
+function segments(strengthRaw: string): Array<{ numbers: number[]; label: string; raw: string }> {
+  return strengthRaw
+    .split(/<br\s*\/?>/i)
+    .map((part) => {
+      const clean = stripTemplates(part);
+      const numbers = (clean.match(/\d+(?:[.,]\d+)?/g) ?? []).map((n) => Number(n.replace(',', '.')));
+      const label = clean.replace(/[\d.,%]+/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+      return { numbers, label, raw: part };
+    })
+    .filter((segment) => segment.numbers.length > 0);
+}
+
+/**
+ * Whether the ability's own prose says the damage is per second. The infobox alone is not
+ * enough: Miasma's strength line reads "110 / 125 / 135 / 150 (Viral damage)" and only the
+ * ability description says "per second".
+ */
+function isPerSecond(wikitext: string, maxDamageValue: number): boolean {
+  // Only the descriptive `info` paragraph counts. The infobox itself joins its segments with
+  // <br/>, so reading it makes Inferno's direct hit inherit the ring's "per second".
+  // Some pages (Miasma) have no `info` parameter, so the description has to be found in the rest
+  // of the page. The strength line is removed first, because its <br/>-joined segments would
+  // otherwise run together.
+  const info = templateParam(wikitext, 'info');
+  // `??` would keep an empty string: these pages put several parameters on one line, so the
+  // value sometimes comes back empty even though the description is there.
+  const source = info && info.trim().length > 40 ? info : wikitext.replace(/\|\s*strength\s*=[^\n]*/gi, ' ');
+  const prose = stripTemplates(source.replace(/\[\[[^\]]*\]\]/g, ' ')).replace(/<br\s*\/?>/gi, '. ');
+  // The sentence that carries the damage number is the one that decides: Inferno's ring and its
+  // direct hit sit in the same paragraph, and only the ring is per second.
+  return prose
+    .split(/\.\s/)
+    .some((sentence) => /per\s+second/i.test(sentence) && sentence.includes(String(maxDamageValue)));
+}
+
+/** Max-rank duration in seconds, from `| duration = 7 / 10 / 12 / 15 s`. */
+function durationOf(wikitext: string): number | null {
+  const raw = templateParam(wikitext, 'duration');
+  if (!raw) return null;
+  const numbers = stripTemplates(raw).match(/\d+(?:[.,]\d+)?/g);
+  return numbers?.length ? Number(numbers[numbers.length - 1].replace(',', '.')) : null;
+}
+
 /** The max-rank damage number of the strength line, e.g. "150 / 300 / 500 / 800 (Blast damage)". */
 function maxDamage(strengthRaw: string): number | null {
   const first = stripTemplates(strengthRaw.split(/<br\s*\/?>/i)[0] ?? '');
@@ -116,7 +160,13 @@ function maxDamage(strengthRaw: string): number | null {
 
 async function main(): Promise<void> {
   await mkdir(OUT_DIR, { recursive: true });
-  const out: Array<{ frame: string; ability: string; damageType: string | null; baseDamage: number | null; radius: number | null; page: string; armorStrip: { mode: 'percent' | 'flat'; value: number } | null }> = [];
+  const out: Array<{
+    frame: string; ability: string; damageType: string | null; baseDamage: number | null;
+    radius: number | null; page: string;
+    armorStrip: { mode: 'percent' | 'flat'; value: number } | null;
+    perSecond: boolean; durationSeconds: number | null;
+    extraDot: { perSecond: number; damageType: string | null; seconds: number } | null;
+  }> = [];
   let failures = 0;
 
   for (const entry of ABILITIES) {
@@ -151,6 +201,19 @@ async function main(): Promise<void> {
     }
     const baseDamage = strengthRaw ? maxDamage(strengthRaw) : null;
     const damageType = strengthRaw ? damageTypeOf(wikitext, strengthRaw) : null;
+    const durationSeconds = strengthRaw ? durationOf(wikitext) : null;
+    // Damage that ticks: either the main value is "per second" (Miasma) or the infobox carries
+    // a second, ticking segment next to the direct hit (Inferno's ring of fire).
+    const perSecond = Boolean(strengthRaw && baseDamage !== null && isPerSecond(wikitext, baseDamage));
+    const extra = strengthRaw ? segments(strengthRaw).slice(1).find((segment) => /per second|\/s\b/.test(segment.label)) : undefined;
+    const extraDot = extra && durationSeconds
+      ? {
+          perSecond: extra.numbers[extra.numbers.length - 1],
+          // The damage type lives in the {{D|...}} marker, which stripping templates removes.
+          damageType: damageTypeOf(wikitext, extra.raw),
+          seconds: durationSeconds,
+        }
+      : null;
     // A "strength" of 1 or 1.25 is a multiplier or a percentage, not damage; the infobox mixes
     // quantities. Only entries that name a damage type and carry a plausible amount are kept.
     if (!armorStrip && (!damageType || baseDamage === null || baseDamage < 10)) {
@@ -162,9 +225,14 @@ async function main(): Promise<void> {
     const rangeNumbers = stripTemplates(rangeRaw).match(/\d+(?:[.,]\d+)?/g);
     const radius = rangeNumbers?.length ? Number(rangeNumbers[rangeNumbers.length - 1].replace(',', '.')) : null;
 
-    out.push({ frame: entry.frame, ability: entry.ability, damageType, baseDamage, radius, page: entry.page, armorStrip });
+    out.push({
+      frame: entry.frame, ability: entry.ability, damageType, baseDamage, radius, page: entry.page,
+      armorStrip, perSecond, durationSeconds, extraDot,
+    });
     console.log(
-      `${entry.frame.padEnd(11)} ${entry.ability.padEnd(20)} ${String(baseDamage).padStart(6)} ${String(damageType ?? '?').padEnd(12)} r=${String(radius ?? '-').padEnd(5)} ${armorStrip ? `strip ${armorStrip.value}${armorStrip.mode === 'percent' ? '%' : 'pts'}` : ''}`,
+      `${entry.frame.padEnd(11)} ${entry.ability.padEnd(20)} ${String(baseDamage).padStart(6)}${perSecond ? '/s' : '  '} ${String(damageType ?? '?').padEnd(11)} r=${String(radius ?? '-').padEnd(5)} `
+        + `${armorStrip ? `strip ${armorStrip.value}${armorStrip.mode === 'percent' ? '%' : 'pts'} ` : ''}`
+        + `${extraDot ? `+ ${extraDot.perSecond}/s ${extraDot.damageType} x${extraDot.seconds}s` : ''}`,
     );
   }
 

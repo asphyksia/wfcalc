@@ -112,7 +112,9 @@ wfcalc ability "Rhino Stomp" --strength 200 --enemy Bombard --level 150 --json
 Returns the base damage at 100% Ability Strength, the damage at the strength you passed, and
 against the target: the health-type modifier, the fraction armour removes, damage per cast and
 casts to kill. Ability damage is **flat**: it never crits, ignores the weapon and its mods, and
-against a level 150 Bombard most of it is lost to armour (Rhino Stomp: 160 of 1,600).
+against a level 150 Bombard most of it is lost to armour (Rhino Stomp: 160 of 1,600). Abilities
+that tick are summed over their duration: Miasma's `totalDamage` is 900 at 100% strength, and
+Inferno's 26,000 at 200% is a direct hit plus fifteen seconds of ring fire.
 
 **Armour strip is the point of most damage abilities.** `wfcalc ability Avalanche --strength 200`
 reports that it removes 100% of armour (60% at 100% strength, full at 167%). Feeding that to a
@@ -153,9 +155,12 @@ State these when they matter instead of guessing:
   This matters most for search results: say which conditions your answer assumes.
 - **One target, average damage.** No spread, no multi-target, no enemy AI. Time to kill is a
   model of sustained fire including reloads, not a stopwatch.
-- **Ability damage is raw damage only.** No headshots, no area falloff, no repeated ticks over
-  time, and shields are left out of the casts-to-kill figure. An ability that ticks (Inferno,
-  Miasma) will look weaker than it plays; say so.
+- **Ability damage counts its own ticks.** Where the wiki says the damage is per second, or the
+  ability has a second ticking component (Inferno's ring of fire), the total per cast is
+  `totalDamage` and it is priced per tick against the target. Miasma is 900, not 150; Inferno at
+  200% strength is 26,000, not 5,000. What is *not* modelled is the status effects the ability
+  applies (Inferno's guaranteed Heat proc, Miasma's Viral), and shields are left out of the
+  casts-to-kill figure, so treat the result as a floor.
 - **Armour strip covers four abilities** (Avalanche, Terrify, Seeking Shuriken as a percentage;
   Polarize as a flat drain), Corrosive Projection auras and Shattering Impact. Anything else
   that strips, such as Fusion Strike or an unknown augment, must be passed with `--armor-strip`.

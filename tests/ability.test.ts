@@ -121,3 +121,35 @@ test('a strip is worth more to the weapon than the ability itself', () => {
   assert.ok(Math.abs(scaled.health / stripped.totalDps - stripped.timeToKill!) < 1e-6);
   assert.ok(Math.abs(scaled.health / bare.totalDps - bare.timeToKill!) < 1e-6);
 });
+
+test('an ability that ticks is not priced as a single hit', () => {
+  // Miasma: 150 viral damage *per second* for 6 seconds.
+  const miasma = abilityCast(snapshot, 'Miasma', { strength: 100 });
+  assert.equal(miasma.perSecond, true);
+  assert.equal(miasma.durationSeconds, 6);
+  assert.equal(miasma.totalDamage, 900);
+  assert.equal(abilityCast(snapshot, 'Miasma', { strength: 200 }).totalDamage, 1800);
+
+  // Inferno: a 2500 direct meteorite plus a ring of fire that ticks for 15 seconds.
+  const inferno = abilityCast(snapshot, 'Inferno', { strength: 100 });
+  assert.equal(inferno.perSecond, false);
+  assert.ok(inferno.ticks, 'Inferno should carry its ring of fire');
+  assert.equal(inferno.ticks!.seconds, 15);
+  const expected = inferno.scaledDamage + inferno.ticks!.perSecond * 15;
+  assert.ok(Math.abs(inferno.totalDamage - expected) < 1e-6);
+
+  // A plain nuke is unaffected: one hit, no ticks.
+  const stomp = abilityCast(snapshot, 'Rhino Stomp');
+  assert.equal(stomp.perSecond, false);
+  assert.equal(stomp.ticks, null);
+  assert.equal(stomp.totalDamage, stomp.scaledDamage);
+});
+
+test('ticks make a damage ability kill in fewer casts', () => {
+  const single = abilityCast(snapshot, 'Rhino Stomp', { enemy: 'Bombard', level: 150, strength: 200 });
+  const ticking = abilityCast(snapshot, 'Inferno', { enemy: 'Bombard', level: 150, strength: 200 });
+  assert.ok(ticking.target);
+  assert.ok(ticking.target!.perCast > single.target!.perCast,
+    `Inferno (${ticking.target!.perCast}) should out-damage a single-hit nuke (${single.target!.perCast})`);
+  assert.ok(ticking.target!.castsToKill! < single.target!.castsToKill!);
+});

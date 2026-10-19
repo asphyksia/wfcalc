@@ -588,7 +588,15 @@ function main(): void {
         break;
       }
       console.log(`${result.frame} — ${result.ability} (${result.damageType ?? 'no damage'})`);
-      console.log(`  ${num(result.baseDamage, 0)} at 100% strength -> ${num(result.scaledDamage, 0)} at ${result.strength}%`);
+      const per = result.perSecond ? '/s' : '';
+      console.log(`  ${num(result.baseDamage, 0)}${per} at 100% strength -> ${num(result.scaledDamage, 0)}${per} at ${result.strength}%`);
+      if (result.perSecond && result.durationSeconds) {
+        console.log(`  ticks for ${result.durationSeconds}s: ${num(result.scaledDamage * result.durationSeconds, 0)} in total`);
+      }
+      if (result.ticks) {
+        console.log(`  plus ${num(result.ticks.perSecond, 0)}/s ${result.ticks.damageType ?? ''} for ${result.ticks.seconds}s: ${num(result.ticks.perSecond * result.ticks.seconds, 0)}`);
+        console.log(`  full cast: ${num(result.totalDamage, 0)}`);
+      }
       if (result.target) {
         console.log(`  vs ${result.target.enemy} level ${result.target.level}: ${num(result.target.perCast, 0)} per cast`);
         console.log(`  health modifier x${result.target.healthMultiplier.toFixed(2)}, armour removes ${(result.target.armorReduction * 100).toFixed(1)}%`);

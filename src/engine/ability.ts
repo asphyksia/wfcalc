@@ -29,8 +29,16 @@ export interface AbilityCast {
   /** Damage at 100% Ability Strength. 0 when the ability deals none. */
   baseDamage: number;
   strength: number;
-  /** Base damage scaled by Ability Strength. */
+  /** Base damage scaled by Ability Strength, per hit or per second as the ability does. */
   scaledDamage: number;
+  /** True when scaledDamage is per second. */
+  perSecond: boolean;
+  /** Seconds the effect lasts, when it does. */
+  durationSeconds: number | null;
+  /** Everything a single cast deals, ticks included, at 100% accuracy against nothing. */
+  totalDamage: number;
+  /** Ticking part of the cast, if any (Inferno's ring alongside its direct hit). */
+  ticks: { perSecond: number; damageType: string | null; seconds: number } | null;
   radius: number | null;
   /**
    * Armour this cast removes, scaled by Ability Strength. Percentage strips scale linearly and
@@ -68,6 +76,19 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
 
   const strength = options.strength ?? 100;
   const scaledDamage = (entry.baseDamage ?? 0) * (strength / 100);
+  // An ability that ticks deals its number every second for its duration: Miasma is 150 per
+  // second for 6 seconds, not 150 once. Inferno is a direct hit plus a ring that ticks.
+  const durationSeconds = entry.durationSeconds ?? null;
+  const seconds = entry.perSecond && durationSeconds ? durationSeconds : 1;
+  const mainTotal = scaledDamage * seconds;
+  const ticks = entry.extraDot
+    ? {
+        perSecond: entry.extraDot.perSecond * (strength / 100),
+        damageType: entry.extraDot.damageType,
+        seconds: entry.extraDot.seconds,
+      }
+    : null;
+  const totalDamage = mainTotal + (ticks ? ticks.perSecond * ticks.seconds : 0);
   const armorStrip = entry.armorStrip
     ? {
         mode: entry.armorStrip.mode,
@@ -111,15 +132,26 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       // Nothing to damage: only the strip matters, and it is already reported above.
       return {
         frame: entry.frame, ability: entry.ability, damageType: entry.damageType,
-        baseDamage: 0, strength, scaledDamage, radius: entry.radius ?? null, armorStrip, target: null, notes,
+        baseDamage: 0, strength, scaledDamage, perSecond: Boolean(entry.perSecond),
+        durationSeconds, totalDamage, ticks, radius: entry.radius ?? null,
+        armorStrip, target: null, notes,
       };
     }
-    const healthMod = healthModifier(snapshot, entry.damageType, healthType);
-    const armorMod = armor ? healthModifier(snapshot, entry.damageType, armor.type) : 0;
-    const dr = armor ? armorDamageReduction(armorAmount, armorMod, armorModel) : 0;
-    const armorOnDamage = armorModel === 'armor-scaling' ? 1 : 1 + armorMod;
-    // Same floor rule as weapons: on an armoured target every damage type deals at least 1.
-    const perCast = Math.max(scaledDamage * (1 + healthMod) * (1 - dr) * armorOnDamage, armor ? 1 : 0);
+    // Each component keeps its own damage type, so each gets its own modifiers.
+    const against = (type: DamageType, amount: number): { dealt: number; healthMod: number; dr: number } => {
+      const healthMod = healthModifier(snapshot, type, healthType);
+      const armorMod = armor ? healthModifier(snapshot, type, armor.type) : 0;
+      const dr = armor ? armorDamageReduction(armorAmount, armorMod, armorModel) : 0;
+      const armorOnDamage = armorModel === 'armor-scaling' ? 1 : 1 + armorMod;
+      // Same floor rule as weapons: on an armoured target every damage type deals at least 1.
+      return { dealt: Math.max(amount * (1 + healthMod) * (1 - dr) * armorOnDamage, armor ? 1 : 0), healthMod, dr };
+    };
+
+    const main = against(entry.damageType, mainTotal);
+    const extra = ticks?.damageType ? against(ticks.damageType as DamageType, ticks.perSecond * ticks.seconds) : null;
+    const perCast = main.dealt + (extra?.dealt ?? 0);
+    const healthMod = main.healthMod;
+    const dr = main.dr;
 
     target = {
       enemy: enemy.name,
@@ -142,6 +174,10 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     baseDamage: entry.baseDamage ?? 0,
     strength,
     scaledDamage,
+    perSecond: Boolean(entry.perSecond),
+    durationSeconds,
+    totalDamage,
+    ticks,
     radius: entry.radius ?? null,
     armorStrip,
     target,
