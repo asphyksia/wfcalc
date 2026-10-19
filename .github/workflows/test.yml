@@ -14,5 +14,6 @@ jobs:
           node-version: 24
       - run: npm ci
       - run: npm test
+      - run: npm run eval
       - run: npm run validate
       - run: npm run check

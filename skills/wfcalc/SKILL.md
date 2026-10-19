@@ -28,6 +28,9 @@ Do **not** add an MCP layer or parse JSON just to re-print it.
 4. **Ask one question per invocation.** Do not enumerate 622 weapons to find a name; use
    `wfcalc weapons <query>`.
 5. `search` defaults to 3 builds: use `--top 1` unless the player asked for alternatives.
+6. **Repeated calculations:** use `--brief=answer` (no burst/sustained/armour, no search
+   assumptions) once you already know the context, or `wfcalc batch file.jsonl` to price many
+   builds in one process. A bad batch record is reported on its line; the rest still run.
 
 ## Procedure
 
@@ -65,6 +68,9 @@ wfcalc ability Avalanche --strength 200 --brief          # 100% armour strip
 wfcalc weapons soma          wfcalc mods "Soma Prime" multishot
 wfcalc arcanes               wfcalc buffs               wfcalc rivens damage
 wfcalc incarnon Torid        wfcalc enemies bombard
+
+# many calculations, one process (JSONL: calc records, with "label" and optionally "ability")
+wfcalc batch builds.jsonl --brief=answer
 ```
 
 Useful flags: `--objective ttk|dps`, `--capacity 30|60`, `--forma N`, `--must "A,B"`,

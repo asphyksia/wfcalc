@@ -20,11 +20,13 @@
  *   --json                      machine-readable output (only when you must parse it)
  *   --debug                     add the stack trace when a command fails
  */
+import { readFileSync } from 'node:fs';
 import { loadSnapshot, findEnemy, findMod, findWeapon, modsForWeapon } from './data.ts';
 import { resolveBuild, type Build, type BuildMod } from './engine/build.ts';
 import { search } from './engine/search.ts';
 import { abilityCast } from './engine/ability.ts';
 import { resolveStrip, type StripDebuff } from './engine/strip.ts';
+import { buildFromJson } from './request.ts';
 import { scaleEnemy } from './engine/enemy.ts';
 import { hitEnemy } from './engine/damage.ts';
 import { BUFFS, availableBuffs } from './engine/buffs.ts';
@@ -194,6 +196,49 @@ function resolveEnemy(snapshot: Snapshot, args: Args) {
   return { enemy: item, level };
 }
 
+/** The one-line calculation summary, shared by `calc`/`compare` and `batch`. */
+function calcBriefLine(
+  label: string,
+  resolved: ReturnType<typeof resolveBuild>,
+  hit: ReturnType<typeof hitEnemy>,
+  enemyName: string,
+  level: number,
+  mode: 'full' | 'answer',
+): string {
+  const head = `${label ? `${label}: ` : ''}${resolved.weapon.name} vs ${enemyName} ${level}`;
+  const ttk = hit.timeToKill === null ? 'cannot kill' : `ttk ${num(hit.timeToKill, 2)}s (${num(hit.shotsToKill, 1)} shots)`;
+  if (mode === 'answer') return `${head} · ${num(hit.totalDps)} dps · ${ttk}`;
+  const parts = [
+    head,
+    `burst ${num(resolved.burstDps)}`,
+    `sustained ${num(resolved.sustainedDps)}`,
+    `total ${num(hit.totalDps)} dps with status`,
+    ttk,
+    `armour ${num(hit.armor)}`,
+  ];
+  const warnings = resolved.warnings.length + resolved.unsupportedMods.length;
+  if (warnings) parts.push(`${warnings} warning(s)`);
+  if (resolved.unsupportedMods.length) parts.push('lower bound');
+  return parts.join(' · ');
+}
+
+/** The one-line ability summary, shared by `ability` and `batch`. */
+function abilityBriefLine(result: ReturnType<typeof abilityCast>, mode: 'full' | 'answer'): string {
+  const strip = result.armorStrip
+    ? `strip ${result.armorStrip.fraction !== null ? `${(result.armorStrip.fraction * 100).toFixed(0)}%` : `${num(result.armorStrip.points ?? 0)} pts`}`
+    : '';
+  const target = result.target
+    ? `vs ${result.target.enemy} ${result.target.level}: ${num(result.target.perCast)}/cast · ${result.target.castsToKill === null ? 'cannot kill' : `${num(result.target.castsToKill)} casts`}`
+    : '';
+  return [
+    `${result.frame} ${result.ability}${result.damageType ? ` (${result.damageType})` : ''}`,
+    `${num(result.scaledDamage)}${result.perSecond ? '/s' : ''} at ${num(result.strength)}%`,
+    ...(mode === 'full' ? [`total ${num(result.totalDamage)}`] : []),
+    target,
+    strip,
+  ].filter(Boolean).join(' · ');
+}
+
 function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string): void {
   const build = buildFromArgs(snapshot, args, mods.map((m) => (m.rank ? `${m.name}=R${m.rank}` : m.name)));
   // Re-apply ranks lost by the string round-trip above.
@@ -207,19 +252,9 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
 
   // One line, for an agent that runs dozens of these: the numbers that answer the question
   // without the per-type and per-status breakdown it did not ask for.
-  if (wantsBrief(args)) {
-    const parts = [
-      `${label === 'build' ? '' : `${label}: `}${resolved.weapon.name} vs ${enemy.name} ${level}`,
-      `burst ${num(resolved.burstDps)}`,
-      `sustained ${num(resolved.sustainedDps)}`,
-      `total ${num(hit.totalDps)} dps with status`,
-      hit.timeToKill === null ? 'cannot kill' : `ttk ${num(hit.timeToKill, 2)}s (${num(hit.shotsToKill, 1)} shots)`,
-      `armour ${num(hit.armor)}`,
-    ];
-    const warnings = resolved.warnings.length + resolved.unsupportedMods.length;
-    if (warnings) parts.push(`${warnings} warning(s)`);
-    if (resolved.unsupportedMods.length) parts.push('lower bound');
-    console.log(parts.join(' · '));
+  const brief = briefMode(args);
+  if (brief !== 'off') {
+    console.log(calcBriefLine(label === 'build' ? '' : label, resolved, hit, enemy.name, level, brief));
     return;
   }
 
@@ -336,7 +371,15 @@ function emitJson(payload: unknown): void {
 }
 
 const wantsJson = (args: Args): boolean => args.flags.has('json');
-const wantsBrief = (args: Args): boolean => !wantsJson(args) && args.flags.has('brief');
+/**
+ * `--brief` prints the full one-liner; `--brief=answer` drops the context an agent already
+ * knows (burst/sustained/armour, search assumptions) and keeps the answer only.
+ */
+type BriefMode = 'off' | 'full' | 'answer';
+const briefMode = (args: Args): BriefMode => {
+  if (wantsJson(args) || !args.flags.has('brief')) return 'off';
+  return flag(args, 'brief') === 'answer' ? 'answer' : 'full';
+};
 
 /**
  * An expected failure: bad input, unknown name, impossible option. These exit with code 2 and
@@ -545,8 +588,11 @@ function main(): void {
         emitJson(result);
         break;
       }
-      if (wantsBrief(args)) {
-        console.log(`${result.weapon} vs ${result.enemy} ${result.level} · ${result.builds.length} of ${result.evaluated} builds`);
+      const brief = briefMode(args);
+      if (brief !== 'off') {
+        if (brief === 'full') {
+          console.log(`${result.weapon} vs ${result.enemy} ${result.level} · ${result.builds.length} of ${result.evaluated} builds`);
+        }
         result.builds.forEach((build, index) => {
           const ttk = build.timeToKill === null ? 'cannot kill' : `${num(build.timeToKill, 2)}s`;
           const facts = [
@@ -557,8 +603,8 @@ function main(): void {
           console.log(`${index + 1}. ${ttk} · ${facts.join(' · ')} · ${build.formaNeeded}F · ${build.capacityUsed}/${build.capacity} cap`);
           console.log(`   ${build.mods.map((mod) => `${mod.name}${mod.rank < 99 ? ` R${mod.rank}` : ''}`).join(', ')}`);
         });
-        if (result.assumptions.length) console.log(`assumptions: ${result.assumptions.join(' · ')}`);
-        if (result.notes.length) console.log(`notes: ${result.notes.join(' · ')}`);
+        if (brief === 'full' && result.assumptions.length) console.log(`assumptions: ${result.assumptions.join(' · ')}`);
+        if (brief === 'full' && result.notes.length) console.log(`notes: ${result.notes.join(' · ')}`);
         break;
       }
       console.log(`${result.weapon} vs ${result.enemy} level ${result.level} — best ${result.builds.length} of ${result.evaluated} builds tried (${result.elapsedMs}ms)\n`);
@@ -609,20 +655,9 @@ function main(): void {
         emitJson(result);
         break;
       }
-      if (wantsBrief(args)) {
-        const strip = result.armorStrip
-          ? `strip ${result.armorStrip.fraction !== null ? `${(result.armorStrip.fraction * 100).toFixed(0)}%` : `${num(result.armorStrip.points ?? 0)} pts`}`
-          : '';
-        const target = result.target
-          ? `vs ${result.target.enemy} ${result.target.level}: ${num(result.target.perCast)}/cast · ${result.target.castsToKill === null ? 'cannot kill' : `${num(result.target.castsToKill)} casts`}`
-          : '';
-        console.log([
-          `${result.frame} ${result.ability}${result.damageType ? ` (${result.damageType})` : ''}`,
-          `${num(result.scaledDamage)}${result.perSecond ? '/s' : ''} at ${num(result.strength)}%`,
-          `total ${num(result.totalDamage)}`,
-          target,
-          strip,
-        ].filter(Boolean).join(' · '));
+      const brief = briefMode(args);
+      if (brief !== 'off') {
+        console.log(abilityBriefLine(result, brief));
         break;
       }
       console.log(`${result.frame} — ${result.ability} (${result.damageType ?? 'no damage'})`);
@@ -664,6 +699,101 @@ function main(): void {
       }
       break;
     }
+    case 'batch': {
+      // One process, one line per calculation. Input is JSONL: a calc record (the same fields
+      // as POST /api/calc) or an ability record with "ability". Output is always line-oriented;
+      // --json gives compact JSONL, not the full single-build report.
+      const file = args.positional[0] ?? '-';
+      let text: string;
+      try {
+        text = readFileSync(file === '-' ? 0 : file, 'utf8');
+      } catch (error) {
+        throw new CliError(`cannot read batch file ${file}: ${(error as Error).message}`, 'invalid_argument');
+      }
+      const jsonOut = wantsJson(args);
+      const mode = briefMode(args) === 'answer' ? 'answer' : 'full';
+      let failed = 0;
+      let row = 0;
+      const emitError = (label: string, error: unknown): void => {
+        failed++;
+        const message = error instanceof Error ? error.message : String(error);
+        const code = error instanceof CliError ? error.code : 'error';
+        const suggestions = error instanceof CliError ? error.suggestions : [];
+        if (jsonOut) {
+          console.log(JSON.stringify({ label, error: { code, message, ...(suggestions.length ? { suggestions } : {}) } }));
+        } else {
+          console.log(`${label}: error: ${message}${suggestions.length ? ` (did you mean: ${suggestions.join(', ')}?)` : ''}`);
+        }
+      };
+      for (const line of text.split(/\r?\n/)) {
+        row++;
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        let record: any;
+        try {
+          record = JSON.parse(trimmed);
+        } catch (error) {
+          emitError(`#${row}`, new CliError(`invalid JSON: ${(error as Error).message}`, 'invalid_argument'));
+          continue;
+        }
+        const label = typeof record.label === 'string' && record.label ? record.label : `#${row}`;
+        try {
+          if (record.ability) {
+            let cast;
+            try {
+              cast = abilityCast(snapshot, String(record.ability), {
+                strength: record.strength ?? record.abilityStrength ?? 100,
+                enemy: record.enemy,
+                level: record.level,
+                armorModel: record.armorModel as never,
+              });
+            } catch (error) {
+              const message = (error as Error).message;
+              throw new CliError(message, /not found/.test(message) ? 'ability_not_found' : 'error');
+            }
+            if (jsonOut) {
+              console.log(JSON.stringify({
+                label, frame: cast.frame, ability: cast.ability, damageType: cast.damageType,
+                strength: cast.strength, scaledDamage: cast.scaledDamage, perSecond: cast.perSecond,
+                totalDamage: cast.totalDamage, target: cast.target, armorStrip: cast.armorStrip,
+                notes: cast.notes,
+              }));
+            } else {
+              console.log(`${label}: ${abilityBriefLine(cast, mode)}`);
+            }
+            continue;
+          }
+          const weapon = requireWeapon(snapshot, String(record.weapon ?? ''));
+          const build = buildFromJson(snapshot, record, weapon.name);
+          const resolved = resolveBuild(snapshot, build);
+          const enemyName = String(record.enemy ?? 'Bombard');
+          const { item: enemy, suggestions } = findEnemy(snapshot, enemyName);
+          if (!enemy) throw new CliError(`enemy not found: ${enemyName}`, 'enemy_not_found', suggestions);
+          const level = record.level === undefined ? 100 : Number(record.level);
+          const hit = hitEnemy(snapshot, resolved, scaleEnemy(snapshot, enemy, level), {
+            armorModel: record.armorModel as never,
+          });
+          if (jsonOut) {
+            // Rounded on purpose: a batch line is for comparing, and full float noise costs
+            // tokens without adding information.
+            const round = (value: number | null, digits: number) => (value === null ? null : Number(value.toFixed(digits)));
+            console.log(JSON.stringify({
+              label, weapon: resolved.weapon.name, enemy: enemy.name, level,
+              burstDps: round(resolved.burstDps, 1), sustainedDps: round(resolved.sustainedDps, 1),
+              totalDps: round(hit.totalDps, 1), timeToKill: round(hit.timeToKill, 2),
+              shotsToKill: round(hit.shotsToKill, 1),
+              armor: round(hit.armor, 1), warnings: resolved.warnings, unsupportedMods: resolved.unsupportedMods,
+            }));
+          } else {
+            console.log(`${label}: ${calcBriefLine('', resolved, hit, enemy.name, level, mode)}`);
+          }
+        } catch (error) {
+          emitError(label, error);
+        }
+      }
+      if (failed) process.exitCode = 1;
+      break;
+    }
     default:
       console.log(`wfcalc — offline Warframe damage calculator
 
@@ -679,6 +809,7 @@ function main(): void {
   wfcalc abilities [query]              abilities that deal damage
   wfcalc ability <name> [options]       damage per cast of one ability
   wfcalc compare <weapon> --vs a,b      compare setups
+  wfcalc batch <file|->                 JSONL of calculations, one line each (default stdin)
   wfcalc serve                          web UI + JSON API (see docs/api.md)
 
 Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
@@ -698,7 +829,8 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
          --aoe-distance 4            (AoE falloff distance in metres)
          --enemy NAME  --level N  --faction NAME  --mode "Name"
          --stacks onKill=5  --status-types N  --headshot
-         --brief one line per result (agent default)   --json machine-readable   --debug stack trace
+         --brief one line per result        --brief=answer answer only
+         --json machine-readable output      --debug stack trace on failure
 
 Ability options:
          --strength N          Ability Strength (100 = unmodded)

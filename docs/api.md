@@ -1,8 +1,9 @@
 # JSON API
 
 `wfcalc serve` exposes a small HTTP API on `http://127.0.0.1:7777` (loopback only by
-default). It is meant to be driven by scripts and AI agents: same inputs, same
-results as the CLI and the UI.
+default). It is meant for the web UI and for programs that speak HTTP; **an AI agent should use
+the CLI**, which is cheaper per question (`--brief`, `--brief=answer`, `wfcalc batch`) and has
+no schema round-trip. Same inputs and engine either way.
 
 ## `GET /api/weapons`
 

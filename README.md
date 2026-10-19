@@ -40,7 +40,13 @@ into your agent's skills directory to install it.
 wfcalc search "Soma Prime" --enemy Bombard --level 150 --top 1 --brief
 wfcalc calc "Soma Prime" --mod Serration --strip-from Avalanche --strength 200 --enemy Bombard --level 150 --brief
 wfcalc ability Miasma --strength 200 --enemy Bombard --level 150 --brief
+wfcalc calc "Soma Prime" --mod Serration --enemy Bombard --level 150 --brief=answer  # answer only
+wfcalc batch builds.jsonl --brief=answer                                           # one process, one line each
 ```
+
+`batch` reads JSONL (the same fields as `POST /api/calc`, plus `label` and `ability`); a bad
+record is reported on its own line and does not stop the rest. `npm run eval` runs ten pinned
+agent cases (best build, strip, melee Incarnon, errors, batch) and fails if an answer moves.
 
 ## Quick start
 
@@ -343,7 +349,8 @@ npm run shot -- --width 1280 --height 900 --out /tmp/desktop.png
 
 ```sh
 npm run update     # refresh data
-npm test           # engine tests (values quoted from the wiki)
+npm test           # engine and CLI contract tests
+npm run eval       # pinned answers for the questions an agent gets
 npm run check      # tsc --noEmit
 npm run coverage   # how much of the mod dataset is understood
 npm run validate   # invariants + cross-checks over the whole dataset

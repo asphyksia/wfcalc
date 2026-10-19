@@ -16,8 +16,8 @@ const run = (args: string[]): unknown => {
   return JSON.parse(out);
 };
 
-const runRaw = (args: string[]) =>
-  spawnSync(BIN, args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+const runRaw = (args: string[], input?: string) =>
+  spawnSync(BIN, args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, input, stdio: ['pipe', 'pipe', 'pipe'] });
 
 test('listing commands emit parseable JSON', () => {
   const weapons = run(['weapons', 'Soma', '--json']) as Array<{ name: string }>;
@@ -119,4 +119,28 @@ test('expected failures exit 2, stay terse, and are JSON when asked', () => {
   const ability = runRaw(['ability', 'Not An Ability', '--json']);
   assert.equal(ability.status, 2);
   assert.equal((JSON.parse(ability.stderr) as { error: { code: string } }).error.code, 'ability_not_found');
+});
+
+test('--brief=answer keeps the answer and drops the context', () => {
+  const result = runRaw(['calc', 'Kuva Bramma', '--mod', 'Serration', '--enemy', 'Bombard', '--level', '150', '--brief=answer']);
+  assert.equal(result.status, 0);
+  const lines = result.stdout.trim().split('\n');
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /ttk [\d,.]+s/);
+  for (const word of ['burst', 'sustained', 'armour']) assert.ok(!lines[0].includes(word));
+});
+
+test('batch prices every record and reports a bad one without stopping', () => {
+  const input = [
+    JSON.stringify({ label: 'bramma', weapon: 'Kuva Bramma', mods: [{ name: 'Serration' }], enemy: 'Bombard', level: 150 }),
+    JSON.stringify({ label: 'typo', weapon: 'NoSuchWeapon', enemy: 'Bombard', level: 150 }),
+    JSON.stringify({ label: 'avalanche', ability: 'Avalanche', strength: 200 }),
+  ].join('\n');
+  const result = runRaw(['batch', '--brief=answer'], input);
+  assert.equal(result.status, 1, 'one failed record makes the batch exit 1');
+  const lines = result.stdout.trim().split('\n');
+  assert.equal(lines.length, 3);
+  assert.match(lines[0], /^bramma: Kuva Bramma vs Bombard 150 · [\d,.]+ dps · ttk /);
+  assert.match(lines[1], /^typo: error: weapon not found: NoSuchWeapon/);
+  assert.match(lines[2], /^avalanche: Frost Avalanche .* · strip 100%/);
 });

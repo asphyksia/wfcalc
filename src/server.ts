@@ -20,7 +20,7 @@ import { hitEnemy, statusProcs } from './engine/damage.ts';
 import { availableBuffs } from './engine/buffs.ts';
 import { search } from './engine/search.ts';
 import { abilityCast } from './engine/ability.ts';
-import { resolveStrip } from './engine/strip.ts';
+import { buildFromJson } from './request.ts';
 
 const WEB_ROOT = new URL('./web/', import.meta.url).pathname;
 /** Mod artwork cache: fetched once from the WFCD export repo, then served locally. */
@@ -95,41 +95,6 @@ async function readBody(req: IncomingMessage): Promise<any> {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
-/** The build fields shared by `/api/calc` and `/api/search`, in the API's JSON shape. */
-function buildFromBody(body: any, weaponName: string): Build {
-  // The semantic strip fields are resolved here so the UI and an agent can say "2 Corrosive
-  // Projections and Avalanche at 200% strength" instead of pre-computing the debuff.
-  const strip = resolveStrip(snapshot, {
-    corrosiveProjections: body.corrosiveProjections,
-    armorStripPercent: body.armorStripPercent,
-    stripFrom: body.stripFrom,
-    shatteringImpactHits: body.shatteringImpactHits,
-    strength: body.abilityStrength ? Number(body.abilityStrength) : undefined,
-  });
-  return {
-    weapon: weaponName,
-    mods: Array.isArray(body.mods) ? body.mods : [],
-    arcanes: Array.isArray(body.arcanes) ? body.arcanes : [],
-    buffs: Array.isArray(body.buffs) ? body.buffs : [],
-    abilityStrength: body.abilityStrength ? Number(body.abilityStrength) : undefined,
-    frameMods: Array.isArray(body.frameMods) ? body.frameMods : [],
-    frame: body.frame || undefined,
-    warframeArcanes: Array.isArray(body.warframeArcanes) ? body.warframeArcanes : [],
-    incarnon: Array.isArray(body.incarnon) ? body.incarnon : [],
-    elementBonus: body.elementBonus
-      ? { type: body.elementBonus.type, value: Number(body.elementBonus.value) > 1 ? Number(body.elementBonus.value) / 100 : Number(body.elementBonus.value) }
-      : undefined,
-    aoeDistance: body.aoeDistance !== undefined ? Number(body.aoeDistance) : undefined,
-    comboHits: body.comboHits ? Number(body.comboHits) : undefined,
-    heavyAttack: Boolean(body.heavyAttack),
-    riven: body.riven ?? undefined,
-    debuffs: { ...(body.debuffs ?? {}), ...strip },
-    mode: body.mode || undefined,
-    conditions: body.conditions ?? {},
-    headshot: Boolean(body.headshot),
-  };
-}
-
 /** Runs a build and returns everything the UI needs to render a report. */
 function calculate(body: any) {
   const weaponQuery: string = body.weapon ?? '';
@@ -138,7 +103,7 @@ function calculate(body: any) {
 
   let build: Build;
   try {
-    build = buildFromBody(body, weapon.name);
+    build = buildFromJson(snapshot, body, weapon.name);
   } catch (error) {
     return { error: String((error as Error).message) };
   }
@@ -311,7 +276,7 @@ const server = createServer(async (req, res) => {
       const baseSource = body.base && typeof body.base === 'object' ? body.base : body;
       let base: Build;
       try {
-        base = { ...buildFromBody(baseSource, weapon.name), mods: [] };
+        base = { ...buildFromJson(snapshot, baseSource, weapon.name), mods: [] };
       } catch (error) {
         return json(res, 400, { error: String((error as Error).message) });
       }

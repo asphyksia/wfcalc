@@ -17,6 +17,7 @@
     "calc": "node src/cli.ts",
     "check": "tsc --noEmit",
     "test": "node --test tests/*.test.ts",
+    "eval": "node tools/agent-eval.ts",
     "coverage": "node tools/coverage.ts",
     "validate": "node tools/validate.ts",
     "overframe": "node tools/overframe.ts",

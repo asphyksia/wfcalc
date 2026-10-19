@@ -19,9 +19,13 @@ question. The cheapest answer that is still correct wins:
 
 1. **`--brief`** for `calc`, `search` and `ability`: one line, plus the mod list for search.
 2. **Default text** when the player needs the breakdown (elements, status ticks, per-type).
-3. **`--json` only when you must parse a field** that `--brief` does not expose.
+3. **`--brief=answer`** when the context is already known (repeated calculations): it drops
+   burst/sustained/armour and the search assumptions and keeps DPS, TTK and the mods.
+4. **`--json` only when you must parse a field** that `--brief` does not expose.
    Never fetch JSON and paste it into the answer.
-4. **One question per invocation.** `wfcalc weapons soma` is cheaper than filtering the whole
+5. **One process for many builds.** `wfcalc batch builds.jsonl` prices a JSONL of calculations
+   in one start, with a line per record; a bad record does not stop the others.
+6. **One question per invocation.** `wfcalc weapons soma` is cheaper than filtering the whole
    catalogue in your head. Use `--top 1` unless alternatives were requested.
 
 ## The three rules
@@ -39,6 +43,7 @@ question. The cheapest answer that is still correct wins:
 | `search <weapon>` | Which mods make the best build for a target |
 | `calc <weapon> --mod ...` | Damage of a build you already have |
 | `compare <weapon> --vs A,B` | Same weapon under several mod sets |
+| `batch <file\|->` | A JSONL of calculations, one line each (also stdin) |
 | `mods <weapon> [query]` | Which mods fit, with effects and conditions |
 | `ability <name>` | Damage and armour strip of one ability |
 | `weapons [query]`, `enemies [query]`, `arcanes`, `buffs`, `abilities`, `rivens`, `incarnon <weapon>` | The pieces to build with |
@@ -114,6 +119,19 @@ the player told you which frame they run.
 
 `wfcalc abilities` lists the 22 damage abilities with parsed numbers. That is a curated list,
 not every ability in the game: the wiki has no machine-readable index of damage abilities.
+
+## Recipe: many calculations in one process
+
+```sh
+cat builds.jsonl | wfcalc batch --brief=answer
+```
+
+Each line is a calculation record with the same fields as `POST /api/calc` (`weapon`, `mods`,
+`arcanes`, `incarnon`, strip fields, `enemy`, `level`...), plus `label` and optionally
+`ability`/`strength` for a cast instead of a weapon. Default output is the brief line per
+record; `--json` gives compact JSONL with rounded values (`burstDps`, `sustainedDps`,
+`totalDps`, `timeToKill`, `shotsToKill`, `armor`, `warnings`) or the ability fields. The exit
+code is 1 if any record failed, but every record is still processed and reported.
 
 ## Recipe: with a warframe
 
