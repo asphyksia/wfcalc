@@ -28,11 +28,15 @@ export interface AbilityCastOptions {
   viralStacks?: number;
   /** Enemies hit by one cast, all inside the radius (default 1). */
   targets?: number;
+  /** Alternative mode (Thermal Sunder's "heat"), when the ability has one. */
+  mode?: string;
 }
 
 export interface AbilityCast {
   frame: string;
   ability: string;
+  /** Alternative mode used, if any. */
+  mode: string | null;
   /** Null when the ability deals no damage and is kept only for its armour strip. */
   damageType: DamageType | null;
   /** Damage at 100% Ability Strength. 0 when the ability deals none. */
@@ -102,27 +106,33 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     throw new Error(`ability not found: ${abilityName}${known.length ? ` (known: ${known.slice(0, 8).join(', ')}...)` : ''}`);
   }
 
+  if (options.mode && entry.modes && !entry.modes[options.mode]) {
+    throw new Error(`unknown mode for ${entry.ability}: ${options.mode} (known: ${Object.keys(entry.modes).join(', ')})`);
+  }
+  const active = options.mode && entry.modes?.[options.mode]
+    ? { ...entry, ...entry.modes[options.mode] }
+    : entry;
   const strength = options.strength ?? 100;
-  const scaledDamage = (entry.baseDamage ?? 0) * (strength / 100);
+  const scaledDamage = (active.baseDamage ?? 0) * (strength / 100);
   // An ability that ticks deals its number every second for its duration: Miasma is 150 per
   // second for 6 seconds, not 150 once. Inferno is a direct hit plus a ring that ticks.
-  const durationSeconds = entry.durationSeconds ?? null;
-  const seconds = entry.perSecond && durationSeconds ? durationSeconds : 1;
-  const components = (entry.damageComponents?.length
-    ? entry.damageComponents
-    : entry.damageType && entry.baseDamage
-      ? [{ type: entry.damageType, amount: entry.baseDamage }]
+  const durationSeconds = active.durationSeconds ?? null;
+  const seconds = active.perSecond && durationSeconds ? durationSeconds : 1;
+  const components = (active.damageComponents?.length
+    ? active.damageComponents
+    : active.damageType && active.baseDamage
+      ? [{ type: active.damageType, amount: active.baseDamage }]
       : []
   ).map((component) => ({
     type: component.type as DamageType,
     amount: component.amount * (strength / 100) * seconds,
   }));
   const mainTotal = components.reduce((sum, component) => sum + component.amount, 0);
-  const ticks = entry.extraDot
+  const ticks = active.extraDot
     ? {
-        perSecond: entry.extraDot.perSecond * (strength / 100),
-        damageType: entry.extraDot.damageType,
-        seconds: entry.extraDot.seconds,
+        perSecond: active.extraDot.perSecond * (strength / 100),
+        damageType: active.extraDot.damageType,
+        seconds: active.extraDot.seconds,
       }
     : null;
   const totalDamage = mainTotal + (ticks ? ticks.perSecond * ticks.seconds : 0);
@@ -138,7 +148,7 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       }
     : null;
   const notes: string[] = [];
-  if (entry.baseDamage) {
+  if (active.baseDamage) {
     notes.push('Ability damage is flat: it does not crit, use multishot or roll status, and mods on the weapon do not apply.');
   } else {
     notes.push(`${entry.ability} deals no damage of its own; it is here for its armour strip.`);
@@ -170,18 +180,18 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     const healthPool = scaled.health;
     const armorAmount = scaled.armor;
 
-    if (!entry.damageType || !entry.baseDamage) {
+    if (!active.damageType || !active.baseDamage) {
       // Nothing to damage: only the strip matters, and it is already reported above.
       return {
-        frame: entry.frame, ability: entry.ability, damageType: entry.damageType,
-        baseDamage: 0, strength, scaledDamage, perSecond: Boolean(entry.perSecond),
+        frame: entry.frame, ability: entry.ability, mode: options.mode ?? null, damageType: active.damageType,
+        baseDamage: 0, strength, scaledDamage, perSecond: Boolean(active.perSecond),
         durationSeconds, totalDamage, ticks, damageComponents: [], radius: entry.radius ?? null,
         armorStrip, target: null, notes,
       };
     }
     // Viral from the ability itself and from stacks the player already keeps up; it amplifies
     // all damage to health, including the status damage below.
-    const declaredProcs = entry.statusProcs ?? [];
+    const declaredProcs = active.statusProcs ?? [];
     const appliedViral = declaredProcs
       .filter((proc) => proc.type === 'viral')
       .reduce((sum, proc) => sum + proc.stacks, 0);
@@ -243,7 +253,7 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       ? components.reduce((sum, component) => sum + againstShield(component.type, component.amount), 0)
         + (ticks?.damageType ? againstShield(ticks.damageType as DamageType, ticks.perSecond * ticks.seconds) : 0)
       : 0;
-    const bypassesShield = entry.damageType === 'toxin';
+    const bypassesShield = active.damageType === 'toxin';
     const overguardCasts = scaled.overguard > 0 && overguardPerCast > 0
       ? Math.ceil(scaled.overguard / overguardPerCast)
       : 0;
@@ -292,7 +302,7 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     }
     if (scaled.shield > 0) {
       notes.push(bypassesShield
-        ? `${entry.damageType} bypasses shields: ${Math.round(scaled.shield)} shield remains untouched.`
+        ? `${active.damageType} bypasses shields: ${Math.round(scaled.shield)} shield remains untouched.`
         : `Shields ${Math.round(scaled.shield)}: ${Math.round(shieldPerCast)} per cast; castsToKill includes them.`);
     }
     if (scaled.overguard > 0) {
@@ -303,11 +313,12 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
   return {
     frame: entry.frame,
     ability: entry.ability,
-    damageType: entry.damageType,
-    baseDamage: entry.baseDamage ?? 0,
+    mode: options.mode ?? null,
+    damageType: active.damageType,
+    baseDamage: active.baseDamage ?? 0,
     strength,
     scaledDamage,
-    perSecond: Boolean(entry.perSecond),
+    perSecond: Boolean(active.perSecond),
     durationSeconds,
     totalDamage,
     damageComponents: components,

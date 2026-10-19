@@ -239,3 +239,16 @@ test('Fireball counts its direct and area Heat and guarantees a Heat proc', () =
   assert.deepEqual(cast.damageComponents.map((component) => component.amount), [800, 300]);
   assert.ok((cast.target?.statusPerCast ?? 0) > 0);
 });
+
+test('Thermal Sunder has a Heat mode with its own damage and guaranteed proc', () => {
+  const cold = abilityCast(snapshot, 'Thermal Sunder', { enemy: 'Bombard', level: 150 });
+  assert.equal(cold.mode, null);
+  assert.equal(cold.damageType, 'cold');
+  assert.equal(cold.totalDamage, 6000);
+  const heat = abilityCast(snapshot, 'Thermal Sunder', { enemy: 'Bombard', level: 150, mode: 'heat' });
+  assert.equal(heat.mode, 'heat');
+  assert.equal(heat.damageType, 'heat');
+  assert.equal(heat.totalDamage, 1500);
+  assert.ok((heat.target?.statusPerCast ?? 0) > 0);
+  assert.equal(heat.target?.statusProcs[0]?.type, 'heat');
+});

@@ -309,7 +309,7 @@ function abilityBriefLine(result: ReturnType<typeof abilityCast>, mode: 'full' |
     : '';
   const damageTypes = [...new Set(result.damageComponents.map((component) => component.type))];
   return [
-    `${result.frame} ${result.ability}${damageTypes.length ? ` (${damageTypes.join('+')})` : result.damageType ? ` (${result.damageType})` : ''}`,
+    `${result.frame} ${result.ability}${damageTypes.length ? ` (${damageTypes.join('+')})` : result.damageType ? ` (${result.damageType})` : ''}${result.mode ? ` · ${result.mode} mode` : ''}`,
     `${num(result.scaledDamage)}${result.perSecond ? '/s' : ''} at ${num(result.strength)}%`,
     ...(mode === 'full' ? [`total ${num(result.totalDamage)}`] : []),
     target,
@@ -768,6 +768,7 @@ function main(): void {
           armorModel: flag(args, 'armor-model') as never,
           viralStacks: flag(args, 'viral') ? Number(flag(args, 'viral')) : undefined,
           targets: flag(args, 'targets') ? Number(flag(args, 'targets')) : undefined,
+          mode: flag(args, 'ability-mode'),
           ...targetScale(args),
         });
       } catch (error) {
@@ -784,7 +785,7 @@ function main(): void {
         break;
       }
       const damageTypes = [...new Set(result.damageComponents.map((component) => component.type))];
-      console.log(`${result.frame} — ${result.ability} (${damageTypes.length ? damageTypes.join('+') : result.damageType ?? 'no damage'})`);
+      console.log(`${result.frame} — ${result.ability} (${damageTypes.length ? damageTypes.join('+') : result.damageType ?? 'no damage'})${result.mode ? ` · ${result.mode} mode` : ''}`);
       const per = result.perSecond ? '/s' : '';
       console.log(`  ${num(result.baseDamage, 0)}${per} at 100% strength -> ${num(result.scaledDamage, 0)}${per} at ${result.strength}%`);
       if (result.perSecond && result.durationSeconds) {
@@ -890,6 +891,7 @@ function main(): void {
                 armorModel: record.armorModel as never,
                 viralStacks: record.viral !== undefined ? Number(record.viral) : undefined,
                 targets: record.targets !== undefined ? Number(record.targets) : undefined,
+                mode: record.abilityMode,
                 eximus: Boolean(record.eximus),
                 overguard: record.overguard !== undefined ? Number(record.overguard) : undefined,
               });
@@ -1012,6 +1014,7 @@ Ability options:
          --strength N          Ability Strength (100 = unmodded)
          --viral N             Viral stacks already on the target
          --targets N           enemies hit by one ability cast (default 1)
+         --ability-mode heat   alternative ability mode (Thermal Sunder)
          --enemy NAME --level N  apply the target's modifiers and armour
 
 Search options:

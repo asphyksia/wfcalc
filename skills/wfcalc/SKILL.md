@@ -129,8 +129,8 @@ part of the build: do not omit it from the answer.
   invulnerability phases, status DoT/Magnetic amplification on **Overguard**, multi-target/AoE,
   stance modifiers, companions/Archwing/Necramech, one AoE shot hitting a group, and ability
   distance falloff. Torid's chain is modelled with `--targets N`. Ability statuses are modelled only for
-  Inferno and Fireball (Heat), Miasma (Viral) and Shuriken (Bleed); Spores and Thermal Sunder
-  are not. Melee and secondary
+  Inferno and Fireball (Heat), Thermal Sunder's Heat mode, Miasma (Viral) and Shuriken (Bleed);
+  Spores is not. Melee and secondary
   builds have no external calibration yet. Eximus Overguard and the Archon/Eidolon caps *are*
   modelled.
 - Do not present a search result as a measurement; it is the best build under the model.

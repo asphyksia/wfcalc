@@ -296,3 +296,10 @@ test('Torid chains with --targets and other weapons warn instead', () => {
   assert.equal(soma.multiTargetDps, null);
   assert.ok(soma.warnings.some((line) => /only modelled for a chained Incarnon/.test(line)));
 });
+
+test('Thermal Sunder accepts --ability-mode heat', () => {
+  const result = runRaw(['ability', 'Thermal Sunder', '--ability-mode', 'heat', '--enemy', 'Bombard', '--level', '150', '--brief']);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /heat mode/);
+  assert.match(result.stdout, /1,500/);
+});

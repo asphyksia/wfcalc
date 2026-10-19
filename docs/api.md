@@ -67,7 +67,7 @@ modifier, armour reduction and a minimum of 1 per damage type.
 
 ```json
 {
-  "frame": "Saryn", "ability": "Miasma", "damageType": "viral",
+  "frame": "Saryn", "ability": "Miasma", "mode": null, "damageType": "viral",
   "baseDamage": 150, "strength": 200, "scaledDamage": 300,
   "perSecond": true, "durationSeconds": 6, "totalDamage": 1800,
   "armorStrip": null,
@@ -84,7 +84,8 @@ modifier, armour reduction and a minimum of 1 per damage type.
 Parameters: `name` (required), `strength` (percent, default 100), `enemy`, `level`,
 `armorModel` (`armor-scaling` | `multiply` | `both`), `eximus` (`1`/`true`), `overguard`
 (an explicit amount), `viral` (Viral stacks already on the target; Miasma also applies its
-own) and `targets` (enemies hit by one cast, all at full damage). `target.castsToKill` includes the casts needed to break Overguard;
+own), `targets` (enemies hit by one cast, all at full damage) and `mode` (Thermal Sunder's
+`heat`). `target.castsToKill` includes the casts needed to break Overguard;
 `target.overguard` and `target.overguardPerCast` are reported separately. `perCast` is damage
 to health: direct plus the guaranteed statuses (`statusPerCast`); `statusProcs` lists them and
 `viralStacks` the Viral stacks in effect. `shield`/`shieldPerCast` are the shield phase (Toxin

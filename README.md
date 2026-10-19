@@ -415,9 +415,10 @@ each) matches 35/35, offline and deterministic. It does **not** model:
 - **Torid chain**: the Incarnon beam chains to up to five nearby enemies at 75% per link;
   `--targets N` reports the group total (same target profile assumed). Other weapons warn if
   asked for multiple targets.
-- **Ability statuses**: Inferno (Heat), Fireball (Heat), Miasma (Viral) and Shuriken (Bleed) are
-  curated; Spores' Corrosive and Thermal Sunder's Heat/Cold modes are not. Inferno's direct hit
-  is split into the wiki's 1,250 Impact + 1,250 Heat.
+- **Ability statuses**: Inferno (Heat), Fireball (Heat), Thermal Sunder's Heat mode, Miasma
+  (Viral) and Shuriken (Bleed) are curated; Spores' Corrosive procs are not yet. Inferno's direct
+  hit is split into the wiki's 1,250 Impact + 1,250 Heat. Use `--ability-mode heat` for Thermal
+  Sunder's Hold cast.
 - **Damage attenuation**: per-hit attenuation uses the wiki's hyperbolic formula for
   Archons/Eidolons and explicit `--mdpt/--mdps`; the per-second exponential smoothing is not
   modelled, and Liches/Sisters have no published cap values (pass your own). Eidolon

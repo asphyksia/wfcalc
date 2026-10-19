@@ -325,6 +325,18 @@ export interface AbilityData {
 
 /** One choice inside an Incarnon evolution tier. */
 /** An ability that deals damage on its own, from the wiki's infobox. */
+export interface AbilityModeData {
+  damageType: DamageType | null;
+  baseDamage: number | null;
+  damageComponents?: Array<{ type: DamageType; amount: number }> | null;
+  statusProcs?: Array<{ type: DamageType; stacks: number; seedFraction?: number; seed?: number }> | null;
+  /** Alternative modes (Thermal Sunder tap/hold), keyed by the mode name. */
+  modes?: Record<string, AbilityModeData> | null;
+  perSecond?: boolean;
+  durationSeconds?: number | null;
+  extraDot?: { perSecond: number; damageType: string | null; seconds: number } | null;
+}
+
 export interface DamageAbilityData {
   frame: string;
   ability: string;
@@ -352,6 +364,8 @@ export interface DamageAbilityData {
    * Viral has no DoT: it amplifies health damage instead.
    */
   statusProcs?: Array<{ type: DamageType; stacks: number; seedFraction?: number; seed?: number }> | null;
+  /** Alternative modes (Thermal Sunder tap/hold), keyed by the mode name. */
+  modes?: Record<string, AbilityModeData> | null;
 }
 
 export interface IncarnonOption {

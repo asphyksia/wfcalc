@@ -365,6 +365,7 @@ const server = createServer(async (req, res) => {
           overguard: overguard ? Number(overguard) : undefined,
           viralStacks: url.searchParams.get('viral') ? Number(url.searchParams.get('viral')) : undefined,
           targets: url.searchParams.get('targets') ? Number(url.searchParams.get('targets')) : undefined,
+          mode: url.searchParams.get('mode') ?? undefined,
         });
         return json(res, 200, result);
       } catch (error) {

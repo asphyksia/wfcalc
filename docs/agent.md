@@ -188,9 +188,10 @@ State these when they matter instead of guessing:
   profile assumed. Other weapons warn that multi-target is not modelled. One AoE shot hitting a
   group and distance falloff for abilities are still not modelled.
 - **Ability statuses are modelled only where the wiki states them**: Inferno's and Fireball's
-  guaranteed Heat, Miasma's Viral (one stack, doubling health damage) and Shuriken's Bleed.
-  Spores' Corrosive and Thermal Sunder's Heat/Cold modes are not. Inferno's direct damage is
-  split 1,250 Impact + 1,250 Heat; Fireball's 800 direct and 300 area are both Heat. `target.statusPerCast`, `target.statusProcs` and `target.viralStacks`
+  guaranteed Heat, Thermal Sunder's Heat mode, Miasma's Viral (one stack, doubling health
+  damage) and Shuriken's Bleed. Spores' Corrosive procs are not. Inferno's direct damage is split
+  1,250 Impact + 1,250 Heat; Fireball's 800 direct and 300 area are both Heat. Pass
+  `--ability-mode heat` to cast Thermal Sunder's Hold version (1,500 Heat + proc). `target.statusPerCast`, `target.statusProcs` and `target.viralStacks`
   carry the detail. Shields are a separate phase in `castsToKill` (Toxin bypasses them), so the
   Corpus figure is no longer optimistic.
 - **Overguard** is modelled for Eximus (`--eximus`) and custom amounts (`--overguard N`):
