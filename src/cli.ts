@@ -119,7 +119,7 @@ function parseConditions(args: Args): Record<string, number> {
     }
   }
   const statusTypes = flag(args, 'status-types');
-  if (statusTypes) conditions.statusTypes = Number(statusTypes);
+  if (statusTypes && statusTypes !== 'auto') conditions.statusTypes = Number(statusTypes);
   // Harrow's Covenant scales with the damage prevented during invulnerability.
   const covenantDamage = flag(args, 'covenant-damage');
   if (covenantDamage) conditions.covenantDamage = Number(covenantDamage);
@@ -222,6 +222,11 @@ function targetScale(args: Args): { eximus?: boolean; overguard?: number } {
   return { overguard: value };
 }
 
+/** Damage types with a non-zero share: the status types a build can put on a target. */
+function countStatusTypes(resolved: ReturnType<typeof resolveBuild>): number {
+  return Math.max(1, Object.values(resolved.damage.perProjectile).filter((amount) => amount > 0).length);
+}
+
 /** `--attenuation archon|eidolon|custom` plus the explicit caps. */
 function attenuationFromArgs(args: Args): string | AttenuationProfile | null | undefined {
   const id = flag(args, 'attenuation');
@@ -268,6 +273,7 @@ function calcBriefLine(
   mode: 'full' | 'answer',
   fit?: ReturnType<typeof capacityOf>,
   arcanes?: Array<{ name: string; rank?: number }>,
+  inferredStatusTypes?: number | null,
 ): string {
   const head = `${label ? `${label}: ` : ''}${resolved.weapon.name} vs ${enemyName} ${level}`;
   const ttk = hit.timeToKill === null ? 'cannot kill' : `ttk ${num(hit.timeToKill, 2)}s (${num(hit.shotsToKill, 1)} shots)`;
@@ -286,6 +292,7 @@ function calcBriefLine(
     ...(hit.multiTargetDps !== null ? [`${hit.multiTargetTargets} targets = ${num(hit.multiTargetDps)} dps`] : []),
     ...(fit && fit.mods.length ? [`${fit.capacityUsed}/${fit.capacity} cap${fit.fits ? '' : ' OVER'}`, `${fit.formaNeeded}F`] : []),
     ...(arcanes?.length ? [`arcane ${arcanes.map((arcane) => arcane.name).join(' + ')}`] : []),
+    ...(inferredStatusTypes ? [`statusTypes ${inferredStatusTypes} (inferred)`] : []),
   ];
   const warnings = resolved.warnings.length + hit.warnings.length + resolved.unsupportedMods.length;
   if (warnings) parts.push(`${warnings} warning(s)`);
@@ -318,10 +325,17 @@ function abilityBriefLine(result: ReturnType<typeof abilityCast>, mode: 'full' |
 }
 
 function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string): void {
-  const build = buildFromArgs(snapshot, args, mods.map((m) => (m.rank ? `${m.name}=R${m.rank}` : m.name)));
+  let build = buildFromArgs(snapshot, args, mods.map((m) => (m.rank ? `${m.name}=R${m.rank}` : m.name)));
   // Re-apply ranks lost by the string round-trip above.
   build.mods = mods;
-  const resolved = resolveBuild(snapshot, build);
+  let resolved = resolveBuild(snapshot, build);
+  // `--status-types auto`: count the damage types the build itself applies. The count changes
+  // the value of Condition Overload/Galvanized Aptitude, so re-resolve once with it.
+  const inferredStatusTypes = flag(args, 'status-types') === 'auto' ? countStatusTypes(resolved) : null;
+  if (inferredStatusTypes !== null) {
+    build = { ...build, conditions: { ...(build.conditions ?? {}), statusTypes: inferredStatusTypes } };
+    resolved = resolveBuild(snapshot, build);
+  }
   const { enemy, level } = resolveEnemy(snapshot, args);
   const scaled = scaleEnemy(snapshot, enemy, level, targetScale(args));
   const hit = hitEnemy(snapshot, resolved, scaled, {
@@ -340,6 +354,7 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
     console.log(calcBriefLine(
       label === 'build' ? '' : label, resolved, hit, enemy.name, level, brief, fit,
       (build.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
+      inferredStatusTypes,
     ));
     return;
   }
@@ -378,6 +393,7 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
           dot: hit.dot,
           totalDps: hit.totalDps,
           arcanes: (build.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
+          statusTypes: inferredStatusTypes ?? (typeof build.conditions?.statusTypes === 'number' ? build.conditions.statusTypes : null),
           activeBuffs: resolved.activeBuffs,
           abilityStrength: resolved.abilityStrength,
           riven: resolved.rivenLines,
@@ -417,6 +433,9 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
   );
   if (fit.mods.length) {
     console.log(`  capacity     ${fit.capacityUsed}/${fit.capacity}${fit.fits ? '' : ' over'}${fit.formaNeeded ? `   ${fit.formaNeeded} forma` : ''}`);
+  }
+  if (inferredStatusTypes !== null) {
+    console.log(`  status types ${inferredStatusTypes} (inferred from the build's damage types)`);
   }
   console.log(
     `  target       hp ${num(scaled.health)}  shields ${num(scaled.shield)}  armor ${num(hit.armor)}` +
@@ -681,7 +700,7 @@ function main(): void {
       const base = buildFromArgs(snapshot, args, []);
       const commaList = (name: string): string[] =>
         flagAll(args, name).flatMap((entry) => entry.split(',')).map((entry) => entry.trim()).filter(Boolean);
-      const result = search(snapshot, {
+      const request = {
         weapon: item.name,
         objective: (flag(args, 'objective') as 'ttk' | 'dps' | undefined) ?? 'ttk',
         enemy: flag(args, 'enemy') ?? 'Bombard',
@@ -697,7 +716,32 @@ function main(): void {
         ...targetScale(args),
         attenuation: attenuationFromArgs(args),
         base: commaList('incarnon').includes('auto') ? { ...base, incarnon: undefined } : base,
-      });
+      };
+      let result = search(snapshot, request);
+      // `--status-types auto`: infer the count from the best build's own damage profile and
+      // iterate until it is self-consistent (the count changes Galvanized Aptitude/CO).
+      if (flag(args, 'status-types') === 'auto') {
+        let inferred = 0;
+        for (let round = 0; round < 3; round++) {
+          const top = result.builds[0];
+          if (!top) break;
+          const topBuild = resolveBuild(snapshot, {
+            ...base,
+            weapon: item.name,
+            mods: top.mods.map((mod) => ({ name: mod.name, rank: mod.rank })),
+            incarnon: top.incarnon.length ? top.incarnon : undefined,
+            conditions: { ...(base.conditions ?? {}), statusTypes: inferred || 1 },
+          });
+          const count = countStatusTypes(topBuild);
+          if (count === inferred) break;
+          inferred = count;
+          result = search(snapshot, {
+            ...request,
+            base: { ...request.base, conditions: { ...(request.base?.conditions ?? {}), statusTypes: count } },
+          });
+        }
+        result.assumptions.push(`statusTypes inferred: ${inferred}`);
+      }
       if (wantsJson(args)) {
         emitJson(result);
         break;

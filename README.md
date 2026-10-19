@@ -135,7 +135,7 @@ current state, the working method and what is left to do.
 | `--faction grineer` | Shorthand for a benchmark enemy of that faction |
 | `--mode "Incarnon Form"` | Use an alternative fire mode |
 | `--stacks onKill=5` | Activate a conditional effect with N stacks |
-| `--status-types 4` | Status types on the target (Galvanized mods) |
+| `--status-types 4` / `auto` | Status types on the target; `auto` counts the build's own damage types |
 | `--headshot` | Every hit is a weak-point hit |
 | `--brief`, `--brief=answer` | One-line answer for agents (answer drops the context) |
 | `--json` | Machine-readable output; use it only when you must parse a field |

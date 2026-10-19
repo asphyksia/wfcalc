@@ -80,7 +80,7 @@ wfcalc batch builds.jsonl --brief=answer
 Useful flags: `--objective ttk|dps`, `--capacity 30|60`, `--forma N`, `--must "A,B"`,
 `--exclude "A,B"`, `--arcane auto`, `--viral N`, `--corrosive N`, `--headshot`,
 `--eximus` / `--overguard N`, `--attenuation archon|eidolon`, `--targets N` (abilities and the
-Torid chain), `--stacks onKill=5`,
+Torid chain), `--status-types auto`, `--stacks onKill=5`,
 `--frame Rhino --frame-mods Intensify --buff roar`, `--riven damage,multishot,-zoom`. `--mod "A,B"` and repeated `--mod` are equivalent.
 Every command accepts `--json` (compact JSON) and `--brief` where it makes sense.
 

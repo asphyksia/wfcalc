@@ -303,3 +303,26 @@ test('Thermal Sunder accepts --ability-mode heat', () => {
   assert.match(result.stdout, /heat mode/);
   assert.match(result.stdout, /1,500/);
 });
+
+test('--status-types auto counts the build own damage types', () => {
+  const mods = ['Serration', 'Galvanized Aptitude', 'Primed Cryo Rounds', 'Infected Clip'];
+  const auto = run(['calc', 'Haalvu', '--mod', mods.join(','), '--stacks', 'onKill=12', '--status-types', 'auto', '--enemy', 'Bombard', '--level', '150', '--json']) as {
+    statusTypes: number; burstDps: number;
+  };
+  const one = run(['calc', 'Haalvu', '--mod', mods.join(','), '--stacks', 'onKill=12', '--status-types', '1', '--enemy', 'Bombard', '--level', '150', '--json']) as {
+    statusTypes: number; burstDps: number;
+  };
+  // Tau + Viral.
+  assert.equal(auto.statusTypes, 2);
+  assert.equal(one.statusTypes, 1);
+  assert.ok(auto.burstDps > one.burstDps, 'two status types should make Galvanized Aptitude stronger');
+});
+
+test('search --status-types auto reports the inferred count', () => {
+  const result = run([
+    'search', 'Haalvu', '--stacks', 'onKill=12', '--status-types', 'auto', '--enemy', 'Bombard',
+    '--level', '150', '--armor-strip', '100', '--arcane', 'Primary Merciless', '--top', '1', '--json',
+  ]) as { assumptions: string[] };
+  assert.ok(result.assumptions.some((line) => /statusTypes inferred: 2/.test(line)));
+  assert.ok(result.assumptions.some((line) => /statusTypes=2/.test(line)));
+});

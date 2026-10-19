@@ -10,7 +10,7 @@ Last updated: 2026-10-19.
 
 | | |
 |---|---|
-| Tests | **140 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
+| Tests | **142 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration vs Overframe | **35/35** pinned public builds (`node tools/calibrate.ts`), offline, ranged only |
 | Types | `npm run check` clean |
@@ -97,6 +97,7 @@ Rules that have prevented repeated mistakes:
 | A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, `--brief=answer` for repeated calls, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
 | A6 | **`wfcalc batch`**: JSONL of calc/ability records priced in one process, one line per record, `--json` as compact rounded JSONL. Bad records do not abort the batch; exit 1. The JSON->Build mapping moved to `src/request.ts`, shared with the server. | `tests/cli.test.ts`; `tools/agent-eval.ts` case "batch" |
 | A7 | **Agent eval**: `npm run eval` pins ten real questions (best build, strip, melee Incarnon, CO, ability, errors, partial mods, batch) and fails if an answer or the brief size regresses. Runs in CI. | `tools/agent-eval.ts`, 10/10 |
+| A24 | **Status types from the build (F7)**: `--status-types auto` counts the damage types the resolved build applies (Tau + Viral = 2), re-resolves `calc` once and iterates `search` until the count is self-consistent. The assumption is printed. | Haalvu + Galvanized Aptitude: 1 type 1,414 dps vs 2 inferred 2,043; search assumptions say `statusTypes inferred: 2`; tests pin both |
 | A23 | **Thermal Sunder Heat mode (C1c)**: `--ability-mode heat` selects the Hold cast: 1,500 Heat at max rank with a guaranteed Heat proc, instead of the Cold base mode. | Heat mode 1,500 total + 562.9 status on a Bombard; Cold mode stays 6,000 over its duration; tests pin both |
 | A22 | **Per-hit attenuation formula (B2b, first half)**: the wiki's Hemocyte/Archon formula `damage × MDPI / (damage × multishot + MDPI)` replaces the hard per-instance min, including the multishot term. | 1M hit on a 1M dummy: 1s → 3.97s under Archon (was 2.72s with a hard cap); a 2-pellet 500k case pins the multishot denominator |
 | A21 | **Torid chain (C2b)**: the Incarnon beam chains to up to five nearby enemies at 75% per link; `--targets N` reports `multiTargetDps`/`multiTargetFactor` for the group, assuming the same target profile. Other weapons warn that multi-target is not modelled. | Torid form with 6 targets: factor 3.288, 53.2 → 174.8 dps; engine and CLI tests pin the factor and the warning |
@@ -140,7 +141,7 @@ Known loose ends from A1:
 D1–D3 are done: 98% of weapon-relevant mods, a pinned offline battery and melee/secondary coverage.
 In-game captures beyond Soma Prime remain a nice-to-have, not a gap.
 
-Suggested order: **F7 → C2c/C1d**, with **B2c** documented as blocked by unpublished inputs. B1
+Suggested order: **C2c/C1d → B2c (blocked by data)**, with **B2c** documented as blocked by unpublished inputs. B1
 (Overguard), B2's per-hit formula, C1's curated ability statuses and damage split, C2's Incarnon
 second hits, ability targets and Torid chain, C3's shield phase, D1–D3 (coverage, pinned
 calibration, melee/secondary), the search friction F1–F6 and the agent contract are done. Overguard's remaining gaps are deliberate: status DoT and Magnetic's
@@ -166,8 +167,7 @@ CPU; it is what the search does and does not consider, and what the answer fails
 | F6 | **Nyx's Psychic Bolts is not a strip ability in the data.** The curated strip list has Avalanche, Terrify, Seeking Shuriken and Polarize only. | The user had to pass `--armor-strip 100`; `--strip-from "Psychic Bolts"` fails. Add the known 100% strips (Psychic Bolts, Fusion Strike...) to the curated list. |
 | F7 | **`--status-types` is a global manual assumption.** Galvanized Aptitude's damage scales with it; the build itself applies Viral + Tau (2), but the caller must know and pass it. | A self-consistent search could infer the status types from the build's own damage profile (and known external procs) instead of a flag. Careful: this is circular with the optimiser, so measure before changing. |
 
-F1–F6 are **done** (A9, A17, A18). Remaining: **F7** (infer status types instead of a global
-flag), which needs a model decision because it is circular with the optimiser.
+F1–F7 are **done** (A9, A17, A18, A24).
 
 
 ---
@@ -211,7 +211,7 @@ Useful commands: `wfcalc abilities`, `wfcalc ability <name> --strength N --enemy
 ```sh
 cd wfcalc
 git log --oneline | head -5      # the top commit
-npm test                          # 140 tests
+npm test                          # 142 tests
 npm run eval                      # 10 pinned agent cases
 node tools/validate.ts            # 0 violations
 node tools/calibrate.ts           # 35/35 pinned, offline

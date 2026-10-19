@@ -181,6 +181,9 @@ State these when they matter instead of guessing:
 - **Conditional mods default to inactive.** Galvanized stacks, on-kill effects and "while
   aiming" need `--stacks onKill=5` or similar; otherwise the build is scored lower than it
   plays. Say which conditions your answer assumes.
+- **`--status-types auto`** infers the count from the build's own damage types (Tau + Viral = 2)
+  and iterates the search until it is self-consistent. It is still an assumption: the target may
+  carry more statuses from the squad.
 - **One target by default, average damage.** No spread, no enemy AI; time to kill is a model of
   sustained fire including reloads. Abilities accept `--targets N` (N enemies at full damage
   inside the radius). Torid's Incarnon accepts `--targets N` too: the beam chains to up to five
