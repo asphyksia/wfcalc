@@ -237,7 +237,7 @@ const count = Number(flag('battery') ?? 50);
 const fixture = refresh ? await refreshFixture(count) : existingFixture;
 if (!fixture) {
   console.error(`no calibration fixture at ${FIXTURE.slice(ROOT.length)}`);
-  console.error('run: npm run calibrate -- --refresh');
+  console.error('run: npm run calibrate:refresh');
   process.exit(1);
 }
 const builds = fixture.builds.slice(0, count);
