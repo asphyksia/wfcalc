@@ -96,3 +96,31 @@ test('the dps objective counts status damage, not just direct hits', () => {
   const build = result.builds[0];
   assert.ok(build.totalDps >= build.sustainedDps, 'total damage cannot be below direct damage');
 });
+
+test('Incarnon evolutions are chosen only when asked for', () => {
+  // The Incarnon form is an endgame unlock and only its perks are modelled, so the search
+  // leaves it alone unless the caller asks.
+  const byDefault = search(snapshot, { weapon: 'Torid', objective: 'dps', enemy: 'Bombard', level: 150, limit: 1 });
+  assert.deepEqual(byDefault.builds[0].incarnon, []);
+  assert.ok(byDefault.notes.some((note) => /Incarnon evolutions are not assumed/.test(note)));
+
+  const withChoice = search(snapshot, { weapon: 'Torid', objective: 'dps', enemy: 'Bombard', level: 150, limit: 1, chooseIncarnon: true });
+  const build = withChoice.builds[0];
+  assert.equal(build.incarnon.length, 3, 'every Torid tier with parsed perks should be picked');
+  assert.equal(build.incarnonNames.length, 3);
+
+  // The same search told not to use evolutions must come out behind.
+  const without = byDefault;
+  assert.ok(build.totalDps > without.builds[0].totalDps,
+    `choosing evolutions should help: ${build.totalDps} vs ${without.builds[0].totalDps}`);
+
+  // Brute force over all 18 Torid combinations picked exactly this set, so the greedy per-tier
+  // choice is optimal for this weapon.
+  assert.deepEqual(build.incarnon, ['EVO2:0', 'EVO3:2', 'EVO4:0']);
+});
+
+test('a weapon without Incarnon data is unaffected', () => {
+  const result = search(snapshot, { weapon: 'Kuva Hek', enemy: 'Bombard', level: 150, limit: 1, chooseIncarnon: true });
+  assert.deepEqual(result.builds[0].incarnon, []);
+  assert.deepEqual(result.builds[0].incarnonNames, []);
+});

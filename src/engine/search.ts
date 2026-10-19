@@ -41,6 +41,12 @@ export interface SearchRequest {
   exclude?: string[];
   /** Mods that must be in the build, e.g. one the player already has equipped. */
   mustInclude?: string[];
+  /**
+   * Let the search choose the Incarnon evolutions. Off by default: the Incarnon form is an
+   * endgame unlock, and only the perk stats are modelled, not the transformed weapon's own
+   * profile, so assuming it would be assuming too much.
+   */
+  chooseIncarnon?: boolean;
   /** Everything else that affects the result: buffs, frame, arcanes, riven, debuffs. */
   base?: Partial<Build>;
   /** How many builds to return. */
@@ -68,6 +74,10 @@ export interface SearchBuild {
   statusChance: number;
   multishot: number;
   warnings: string[];
+  /** Incarnon evolutions this build assumes, as "EVO2:0" selections. */
+  incarnon: string[];
+  /** Evolution names, for showing to the player. */
+  incarnonNames: string[];
   /** Mods in the build whose numbers are a lower bound. */
   partialMods: string[];
 }
@@ -223,12 +233,23 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
   let evaluated = 0;
   const scoreCache = new Map<string, { score: number; resolved: ReturnType<typeof resolveBuild>; hit: ReturnType<typeof hitEnemy> }>();
 
+  // Incarnon evolutions are part of the build: the same mods score differently depending on
+  // which perks are installed, so the selection is part of the cache key.
+  let incarnonSelection: string[] = base.incarnon ?? [];
+  const keyOf = (names: string[]): string =>
+    `${incarnonSelection.join('+')}#${names.join('|')}`;
+
   const evaluateOrder = (names: string[], quick = false): number => {
     if (!names.length) return quick ? -1 : 0;
-    const key = names.join('|');
+    const key = keyOf(names);
     const cached = scoreCache.get(key);
     if (cached) return cached.score;
-    const build: Build = { ...base, weapon: weapon.name, mods: names.map((name) => ({ name })) };
+    const build: Build = {
+      ...base,
+      weapon: weapon.name,
+      mods: names.map((name) => ({ name })),
+      incarnon: incarnonSelection.length ? incarnonSelection : undefined,
+    };
     evaluated++;
     let score: number;
     let resolved: ReturnType<typeof resolveBuild>;
@@ -267,63 +288,115 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
     return { ok, ...result };
   };
 
-  let current = [...mustInclude];
-  let currentScore = evaluateOrder(current);
-  const used = new Set(current);
+  /** Greedy fill plus local search for the current Incarnon selection. */
+  const optimizeMods = (seed: string[]): { names: string[]; score: number } => {
+    let names = [...seed];
+    let score = evaluateOrder(names);
+    const inUse = new Set(names);
 
-  // Greedy: add whichever mod helps most, while it still helps and the build still fits.
-  while (current.length < SEARCH_SLOTS && evaluated < budget) {
-    let bestName: string | null = null;
-    let bestScore = currentScore;
-    for (const { mod } of candidates) {
-      if (used.has(mod.name)) continue;
-      if (evaluated >= budget) break;
-      const trial = [...current, mod.name];
-      if (!fits(trial).ok) continue;
-      const score = evaluateOrder(trial, true);
-      if (score > bestScore + 1e-9) { bestScore = score; bestName = mod.name; }
-    }
-    if (!bestName) break;
-    current = [...current, bestName];
-    used.add(bestName);
-    currentScore = bestScore;
-  }
-
-  // Local search: try every single change until none of them improves the build.
-  let improved = true;
-  while (improved && evaluated < budget) {
-    improved = false;
-    let bestScore = currentScore;
-    let bestNames = current;
-    for (let slot = 0; slot < SEARCH_SLOTS; slot++) {
-      // A mod the player already has equipped is not the search's to remove.
-      if (mustInclude.includes(current[slot] ?? '')) continue;
+    while (names.length < SEARCH_SLOTS && evaluated < budget) {
+      let bestName: string | null = null;
+      let bestScore = score;
       for (const { mod } of candidates) {
+        if (inUse.has(mod.name)) continue;
         if (evaluated >= budget) break;
-        if (current[slot] === mod.name) continue;
-        if (used.has(mod.name) && !current.includes(mod.name)) continue;
-        const trial = [...current];
-        if (slot < trial.length) trial[slot] = mod.name;
-        else trial.push(mod.name);
-        const unique = new Set(trial);
-        if (unique.size !== trial.length) continue;
+        const trial = [...names, mod.name];
         if (!fits(trial).ok) continue;
-        const score = evaluateOrder(trial, true);
-        if (score > bestScore + 1e-9) { bestScore = score; bestNames = trial; }
+        const trialScore = evaluateOrder(trial, true);
+        if (trialScore > bestScore + 1e-9) { bestScore = trialScore; bestName = mod.name; }
       }
-      // Removing a mod is allowed too: sometimes seven mods beat eight.
-      if (slot < current.length && evaluated < budget) {
-        const trial = current.filter((_, index) => index !== slot);
-        const score = evaluateOrder(trial, true);
-        if (score > bestScore + 1e-9) { bestScore = score; bestNames = trial; }
+      if (!bestName) break;
+      names = [...names, bestName];
+      inUse.add(bestName);
+      score = bestScore;
+    }
+
+    let improved = true;
+    while (improved && evaluated < budget) {
+      improved = false;
+      let bestScore = score;
+      let bestNames = names;
+      for (let slot = 0; slot < SEARCH_SLOTS; slot++) {
+        // A mod the player already has equipped is not the search's to remove.
+        if (mustInclude.includes(names[slot] ?? '')) continue;
+        for (const { mod } of candidates) {
+          if (evaluated >= budget) break;
+          if (names[slot] === mod.name) continue;
+          if (inUse.has(mod.name) && !names.includes(mod.name)) continue;
+          const trial = [...names];
+          if (slot < trial.length) trial[slot] = mod.name;
+          else trial.push(mod.name);
+          const unique = new Set(trial);
+          if (unique.size !== trial.length) continue;
+          if (!fits(trial).ok) continue;
+          const trialScore = evaluateOrder(trial, true);
+          if (trialScore > bestScore + 1e-9) { bestScore = trialScore; bestNames = trial; }
+        }
+        // Removing a mod is allowed too: sometimes seven mods beat eight.
+        if (slot < names.length && evaluated < budget) {
+          const trial = names.filter((_, index) => index !== slot);
+          const trialScore = evaluateOrder(trial, true);
+          if (trialScore > bestScore + 1e-9) { bestScore = trialScore; bestNames = trial; }
+        }
+      }
+      if (bestNames !== names) {
+        names = bestNames;
+        score = bestScore;
+        inUse.clear();
+        for (const name of names) inUse.add(name);
+        improved = true;
       }
     }
-    if (bestNames !== current) {
-      current = bestNames;
-      currentScore = bestScore;
-      used.clear();
-      for (const name of current) used.add(name);
-      improved = true;
+    return { names, score };
+  };
+
+  // Incarnon perks are chosen per tier, greedily, and re-chosen once the mods are known: the
+  // best crit perk and the best base-damage perk swap places depending on the rest of the build.
+  const incarnonTiers = (snapshot.incarnons[weapon.name] ?? []).reduce<Array<{ tier: string; options: Array<{ index: number; selection: string }> }>>(
+    (tiers, option, index) => {
+      const existing = tiers.find((entry) => entry.tier === option.tier);
+      // Only perks the parser could turn into numbers can change a damage score.
+      if (!option.effects.length) return tiers;
+      const tierIndex = (snapshot.incarnons[weapon.name] ?? [])
+        .filter((entry) => entry.tier === option.tier)
+        .indexOf(option);
+      void index;
+      const selection = `${option.tier}:${tierIndex}`;
+      if (existing) existing.options.push({ index: tierIndex, selection });
+      else tiers.push({ tier: option.tier, options: [{ index: tierIndex, selection }] });
+      return tiers;
+    },
+    [],
+  );
+
+  const chooseIncarnon = (): void => {
+    for (const tier of incarnonTiers) {
+      const others = incarnonSelection.filter((entry) => !entry.startsWith(`${tier.tier}:`));
+      let best = others;
+      let bestScore = evaluateOrder(currentMods, true);
+      for (const option of tier.options) {
+        if (evaluated >= budget) break;
+        incarnonSelection = [...others, option.selection];
+        const score = evaluateOrder(currentMods, true);
+        if (score > bestScore + 1e-9) { bestScore = score; best = incarnonSelection; }
+      }
+      incarnonSelection = best;
+    }
+  };
+
+  let currentMods = [...mustInclude];
+  const firstPass = optimizeMods(currentMods);
+  let current = firstPass.names;
+  currentMods = current;
+
+  if (incarnonTiers.length && request.chooseIncarnon && base.incarnon === undefined) {
+    const beforeChoice = incarnonSelection.join('+');
+    chooseIncarnon();
+    // A different set of perks can favour different mods, so the mods are searched again.
+    if (incarnonSelection.join('+') !== beforeChoice) {
+      const secondPass = optimizeMods(current);
+      current = secondPass.names;
+      currentMods = current;
     }
   }
 
@@ -331,9 +404,8 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
   current = bestElementOrder(current, (order) => evaluateOrder(order, true));
 
   const buildFrom = (names: string[]): SearchBuild => {
-    const entry = scoreCache.get(names.join('|'));
-    if (!entry) evaluateOrder(names);
-    const scored = scoreCache.get(names.join('|'))!;
+    if (!scoreCache.get(keyOf(names))) evaluateOrder(names);
+    const scored = scoreCache.get(keyOf(names))!;
     const fit = fits(names);
     return {
       mods: fit.entries,
@@ -352,6 +424,12 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
       statusChance: scored.resolved.statusChance,
       multishot: scored.resolved.multishot,
       warnings: scored.resolved.warnings,
+      incarnon: [...incarnonSelection],
+      incarnonNames: [...incarnonSelection].map((selection) => {
+        const [tier, index] = selection.split(':');
+        const options = (snapshot.incarnons[weapon.name] ?? []).filter((option) => option.tier === tier);
+        return `${tier} ${options[Number(index)]?.name ?? selection}`;
+      }),
       partialMods: names.filter((name) => snapshot.mods[name]?.partial),
     };
   };
@@ -368,8 +446,7 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
     if (builds.length >= limit) break;
     if (evaluated >= budget) break;
     const without = current.filter((name) => name !== banned.name);
-    used.clear();
-    for (const name of without) used.add(name);
+    const seen = new Set(without);
     let variant = without;
     let variantScore = evaluateOrder(variant, true);
     for (let round = 0; round < 2; round++) {
@@ -377,7 +454,7 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
       let bestScore = variantScore;
       for (const { mod } of candidates) {
         if (variant.length >= SEARCH_SLOTS) break;
-        if (used.has(mod.name) || mod.name === banned.name) continue;
+        if (seen.has(mod.name) || mod.name === banned.name) continue;
         const trial = [...variant, mod.name];
         if (!fits(trial).ok) continue;
         const score = evaluateOrder(trial, true);
@@ -385,7 +462,7 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
       }
       if (!bestName) break;
       variant = [...variant, bestName];
-      used.add(bestName);
+      seen.add(bestName);
       variantScore = bestScore;
     }
     variant = bestElementOrder(variant, (order) => evaluateOrder(order, true));
@@ -419,6 +496,12 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
   const notes: string[] = [
     'The Exilus and stance slots are not searched; an Exilus mod is never worth a standard slot.',
   ];
+  if (incarnonTiers.length && base.incarnon === undefined) {
+    notes.push(
+      `Incarnon evolutions are not assumed: ${weapon.name} has ${incarnonTiers.length} tier(s) of perks, `
+      + 'and only their parsed stats are modelled, not the transformed weapon. Ask for them with chooseIncarnon.',
+    );
+  }
   if (weapon.category === 'melee') {
     notes.push('Melee stance is not searched, so its extra capacity is not counted.');
   }

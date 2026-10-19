@@ -137,7 +137,10 @@ function buildFromArgs(snapshot: Snapshot, args: Args, mods: string[]): Build {
     aoeDistance: flag(args, 'aoe-distance') ? Number(flag(args, 'aoe-distance')) : undefined,
     comboHits: flag(args, 'combo-hits') ? Number(flag(args, 'combo-hits')) : undefined,
     heavyAttack: args.flags.has('heavy'),
-    incarnon: flagAll(args, 'incarnon').flatMap((entry) => entry.split(',')).map((e) => e.trim()).filter(Boolean),
+    // "auto" is handled by the search command; a list is passed through as it stands.
+    ...(flagAll(args, 'incarnon').length
+      ? { incarnon: flagAll(args, 'incarnon').flatMap((entry) => entry.split(',')).map((e) => e.trim()).filter(Boolean) }
+      : {}),
     debuffs: {
       viralStacks: flag(args, 'viral') ? Number(flag(args, 'viral')) : undefined,
       corrosiveStacks: flag(args, 'corrosive') ? Number(flag(args, 'corrosive')) : undefined,
@@ -474,7 +477,8 @@ function main(): void {
         mustInclude: commaList('must'),
         limit: flag(args, 'top') ? Number(flag(args, 'top')) : 3,
         budget: flag(args, 'budget') ? Number(flag(args, 'budget')) : undefined,
-        base,
+        chooseIncarnon: commaList('incarnon').includes('auto'),
+        base: commaList('incarnon').includes('auto') ? { ...base, incarnon: undefined } : base,
       });
       if (wantsJson(args)) {
         emitJson(result);
@@ -484,6 +488,7 @@ function main(): void {
       result.builds.forEach((build, index) => {
         const ttk = build.timeToKill === null ? 'cannot kill' : `${build.timeToKill.toFixed(2)}s (${Math.ceil(build.shotsToKill ?? 0)} shots)`;
         console.log(`${index + 1}. ${build.timeToKill === null ? '' : `${ttk}  `}${num(build.totalDps, 0)} dps on target (${num(build.sustainedDps, 0)} direct)  crit ${pct(build.critChance)}x${num(build.critMultiplier, 1)}  status ${pct(build.statusChance)}  multishot ${num(build.multishot, 2)}`);
+        if (build.incarnonNames.length) console.log(`   Incarnon: ${build.incarnonNames.join(' | ')}`);
         console.log(`   capacity ${build.capacityUsed}/${build.capacity}${build.formaNeeded ? ` — ${build.formaNeeded} forma` : ''}${build.partialMods.length ? ` — lower bound: ${build.partialMods.join(', ')}` : ''}`);
         console.log(`   ${build.mods.map((mod) => `${mod.name}${mod.rank < 99 ? ` R${mod.rank}` : ''}`).join(', ')}\n`);
       });
@@ -547,6 +552,8 @@ Search options:
          --must "A,B"          mods that must be in the build
          --exclude "A,B"       mods the player does not own
          --top N               how many builds to return (default 3)
+         --incarnon auto       also choose the Incarnon evolutions for the weapon
+         --incarnon "EVO2:0"   use these evolutions instead
          --budget N            evaluation budget (default 12000)`);
   }
 }
