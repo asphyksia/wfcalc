@@ -16,7 +16,9 @@
  *   --stacks onKill=5           activate a conditional effect
  *   --status-types 4            number of status types on the target (Galvanized mods)
  *   --headshot                  treat every hit as a weak-point hit
- *   --json                      machine-readable output
+ *   --brief                     one line per result (cheapest output for an agent)
+ *   --json                      machine-readable output (only when you must parse it)
+ *   --debug                     add the stack trace when a command fails
  */
 import { loadSnapshot, findEnemy, findMod, findWeapon, modsForWeapon } from './data.ts';
 import { resolveBuild, type Build, type BuildMod } from './engine/build.ts';
@@ -126,10 +128,13 @@ function armorStripDebuff(snapshot: Snapshot, args: Args): StripDebuff {
 }
 
 function buildFromArgs(snapshot: Snapshot, args: Args, mods: string[]): Build {
-  const weaponQuery = args.positional[0];
-  const { item: weapon, suggestions } = findWeapon(snapshot, weaponQuery);
-  if (!weapon) {
-    throw new Error(`weapon not found: ${weaponQuery}${suggestions.length ? ` (did you mean: ${suggestions.join(', ')}?)` : ''}`);
+  const weapon = requireWeapon(snapshot, args.positional[0]);
+  // A bad strip value is input, not a crash: resolve it here so the error carries a code.
+  let strip: StripDebuff;
+  try {
+    strip = armorStripDebuff(snapshot, args);
+  } catch (error) {
+    throw new CliError((error as Error).message, 'invalid_argument');
   }
   const buffs = flagAll(args, 'buff')
     .flatMap((entry) => entry.split(','))
@@ -160,7 +165,7 @@ function buildFromArgs(snapshot: Snapshot, args: Args, mods: string[]): Build {
     debuffs: {
       viralStacks: flag(args, 'viral') ? Number(flag(args, 'viral')) : undefined,
       corrosiveStacks: flag(args, 'corrosive') ? Number(flag(args, 'corrosive')) : undefined,
-      ...armorStripDebuff(snapshot, args),
+      ...strip,
     },
     mode: flag(args, 'mode'),
     conditions: parseConditions(args),
@@ -185,7 +190,7 @@ function resolveEnemy(snapshot: Snapshot, args: Args) {
   }
   enemyName ??= 'Bombard';
   const { item, suggestions } = findEnemy(snapshot, enemyName);
-  if (!item) throw new Error(`enemy not found: ${enemyName}${suggestions.length ? ` (did you mean: ${suggestions.join(', ')}?)` : ''}`);
+  if (!item) throw new CliError(`enemy not found: ${enemyName}`, 'enemy_not_found', suggestions);
   return { enemy: item, level };
 }
 
@@ -199,6 +204,24 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
   const hit = hitEnemy(snapshot, resolved, scaled, {
     armorModel: (flag(args, 'armor-model') as never) ?? undefined,
   });
+
+  // One line, for an agent that runs dozens of these: the numbers that answer the question
+  // without the per-type and per-status breakdown it did not ask for.
+  if (wantsBrief(args)) {
+    const parts = [
+      `${label === 'build' ? '' : `${label}: `}${resolved.weapon.name} vs ${enemy.name} ${level}`,
+      `burst ${num(resolved.burstDps)}`,
+      `sustained ${num(resolved.sustainedDps)}`,
+      `total ${num(hit.totalDps)} dps with status`,
+      hit.timeToKill === null ? 'cannot kill' : `ttk ${num(hit.timeToKill, 2)}s (${num(hit.shotsToKill, 1)} shots)`,
+      `armour ${num(hit.armor)}`,
+    ];
+    const warnings = resolved.warnings.length + resolved.unsupportedMods.length;
+    if (warnings) parts.push(`${warnings} warning(s)`);
+    if (resolved.unsupportedMods.length) parts.push('lower bound');
+    console.log(parts.join(' · '));
+    return;
+  }
 
   if (args.flags.has('json')) {
     console.log(
@@ -313,6 +336,29 @@ function emitJson(payload: unknown): void {
 }
 
 const wantsJson = (args: Args): boolean => args.flags.has('json');
+const wantsBrief = (args: Args): boolean => !wantsJson(args) && args.flags.has('brief');
+
+/**
+ * An expected failure: bad input, unknown name, impossible option. These exit with code 2 and
+ * are reported without a stack trace, because the caller is usually an agent that needs a
+ * deterministic shape, not Node internals.
+ */
+class CliError extends Error {
+  readonly code: string;
+  readonly suggestions: string[];
+  constructor(message: string, code: string, suggestions: string[] = []) {
+    super(message);
+    this.name = 'CliError';
+    this.code = code;
+    this.suggestions = suggestions;
+  }
+}
+
+function requireWeapon(snapshot: Snapshot, query: string) {
+  const { item, suggestions } = findWeapon(snapshot, query);
+  if (!item) throw new CliError(`weapon not found: ${query}`, 'weapon_not_found', suggestions);
+  return item;
+}
 
 function main(): void {
   const args = parseArgs(process.argv.slice(2));
@@ -336,8 +382,7 @@ function main(): void {
       break;
     }
     case 'mods': {
-      const { item, suggestions } = findWeapon(snapshot, args.positional[0] ?? '');
-      if (!item) throw new Error(`weapon not found: ${args.positional[0]} ${suggestions.join(', ')}`);
+      const item = requireWeapon(snapshot, args.positional[0] ?? '');
       const query = (args.positional[1] ?? '').toLowerCase();
       // Search names and descriptions: players look for "multishot", not "Split Chamber".
       const list = modsForWeapon(snapshot, item).filter(
@@ -383,8 +428,7 @@ function main(): void {
       break;
     }
     case 'incarnon': {
-      const { item, suggestions } = findWeapon(snapshot, args.positional[0] ?? '');
-      if (!item) throw new Error(`weapon not found: ${args.positional[0]} ${suggestions.join(', ')}`);
+      const item = requireWeapon(snapshot, args.positional[0] ?? '');
       const options = snapshot.incarnons[item.name] ?? [];
       if (!options.length) {
         console.log(`no Incarnon evolution data for ${item.name}`);
@@ -479,10 +523,7 @@ function main(): void {
       break;
     }
     case 'search': {
-      const { item, suggestions } = findWeapon(snapshot, args.positional[0] ?? '');
-      if (!item) {
-        throw new Error(`weapon not found: ${args.positional[0]}${suggestions.length ? ` (did you mean: ${suggestions.join(', ')}?)` : ''}`);
-      }
+      const item = requireWeapon(snapshot, args.positional[0] ?? '');
       const base = buildFromArgs(snapshot, args, []);
       const commaList = (name: string): string[] =>
         flagAll(args, name).flatMap((entry) => entry.split(',')).map((entry) => entry.trim()).filter(Boolean);
@@ -502,6 +543,22 @@ function main(): void {
       });
       if (wantsJson(args)) {
         emitJson(result);
+        break;
+      }
+      if (wantsBrief(args)) {
+        console.log(`${result.weapon} vs ${result.enemy} ${result.level} · ${result.builds.length} of ${result.evaluated} builds`);
+        result.builds.forEach((build, index) => {
+          const ttk = build.timeToKill === null ? 'cannot kill' : `${num(build.timeToKill, 2)}s`;
+          const facts = [
+            `${num(build.totalDps)} dps`,
+            ...(build.incarnonNames.length ? [`incarnon ${build.incarnonNames.join(' + ')}`] : []),
+            ...(build.partialMods.length ? ['lower bound'] : []),
+          ];
+          console.log(`${index + 1}. ${ttk} · ${facts.join(' · ')} · ${build.formaNeeded}F · ${build.capacityUsed}/${build.capacity} cap`);
+          console.log(`   ${build.mods.map((mod) => `${mod.name}${mod.rank < 99 ? ` R${mod.rank}` : ''}`).join(', ')}`);
+        });
+        if (result.assumptions.length) console.log(`assumptions: ${result.assumptions.join(' · ')}`);
+        if (result.notes.length) console.log(`notes: ${result.notes.join(' · ')}`);
         break;
       }
       console.log(`${result.weapon} vs ${result.enemy} level ${result.level} — best ${result.builds.length} of ${result.evaluated} builds tried (${result.elapsedMs}ms)\n`);
@@ -536,14 +593,36 @@ function main(): void {
     }
     case 'ability': {
       const name = args.positional[0] ?? '';
-      const result = abilityCast(snapshot, name, {
-        strength: flag(args, 'strength') ? Number(flag(args, 'strength')) : 100,
-        enemy: flag(args, 'enemy'),
-        level: flag(args, 'level') ? Number(flag(args, 'level')) : 30,
-        armorModel: flag(args, 'armor-model') as never,
-      });
+      let result;
+      try {
+        result = abilityCast(snapshot, name, {
+          strength: flag(args, 'strength') ? Number(flag(args, 'strength')) : 100,
+          enemy: flag(args, 'enemy'),
+          level: flag(args, 'level') ? Number(flag(args, 'level')) : 30,
+          armorModel: flag(args, 'armor-model') as never,
+        });
+      } catch (error) {
+        const message = (error as Error).message;
+        throw new CliError(message, /not found/.test(message) ? 'ability_not_found' : 'error');
+      }
       if (wantsJson(args)) {
         emitJson(result);
+        break;
+      }
+      if (wantsBrief(args)) {
+        const strip = result.armorStrip
+          ? `strip ${result.armorStrip.fraction !== null ? `${(result.armorStrip.fraction * 100).toFixed(0)}%` : `${num(result.armorStrip.points ?? 0)} pts`}`
+          : '';
+        const target = result.target
+          ? `vs ${result.target.enemy} ${result.target.level}: ${num(result.target.perCast)}/cast · ${result.target.castsToKill === null ? 'cannot kill' : `${num(result.target.castsToKill)} casts`}`
+          : '';
+        console.log([
+          `${result.frame} ${result.ability}${result.damageType ? ` (${result.damageType})` : ''}`,
+          `${num(result.scaledDamage)}${result.perSecond ? '/s' : ''} at ${num(result.strength)}%`,
+          `total ${num(result.totalDamage)}`,
+          target,
+          strip,
+        ].filter(Boolean).join(' · '));
         break;
       }
       console.log(`${result.frame} — ${result.ability} (${result.damageType ?? 'no damage'})`);
@@ -618,7 +697,8 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
          --combo-hits 220  --heavy   (melee combo multiplier / heavy attack)
          --aoe-distance 4            (AoE falloff distance in metres)
          --enemy NAME  --level N  --faction NAME  --mode "Name"
-         --stacks onKill=5  --status-types N  --headshot  --json
+         --stacks onKill=5  --status-types N  --headshot
+         --brief one line per result (agent default)   --json machine-readable   --debug stack trace
 
 Ability options:
          --strength N          Ability Strength (100 = unmodded)
@@ -637,4 +717,22 @@ Search options:
   }
 }
 
-main();
+function run(): void {
+  try {
+    main();
+  } catch (error) {
+    const args = parseArgs(process.argv.slice(2));
+    const message = error instanceof Error ? error.message : String(error);
+    const code = error instanceof CliError ? error.code : 'error';
+    const suggestions = error instanceof CliError ? error.suggestions : [];
+    if (wantsJson(args)) {
+      console.error(JSON.stringify({ error: { code, message, ...(suggestions.length ? { suggestions } : {}) } }));
+    } else {
+      console.error(`error: ${message}${suggestions.length ? ` (did you mean: ${suggestions.join(', ')}?)` : ''}`);
+    }
+    if (args.flags.has('debug') && error instanceof Error && error.stack) console.error(error.stack);
+    process.exitCode = error instanceof CliError ? 2 : 1;
+  }
+}
+
+run();

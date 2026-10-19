@@ -25,6 +25,23 @@ cd wfcalc
 `npm run update` refreshes the data from WFCD and the wiki (~12 MB); `npm run sync` only does
 it when an upstream changed. `npm install` is only needed for `npm run check` (TypeScript).
 
+## For agents
+
+The calculator is designed to be driven headless by an AI agent through the CLI, not through
+an MCP server: one process per question, compact text, and `--brief` for a one-line answer.
+JSON exists (`--json`) for the cases where a field must be parsed, but it is the expensive
+output, not the default.
+
+The operating manual is [`skills/wfcalc/SKILL.md`](skills/wfcalc/SKILL.md); the detailed contract
+(flags, fields, assumptions, limits) is [`docs/agent.md`](docs/agent.md). Copy `skills/wfcalc/`
+into your agent's skills directory to install it.
+
+```sh
+wfcalc search "Soma Prime" --enemy Bombard --level 150 --top 1 --brief
+wfcalc calc "Soma Prime" --mod Serration --strip-from Avalanche --strength 200 --enemy Bombard --level 150 --brief
+wfcalc ability Miasma --strength 200 --enemy Bombard --level 150 --brief
+```
+
 ## Quick start
 
 ```sh
@@ -346,7 +363,9 @@ src/cli.ts          CLI
 src/server.ts       local API + static web UI
 src/web/            the UI (vanilla JS, no build step)
 docs/formulas.md    every formula and where it comes from
-docs/api.md         the JSON API, for scripts and AI agents
+docs/api.md         the JSON API, for scripts and the web UI
+skills/wfcalc/      agent skill: the CLI operating manual
+docs/agent.md       agent contract: fields, assumptions, failure modes
 ```
 
 Formulas and their sources: [docs/formulas.md](docs/formulas.md).

@@ -10,7 +10,7 @@ Last updated: 2026-10-19.
 
 | | |
 |---|---|
-| Tests | **102 pass, 0 fail** (`npm test`, ~6 s) |
+| Tests | **105 pass, 0 fail** (`npm test`, ~6 s) |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration vs Overframe | **50/50** (`node tools/calibrate.ts`), ranged builds only |
 | Types | `npm run check` clean |
@@ -90,6 +90,7 @@ Rules that have prevented repeated mistakes:
 | A2 | **`sync` did not watch the weapon modules** and, worse, called the fetchers without `--force`, so a detected change rebuilt from stale files. Source lists now live in `tools/sources.ts` (shared by `fetch` and `sync`); categories are compared by a hash because the API sends no `Last-Modified`. | `sync --check` went from "category changed" on every run to "up to date" in 2 s; a forced run rebuilt the snapshot and calibrated 60/60 |
 | A3 | **HTTP API lacked `search` and `ability`**, and the build construction was duplicated. `POST /api/search`, `GET /api/ability`, `GET /api/abilities`; shared `buildFromBody`. | `tests/server.test.ts`; documented in `docs/api.md` |
 | A4 | **UI had no strip, abilities or build finder**. New Find and Abilities tabs; Build gained Corrosive Projections, direct strip %, Shattering Impact and "strip from ability". Strip resolution moved to `src/engine/strip.ts`, shared by CLI and server. | Screenshots; Bombard 150: 2700 → 0 armour, 644 s → 64 s TTK; a found build loads with its 4 Forma and 57/60 capacity |
+| A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
 
 Known loose ends from A1:
 

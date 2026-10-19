@@ -6,7 +6,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const BIN = fileURLToPath(new URL('../bin/wfcalc', import.meta.url));
@@ -15,6 +15,9 @@ const run = (args: string[]): unknown => {
   const out = execFileSync(BIN, args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
   return JSON.parse(out);
 };
+
+const runRaw = (args: string[]) =>
+  spawnSync(BIN, args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
 
 test('listing commands emit parseable JSON', () => {
   const weapons = run(['weapons', 'Soma', '--json']) as Array<{ name: string }>;
@@ -77,4 +80,43 @@ test('armour strip flags change the answer, and bad values fail loudly', () => {
   // Additive strips: Terrify at 60% plus one aura at 18% leaves 22% of the armour.
   assert.ok(timeToKill(['--strip-from', 'Terrify', '--cp', '1']) < timeToKill(['--strip-from', 'Terrify']));
   assert.throws(() => run(['calc', 'Soma Prime', '--cp', '9', '--json']));
+});
+
+
+test('--brief is one compact line for a calculation', () => {
+  // The agent default: no per-type tree, no JSON, the numbers that answer the question.
+  const result = runRaw(['calc', 'Kuva Bramma', '--mod', 'Serration', '--enemy', 'Bombard', '--level', '150', '--brief']);
+  assert.equal(result.status, 0);
+  const lines = result.stdout.trim().split('\n');
+  assert.equal(lines.length, 1, `brief should be one line, got:\n${result.stdout}`);
+  assert.match(lines[0], /^Kuva Bramma vs Bombard 150 · /);
+  assert.match(lines[0], /total [\d,.]+ dps with status/);
+  assert.match(lines[0], /ttk [\d,.]+s \([\d,.]+ shots\)/);
+});
+
+test('--brief search keeps the mod list and the assumptions', () => {
+  const result = runRaw(['search', 'Soma Prime', '--enemy', 'Bombard', '--level', '150', '--top', '1', '--brief']);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /^Soma Prime vs Bombard 150 · 1 of \d+ builds/);
+  assert.match(result.stdout, /^1\. .*s · .* dps · \d+F · \d+\/\d+ cap/m);
+  assert.match(result.stdout, /^   .*Serration/m, 'the answer must carry the mods');
+  assert.match(result.stdout, /^assumptions: /m);
+});
+
+test('expected failures exit 2, stay terse, and are JSON when asked', () => {
+  const json = runRaw(['calc', 'NoSuchWeapon', '--json']);
+  assert.equal(json.status, 2);
+  assert.equal(json.stdout.trim(), '');
+  const payload = JSON.parse(json.stderr) as { error: { code: string; message: string } };
+  assert.equal(payload.error.code, 'weapon_not_found');
+  assert.equal(payload.error.message, 'weapon not found: NoSuchWeapon');
+  assert.ok(!/file:|\bat .*cli\.ts/.test(json.stderr), 'an expected failure must not print a stack trace');
+
+  const text = runRaw(['calc', 'NoSuchWeapon']);
+  assert.equal(text.status, 2);
+  assert.match(text.stderr, /^error: weapon not found: NoSuchWeapon/);
+
+  const ability = runRaw(['ability', 'Not An Ability', '--json']);
+  assert.equal(ability.status, 2);
+  assert.equal((JSON.parse(ability.stderr) as { error: { code: string } }).error.code, 'ability_not_found');
 });

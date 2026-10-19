@@ -511,7 +511,8 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
   if (incarnonTiers.length && base.incarnon === undefined) {
     notes.push(
       `Incarnon evolutions are not assumed: ${weapon.name} has ${incarnonTiers.length} tier(s) of perks, `
-      + 'and only their parsed stats are modelled, not the transformed weapon. Ask for them with chooseIncarnon.',
+      + 'and the transformed profile plus those perks is modelled. Ask for them with --incarnon auto, '
+      + 'or pick them with --incarnon "EVO2:0".',
     );
   }
   if (weapon.category === 'melee') {
