@@ -156,3 +156,12 @@ these fails loudly.
 
 The earlier reading of 7 for the same situation was the untruncated sum (7.13) — the game never
 showed that; it is what our engine reports internally before truncation.
+
+
+## Melee and secondary coverage
+
+The in-game readings above are all Soma Prime. Melee and secondary arsenal stats are now covered
+by the pinned external battery (`data/calibration-builds.json`): 8 melee and 5 secondary public
+builds are compared field by field with Overframe, and `tests/calibration.test.ts` fails if that
+slice regresses. A future in-game capture for a melee combo or a secondary alt-fire is still the
+strongest check, but it is no longer the only one.

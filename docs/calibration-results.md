@@ -9,5 +9,6 @@ refresh it deliberately with `npm run calibrate -- --refresh`.
 - builds compared: **35**
 - matching: **35**
 - mismatching: **0**
+- by category: **primary 20/20 · melee 8/8 · secondary 5/5 · archgun 1/1 · sentinel 1/1**
 
 Every compared build matches on all seven stats.

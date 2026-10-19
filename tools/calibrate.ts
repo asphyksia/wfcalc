@@ -244,10 +244,15 @@ const builds = fixture.builds.slice(0, count);
 console.log(`${fixture.builds.length} pinned builds (${fixture.generatedAt}), comparing ${builds.length}\n`);
 
 const mismatches: Array<{ build: PinnedBuild; weapon: string; diffs: ReturnType<typeof diffOracle>; unknown: string[] }> = [];
+const byCategory = new Map<string, { total: number; matched: number }>();
 let matched = 0;
 let skipped = 0;
 
 for (const entry of builds) {
+  const category = snapshot.weapons[entry.weapon]?.category ?? 'other';
+  const bucket = byCategory.get(category) ?? { total: 0, matched: 0 };
+  bucket.total++;
+  byCategory.set(category, bucket);
   const input = pinnedInput(entry);
   let diffs;
   try {
@@ -258,6 +263,7 @@ for (const entry of builds) {
   }
   if (diffs.length === 0) {
     matched++;
+    bucket.matched++;
     if (verbose) console.log(`  ok   ${entry.id} ${input.weapon}`);
   } else {
     mismatches.push({ build: entry, weapon: input.weapon, diffs, unknown: [] });
@@ -300,6 +306,10 @@ writeFileSync(
     `- builds compared: **${matched + mismatches.length}**`,
     `- matching: **${matched}**`,
     `- mismatching: **${mismatches.length}**`,
+    `- by category: **${[...byCategory]
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([category, value]) => `${category} ${value.matched}/${value.total}`)
+      .join(' · ')}**`,
     '',
     ...(mismatches.length
       ? [

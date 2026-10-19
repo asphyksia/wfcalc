@@ -321,8 +321,9 @@ with wfcalc and diffs it against Overframe's own modifier block (`WEAPON_CRIT_CH
 the default run is deterministic and offline; `calibrate:refresh` is the only network step.
 Results land in [docs/calibration-results.md](docs/calibration-results.md).
 
-Latest battery: **35/35** unique public builds (the list API returns the same page for every
-`page` parameter, which used to create duplicates). `npm run audit`
+Latest battery: **35/35** unique public builds, including **8 melee and 5 secondary** weapons
+(the list API returns the same page for every `page` parameter, which used to create duplicates).
+`tests/calibration.test.ts` keeps the melee/secondary slice honest offline. `npm run audit`
 adds the *why*: mismatch rate per weapon category, per field, and mods over-represented in
 failures. Its last sweep found every failure concentrated in four weapons, one field each. The remaining mismatches are
 grouped by signature; the open ones are listed in [docs/data-notes.md](docs/data-notes.md).
