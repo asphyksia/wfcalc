@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadSnapshot } from '../src/data.ts';
 import { abilityCast } from '../src/engine/ability.ts';
+import { resolveStrip } from '../src/engine/strip.ts';
 import { armorDamageReduction, scaleEnemy } from '../src/engine/enemy.ts';
 import { resolveBuild } from '../src/engine/build.ts';
 import { hitEnemy } from '../src/engine/damage.ts';
@@ -152,4 +153,21 @@ test('ticks make a damage ability kill in fewer casts', () => {
   assert.ok(ticking.target!.perCast > single.target!.perCast,
     `Inferno (${ticking.target!.perCast}) should out-damage a single-hit nuke (${single.target!.perCast})`);
   assert.ok(ticking.target!.castsToKill! < single.target!.castsToKill!);
+});
+
+test('the strip resolver turns squad, weapon and ability inputs into one additive debuff', () => {
+  // Same example as above, now through the shared resolver the CLI and the HTTP API use:
+  // Terrify's 60% plus one Corrosive Projection (18%) is 78%, not 67.2%.
+  const both = resolveStrip(snapshot, { armorStripPercent: 60, corrosiveProjections: 1 });
+  assert.ok(Math.abs((both.armorStrip ?? 0) - 0.78) < 1e-9);
+
+  // An ability brings its own strength scaling; Avalanche at 200% is capped at the whole armour.
+  assert.equal(resolveStrip(snapshot, { stripFrom: 'Avalanche', strength: 200 }).armorStrip, 1);
+  // Polarize is a flat point drain, not a fraction.
+  assert.ok((resolveStrip(snapshot, { stripFrom: 'Polarize' }).armorStripFlat ?? 0) > 0);
+  // Shattering Impact is 6 base armour per hit at max rank.
+  assert.equal(resolveStrip(snapshot, { shatteringImpactHits: 10 }).armorStripBaseFlat, 60);
+
+  assert.throws(() => resolveStrip(snapshot, { stripFrom: 'Miasma' }), /does not strip armour/);
+  assert.throws(() => resolveStrip(snapshot, { corrosiveProjections: 5 }), /0 to 4/);
 });

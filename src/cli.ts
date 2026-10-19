@@ -22,6 +22,7 @@ import { loadSnapshot, findEnemy, findMod, findWeapon, modsForWeapon } from './d
 import { resolveBuild, type Build, type BuildMod } from './engine/build.ts';
 import { search } from './engine/search.ts';
 import { abilityCast } from './engine/ability.ts';
+import { resolveStrip, type StripDebuff } from './engine/strip.ts';
 import { scaleEnemy } from './engine/enemy.ts';
 import { hitEnemy } from './engine/damage.ts';
 import { BUFFS, availableBuffs } from './engine/buffs.ts';
@@ -110,60 +111,18 @@ function parseConditions(args: Args): Record<string, number> {
   return conditions;
 }
 
-/**
- * Armour strip on the target, either stated ("--armor-strip 60", percent) or taken from an
- * ability the player will cast ("--strip-from Avalanche --strength 200"). This is the seam
- * between the ability and the weapon: what a strip is worth shows up as weapon damage.
- */
-function armorStripDebuff(snapshot: Snapshot, args: Args): {
-  armorStrip?: number;
-  armorStripFlat?: number;
-  armorStripBaseFlat?: number;
-} {
-  // Percentage strips are additive, not multiplicative: the wiki's own example is Terrify at
-  // 60% plus one Corrosive Projection at 18% leaving 22% of the armour, not 33%.
-  let percent = 0;
-  let flat = 0;
-  let baseFlat = 0;
-
+/** Maps the CLI flags onto the shared armour-strip resolver. */
+function armorStripDebuff(snapshot: Snapshot, args: Args): StripDebuff {
   const cp = flag(args, 'cp');
-  if (cp !== undefined) {
-    const count = Number(cp);
-    if (!Number.isFinite(count) || count < 0 || count > 4) throw new Error('--cp expects 0 to 4 Corrosive Projections');
-    // 18% per squad member using it.
-    percent += 0.18 * count;
-  }
-
   const direct = flag(args, 'armor-strip');
-  if (direct !== undefined) {
-    const value = Number(direct);
-    if (!Number.isFinite(value)) throw new Error(`--armor-strip expects a percentage, got "${direct}"`);
-    percent += Math.max(0, value) / 100;
-  }
-
-  const from = flag(args, 'strip-from');
-  if (from) {
-    const cast = abilityCast(snapshot, from, {
-      strength: flag(args, 'strength') ? Number(flag(args, 'strength')) : 100,
-    });
-    if (!cast.armorStrip) throw new Error(`${cast.ability} does not strip armour`);
-    if (cast.armorStrip.fraction !== null) percent += cast.armorStrip.fraction;
-    if (cast.armorStrip.points !== null) flat += cast.armorStrip.points;
-  }
-
   const shattering = flag(args, 'shattering-impact');
-  if (shattering !== undefined) {
-    const hits = Number(shattering);
-    if (!Number.isFinite(hits) || hits < 0) throw new Error('--shattering-impact expects a number of hits');
-    // The mod removes 1 base armour per rank, so 6 per hit at max rank.
-    baseFlat += 6 * hits;
-  }
-
-  return {
-    ...(percent > 0 ? { armorStrip: Math.min(1, percent) } : {}),
-    ...(flat > 0 ? { armorStripFlat: flat } : {}),
-    ...(baseFlat > 0 ? { armorStripBaseFlat: baseFlat } : {}),
-  };
+  return resolveStrip(snapshot, {
+    corrosiveProjections: cp !== undefined ? Number(cp) : undefined,
+    armorStripPercent: direct !== undefined ? Number(direct) : undefined,
+    stripFrom: flag(args, 'strip-from'),
+    shatteringImpactHits: shattering !== undefined ? Number(shattering) : undefined,
+    strength: flag(args, 'strength') ? Number(flag(args, 'strength')) : undefined,
+  });
 }
 
 function buildFromArgs(snapshot: Snapshot, args: Args, mods: string[]): Build {

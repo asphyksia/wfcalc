@@ -48,6 +48,32 @@ test('GET /api/ability answers a cast on a target', async () => {
 
     const missing = await fetch(`${base}/api/ability?name=NotAnAbility`);
     assert.equal(missing.status, 404);
+
+    const abilities = (await (await fetch(`${base}/api/abilities`)).json()) as any[];
+    assert.ok(abilities.some((ability) => ability.ability === 'Avalanche' && ability.armorStrip), 'the strip picker needs abilities');
+  });
+});
+
+test('POST /api/calc resolves the armour-strip fields the same way the CLI does', async () => {
+  await withServer(async (base) => {
+    const calc = async (extra: object) => {
+      const response = await fetch(`${base}/api/calc`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ weapon: 'Kuva Bramma', enemy: 'Bombard', level: 150, ...extra }),
+      });
+      return (await response.json()) as any;
+    };
+    const plain = await calc({});
+    assert.equal(plain.target.armor, 2700);
+    // 60% + one Corrosive Projection (18%) is additive: 22% of the armour is left.
+    const stripped = await calc({ armorStripPercent: 60, corrosiveProjections: 1 });
+    assert.ok(Math.abs(stripped.target.armor - 2700 * 0.22) < 1e-6,
+      `expected 594 armour, got ${stripped.target.armor}`);
+    assert.ok(stripped.target.timeToKill < plain.target.timeToKill);
+
+    const invalid = await calc({ corrosiveProjections: 9 });
+    assert.match(String(invalid.error), /0 to 4/);
   });
 });
 

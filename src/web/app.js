@@ -113,6 +113,12 @@ const emptyState = () => ({
   mode: '',
   conditions: {},
   headshot: false,
+  // Armour strip brought by the squad, the weapon or an ability.
+  corrosiveProjections: 0,
+  armorStripPercent: 0,
+  shatteringImpactHits: 0,
+  stripFrom: '',
+  lastAbility: '',
 });
 
 let state = emptyState();
@@ -120,6 +126,7 @@ let allMods = [];
 /** Weapon metadata by name, for capacity and polarity matching. */
 const weaponData = new Map();
 let allBuffs = [];
+let allAbilities = [];
 let calculationId = 0;
 /** Mod name -> share of burst DPS, refreshed on every calculation. */
 const lastContributions = new Map();
@@ -923,6 +930,153 @@ function ratioCell(b, a) {
   return `<span class="${cls}">${change > 0 ? '+' : ''}${change.toFixed(1)}%</span>`;
 }
 
+/** ---------- find a build ---------- */
+
+async function runFind() {
+  const weapon = $('find-weapon').value.trim() || state.weapon;
+  if (!weapon) {
+    $('find-out').innerHTML = '<p class="hint">Pick a weapon in Build first, or type one above.</p>';
+    return;
+  }
+  const chooseIncarnon = $('find-incarnon').checked;
+  const base = buildPayload({ contributions: false });
+  // The search chooses the mods (and, if asked, the evolutions): do not pin them here.
+  delete base.mods;
+  if (chooseIncarnon) delete base.incarnon;
+  const names = (text) => text.split(',').map((name) => name.trim()).filter(Boolean);
+  const payload = {
+    weapon,
+    objective: $('find-objective').value,
+    enemy: $('find-enemy').value.trim() || 'Bombard',
+    level: Number($('find-level').value) || 150,
+    capacity: Number($('find-capacity').value) || 60,
+    maxForma: $('find-forma').value === '' ? null : Number($('find-forma').value),
+    mustInclude: names($('find-must').value),
+    exclude: names($('find-exclude').value),
+    chooseIncarnon,
+    base,
+  };
+  $('find-out').innerHTML = '<p class="hint">searching…</p>';
+  const response = await fetch('/api/search', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json();
+  if (result.error) {
+    $('find-out').innerHTML = `<p class="error">${result.error}</p>`;
+    return;
+  }
+  renderFind(result);
+}
+
+function renderFind(result) {
+  const builds = result.builds ?? [];
+  $('find-out').innerHTML = `
+    <p class="hint">${result.evaluated} builds tried in ${result.elapsedMs} ms · ${result.weapon} vs ${result.enemy} level ${result.level}</p>
+    ${builds
+      .map((build, index) => `<div class="build-card">
+        <div class="build-head">
+          <div>
+            <b>${index + 1}. ${build.timeToKill === null ? 'cannot kill' : `${fmt(build.timeToKill, 2)}s`}</b>
+            <span class="meta">
+              <span class="chip">${fmt(build.totalDps, 0)} dps</span>
+              <span class="chip">${fmt(build.sustainedDps, 0)} direct</span>
+              <span class="chip">crit ${pct(build.critChance)} ×${fmt(build.critMultiplier, 1)}</span>
+              <span class="chip">status ${pct(build.statusChance)}</span>
+              <span class="chip">×${fmt(build.multishot, 2)} multishot</span>
+              <span class="chip${build.capacityUsed > build.capacity ? ' warn' : ''}">${build.capacityUsed}/${build.capacity} cap</span>
+              ${build.formaNeeded ? `<span class="chip">${build.formaNeeded} forma</span>` : ''}
+            </span>
+          </div>
+          <button class="ghost" data-find-load="${index}">load</button>
+        </div>
+        <div class="build-mods">${build.mods
+          .map((mod) => `<span class="chip">${mod.name}${mod.rank < 99 ? ` R${mod.rank}` : ''}</span>`)
+          .join('')}</div>
+        ${build.incarnonNames?.length ? `<div class="meta">${build.incarnonNames.map((name) => `<span class="chip subtle">${name}</span>`).join('')}</div>` : ''}
+        ${build.partialMods?.length ? `<p class="hint">lower bound: ${build.partialMods.join(', ')}</p>` : ''}
+        ${build.warnings?.length ? `<p class="hint">${build.warnings.join(' · ')}</p>` : ''}
+      </div>`)
+      .join('') || '<p class="hint">No build fits those limits.</p>'}
+    ${(result.assumptions ?? []).map((line) => `<p class="hint">· ${line}</p>`).join('')}
+    ${(result.notes ?? []).map((line) => `<p class="hint">· ${line}</p>`).join('')}`;
+
+  for (const button of $('find-out').querySelectorAll('[data-find-load]')) {
+    button.onclick = async () => {
+      const build = builds[Number(button.dataset.findLoad)];
+      if (!build) return;
+      // The search counted capacity with the Forma it decided to spend; put those on the
+      // matching slots, or the loaded build would show as over capacity.
+      const innate = weaponData.get(result.weapon)?.polarities ?? [];
+      const slotPolarities = build.mods.map((mod, index) =>
+        mod.halvedByPolarity && innate[index] !== mod.polarity ? mod.polarity : null);
+      state = {
+        ...state,
+        weapon: result.weapon,
+        enemy: result.enemy,
+        level: result.level,
+        reactor: result.capacity >= 60,
+        slotPolarities,
+        mods: build.mods.map((mod) => ({ name: mod.name, rank: mod.rank })),
+        incarnon: [...(build.incarnon ?? [])],
+      };
+      await loadModsForWeapon();
+      syncInputs();
+      renderSlots();
+      showTab('build');
+      recalc();
+    };
+  }
+}
+
+/** ---------- abilities ---------- */
+
+async function runAbility() {
+  const name = $('ability-select').value;
+  if (!name) return;
+  state.lastAbility = name;
+  saveToUrl();
+  const params = new URLSearchParams({
+    name,
+    strength: $('ability-strength').value,
+    enemy: $('ability-enemy').value.trim() || 'Bombard',
+    level: $('ability-level').value || '150',
+  });
+  try {
+    renderAbility(await getJson(`/api/ability?${params}`));
+  } catch (error) {
+    $('ability-out').innerHTML = `<p class="error">${String(error.message ?? error)}</p>`;
+  }
+}
+
+function renderAbility(result) {
+  $('ability-out').innerHTML = `
+    <div class="build-head">
+      <div>
+        <h3>${result.frame} — ${result.ability}${result.damageType ? ` <span class="chip">${result.damageType}</span>` : ''}</h3>
+        <span class="meta">
+          <span class="chip">${fmt(result.baseDamage, 0)}${result.perSecond ? '/s' : ''} at 100%</span>
+          <span class="chip">${fmt(result.scaledDamage, 0)}${result.perSecond ? '/s' : ''} at ${fmt(result.strength, 0)}%</span>
+          ${result.durationSeconds ? `<span class="chip">${result.durationSeconds}s</span>` : ''}
+          ${result.radius ? `<span class="chip">${fmt(result.radius, 1)} m</span>` : ''}
+          ${result.armorStrip
+            ? `<span class="chip">strip ${result.armorStrip.fraction !== null ? `${(result.armorStrip.fraction * 100).toFixed(0)}%` : `${fmt(result.armorStrip.points, 0)} pts`}</span>`
+            : ''}
+        </span>
+      </div>
+    </div>
+    ${result.ticks ? `<p class="hint">plus ${fmt(result.ticks.perSecond, 0)}/s ${result.ticks.damageType ?? ''} for ${result.ticks.seconds}s</p>` : ''}
+    <div class="kpi-row">
+      <div class="kpi"><span>full cast</span><b>${fmt(result.totalDamage, 0)}</b></div>
+      ${result.target ? `<div class="kpi"><span>on ${result.target.enemy} lv${result.target.level}</span><b>${fmt(result.target.perCast, 0)}</b></div>` : ''}
+      ${result.target ? `<div class="kpi"><span>health modifier</span><b>×${fmt(result.target.healthMultiplier, 2)}</b></div>` : ''}
+      ${result.target ? `<div class="kpi"><span>armour removes</span><b>${pct(result.target.armorReduction)}</b></div>` : ''}
+      ${result.target?.castsToKill !== null && result.target ? `<div class="kpi accent"><span>casts to kill</span><b>${fmt(result.target.castsToKill, 0)}</b></div>` : ''}
+    </div>
+    ${(result.notes ?? []).map((note) => `<p class="hint">· ${note}</p>`).join('')}`;
+}
+
 /** ---------- library ---------- */
 
 function renderSaved() {
@@ -998,6 +1152,13 @@ function syncInputs() {
   $('aoe-value').textContent = state.aoeDistance ? `${state.aoeDistance} m` : 'centre';
   $('element-bonus').value = elementBonusText(state.elementBonus);
   $('reactor').checked = Boolean(state.reactor);
+  $('cp-input').value = String(state.corrosiveProjections ?? 0);
+  $('strip-input').value = String(state.armorStripPercent ?? 0);
+  $('shattering-input').value = String(state.shatteringImpactHits ?? 0);
+  $('strip-from').value = state.stripFrom ?? '';
+  $('find-weapon').value = '';
+  $('find-enemy').value = state.enemy ?? 'Bombard';
+  $('find-level').value = String(state.level ?? 150);
   renderBuffList();
 }
 
@@ -1129,6 +1290,26 @@ function bindEvents() {
     recalc();
   });
 
+  const stripInput = (id, key) => {
+    $(id).addEventListener('change', (event) => {
+      state[key] = Math.max(0, Number(event.target.value) || 0);
+      recalc();
+    });
+  };
+  stripInput('cp-input', 'corrosiveProjections');
+  stripInput('strip-input', 'armorStripPercent');
+  stripInput('shattering-input', 'shatteringImpactHits');
+  $('strip-from').addEventListener('change', (event) => {
+    state.stripFrom = event.target.value;
+    recalc();
+  });
+
+  $('find-run').onclick = runFind;
+  $('ability-run').onclick = runAbility;
+  $('ability-strength').addEventListener('input', (event) => {
+    $('ability-strength-value').textContent = `${event.target.value}%`;
+  });
+
   $('compare-run').onclick = runCompare;
 
   $('save-build').onclick = () => {
@@ -1155,12 +1336,13 @@ function bindEvents() {
 /** ---------- boot ---------- */
 
 async function loadStaticLists() {
-  const [weapons, enemies, buffs, arcanes, warframes] = await Promise.all([
+  const [weapons, enemies, buffs, arcanes, warframes, abilities] = await Promise.all([
     getJson('/api/weapons'),
     getJson('/api/enemies'),
     getJson('/api/buffs'),
     getJson('/api/arcanes'),
     getJson('/api/warframes'),
+    getJson('/api/abilities'),
   ]);
   $('frame-list').innerHTML = warframes.map((frame) => `<option value="${frame.name}"></option>`).join('');
   weaponData.clear();
@@ -1171,7 +1353,30 @@ async function loadStaticLists() {
   $('enemy-list').innerHTML = enemies.map((enemy) => `<option value="${enemy.name}">${enemy.faction ?? ''} hp${enemy.health}</option>`).join('');
   $('arcane-list').innerHTML = arcanes.map((arcane) => `<option value="${arcane.name}">${(arcane.description || '').split('\n')[0].slice(0, 44)}</option>`).join('');
   allBuffs = buffs;
+  allAbilities = abilities;
   renderBuffList();
+  renderAbilityLists();
+}
+
+/** The ability picker and the armour-strip picker, both fed by the same list. */
+function renderAbilityLists() {
+  const select = $('ability-select');
+  if (select) {
+    select.innerHTML = allAbilities
+      .map((ability) => `<option value="${ability.ability}">${ability.frame} — ${ability.ability}${ability.damageType ? ` (${ability.damageType})` : ''}</option>`)
+      .join('');
+    select.value = state.lastAbility && allAbilities.some((a) => a.ability === state.lastAbility)
+      ? state.lastAbility
+      : allAbilities[0]?.ability ?? '';
+  }
+  const strip = $('strip-from');
+  if (strip) {
+    const stripping = allAbilities.filter((ability) => ability.armorStrip);
+    strip.innerHTML = '<option value="">none</option>' + stripping
+      .map((ability) => `<option value="${ability.ability}">${ability.frame} — ${ability.ability}</option>`)
+      .join('');
+    strip.value = state.stripFrom ?? '';
+  }
 }
 
 async function loadModsForWeapon() {

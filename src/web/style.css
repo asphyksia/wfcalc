@@ -579,3 +579,17 @@ details > *:not(summary) { margin-top: 8px; }
 .lib-card .mcard { pointer-events: auto; width: 100%; --card-w: 100%; --card-h: 96px; margin: 8px 0 14px; }
 .lib-card .mcard:hover { transform: scale(1.02); }
 .lib-card.equipped { opacity: .5; }
+
+/* Find-a-build results and ability casts: the same card language as saved builds. */
+.kpi-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.kpi-row .kpi { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; min-width: 110px; }
+.kpi-row .kpi span { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.kpi-row .kpi b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.kpi-row .kpi.accent { border-color: var(--accent-dim); }
+.kpi-row .kpi.accent b { color: var(--accent); }
+
+.build-card { border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); padding: 10px 12px; margin: 10px 0; }
+.build-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.build-head h3 { margin: 0 0 6px; font-size: 15px; }
+.build-head .meta { margin-top: 6px; }
+.build-mods { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }

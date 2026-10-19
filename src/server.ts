@@ -20,6 +20,7 @@ import { hitEnemy, statusProcs } from './engine/damage.ts';
 import { availableBuffs } from './engine/buffs.ts';
 import { search } from './engine/search.ts';
 import { abilityCast } from './engine/ability.ts';
+import { resolveStrip } from './engine/strip.ts';
 
 const WEB_ROOT = new URL('./web/', import.meta.url).pathname;
 /** Mod artwork cache: fetched once from the WFCD export repo, then served locally. */
@@ -96,6 +97,15 @@ async function readBody(req: IncomingMessage): Promise<any> {
 
 /** The build fields shared by `/api/calc` and `/api/search`, in the API's JSON shape. */
 function buildFromBody(body: any, weaponName: string): Build {
+  // The semantic strip fields are resolved here so the UI and an agent can say "2 Corrosive
+  // Projections and Avalanche at 200% strength" instead of pre-computing the debuff.
+  const strip = resolveStrip(snapshot, {
+    corrosiveProjections: body.corrosiveProjections,
+    armorStripPercent: body.armorStripPercent,
+    stripFrom: body.stripFrom,
+    shatteringImpactHits: body.shatteringImpactHits,
+    strength: body.abilityStrength ? Number(body.abilityStrength) : undefined,
+  });
   return {
     weapon: weaponName,
     mods: Array.isArray(body.mods) ? body.mods : [],
@@ -113,7 +123,7 @@ function buildFromBody(body: any, weaponName: string): Build {
     comboHits: body.comboHits ? Number(body.comboHits) : undefined,
     heavyAttack: Boolean(body.heavyAttack),
     riven: body.riven ?? undefined,
-    debuffs: body.debuffs ?? {},
+    debuffs: { ...(body.debuffs ?? {}), ...strip },
     mode: body.mode || undefined,
     conditions: body.conditions ?? {},
     headshot: Boolean(body.headshot),
@@ -126,7 +136,12 @@ function calculate(body: any) {
   const { item: weapon, suggestions } = findWeapon(snapshot, weaponQuery);
   if (!weapon) return { error: `weapon not found: ${weaponQuery}`, suggestions };
 
-  const build = buildFromBody(body, weapon.name);
+  let build: Build;
+  try {
+    build = buildFromBody(body, weapon.name);
+  } catch (error) {
+    return { error: String((error as Error).message) };
+  }
   const resolved = resolveBuild(snapshot, build);
 
   let target = null;
@@ -294,7 +309,12 @@ const server = createServer(async (req, res) => {
       // The search picks the mods; everything else about the build can still be fixed, either
       // under `base` or at the top level (the shape /api/calc accepts).
       const baseSource = body.base && typeof body.base === 'object' ? body.base : body;
-      const base = { ...buildFromBody(baseSource, weapon.name), mods: [] };
+      let base: Build;
+      try {
+        base = { ...buildFromBody(baseSource, weapon.name), mods: [] };
+      } catch (error) {
+        return json(res, 400, { error: String((error as Error).message) });
+      }
       const chooseIncarnon = Boolean(body.chooseIncarnon) || body.incarnon === 'auto';
       const result = search(snapshot, {
         weapon: weapon.name,
@@ -311,6 +331,22 @@ const server = createServer(async (req, res) => {
         base: chooseIncarnon ? { ...base, incarnon: undefined } : base,
       });
       return json(res, 200, result);
+    }
+    if (url.pathname === '/api/abilities') {
+      // Everything the ability tab and the strip picker need in one list.
+      const list = Object.values(snapshot.damageAbilities ?? {})
+        .map((ability) => ({
+          ability: ability.ability,
+          frame: ability.frame,
+          damageType: ability.damageType,
+          baseDamage: ability.baseDamage,
+          perSecond: Boolean(ability.perSecond),
+          durationSeconds: ability.durationSeconds ?? null,
+          radius: ability.radius,
+          armorStrip: ability.armorStrip ?? null,
+        }))
+        .sort((a, b) => a.frame.localeCompare(b.frame) || a.ability.localeCompare(b.ability));
+      return json(res, 200, list);
     }
     if (url.pathname === '/api/ability') {
       const name = url.searchParams.get('name') ?? '';

@@ -12,6 +12,8 @@
   <div class="brand">wfcalc</div>
   <nav class="tabs" role="tablist">
     <button class="tab active" data-tab="build" role="tab">Build</button>
+    <button class="tab" data-tab="find" role="tab">Find</button>
+    <button class="tab" data-tab="abilities" role="tab">Abilities</button>
     <button class="tab" data-tab="compare" role="tab">Compare</button>
     <button class="tab" data-tab="saved" role="tab">Saved</button>
   </nav>
@@ -129,6 +131,18 @@
         <label class="stack">Viral <input type="number" id="viral" min="0" max="10" value="0" /></label>
         <label class="stack">Corrosive <input type="number" id="corrosive" min="0" max="10" value="0" /></label>
       </div>
+      <div class="row">
+        <label class="field"><span>Corrosive Projections</span>
+          <input id="cp-input" type="number" min="0" max="4" step="1" value="0" /></label>
+        <label class="field"><span>Armour strip %</span>
+          <input id="strip-input" type="number" min="0" max="100" step="5" value="0" /></label>
+        <label class="field"><span>Shattering Impact hits</span>
+          <input id="shattering-input" type="number" min="0" max="100" step="1" value="0" /></label>
+        <label class="field"><span>Strip from ability</span>
+          <select id="strip-from"><option value="">none</option></select></label>
+      </div>
+      <p class="hint">Percentage strips add up (Terrify 60% + one Corrosive Projection leaves 22%).
+        “strip from ability” uses the Ability Strength above.</p>
     </details>
 
     <details>
@@ -180,6 +194,67 @@
   </section>
 
   <section class="panel wide"><div id="notes" class="notes"></div></section>
+</main>
+
+<!-- ───────────────────────────── FIND ────────────────────────────── -->
+<main id="tab-find" class="tab-panel">
+  <section class="panel wide">
+    <div class="panel-head">
+      <h2>Find a build</h2>
+      <button id="find-run" class="primary">search</button>
+    </div>
+    <p class="hint">Eight slots, capacity and Forma included. Leave weapon empty to use the Build tab's.</p>
+    <div class="compare-grid">
+      <label class="field"><span>Weapon</span>
+        <input id="find-weapon" list="weapon-list" placeholder="same as Build" autocomplete="off" /></label>
+      <label class="field"><span>Objective</span>
+        <select id="find-objective">
+          <option value="ttk">fastest kill</option>
+          <option value="dps">highest dps</option>
+        </select></label>
+      <label class="field"><span>Enemy</span>
+        <input id="find-enemy" list="enemy-list" placeholder="Bombard" autocomplete="off" /></label>
+      <label class="field"><span>Level</span>
+        <input id="find-level" type="number" min="1" max="9999" value="150" /></label>
+      <label class="field"><span>Capacity</span>
+        <select id="find-capacity">
+          <option value="60">60 (Orokin Catalyst)</option>
+          <option value="30">30 (no Catalyst)</option>
+        </select></label>
+      <label class="field"><span>Max Forma</span>
+        <input id="find-forma" type="number" min="0" max="20" step="1" placeholder="as needed" /></label>
+      <label class="field"><span>Must include</span>
+        <input id="find-must" placeholder="Serration, Split Chamber" autocomplete="off" /></label>
+      <label class="field"><span>Exclude</span>
+        <input id="find-exclude" placeholder="Heavy Caliber" autocomplete="off" /></label>
+    </div>
+    <div class="toggles">
+      <label><input type="checkbox" id="find-incarnon" /> let the search pick Incarnon evolutions</label>
+    </div>
+    <div id="find-out" class="find-out"></div>
+  </section>
+</main>
+
+<!-- ─────────────────────────── ABILITIES ─────────────────────────── -->
+<main id="tab-abilities" class="tab-panel">
+  <section class="panel wide">
+    <div class="panel-head">
+      <h2>Ability damage</h2>
+      <button id="ability-run" class="primary">cast</button>
+    </div>
+    <p class="hint">Flat damage: no crit, no multishot, no status. It shares the weapon's target maths.</p>
+    <div class="compare-grid">
+      <label class="field"><span>Ability</span>
+        <select id="ability-select"></select></label>
+      <label class="field"><span>Ability strength <b id="ability-strength-value">100%</b></span>
+        <input id="ability-strength" type="range" min="40" max="500" step="5" value="100" /></label>
+      <label class="field"><span>Enemy</span>
+        <input id="ability-enemy" list="enemy-list" placeholder="Bombard" autocomplete="off" /></label>
+      <label class="field"><span>Level</span>
+        <input id="ability-level" type="number" min="1" max="9999" value="150" /></label>
+    </div>
+    <div id="ability-out" class="ability-out"></div>
+  </section>
 </main>
 
 <!-- ──────────────────────────── COMPARE ──────────────────────────── -->

@@ -27,7 +27,10 @@ build  —  Kuva Bramma (Bow) vs Bombard lv150
   target       hp 118,480.2  shields 0  armor 2,700   -> 27.4 shots, 57.51s
 ```
 
-Interactive UI: `wfcalc serve` → <http://127.0.0.1:7777>.
+Interactive UI: `wfcalc serve` → <http://127.0.0.1:7777>. Tabs: **Build** (mods, target,
+armour strip from Corrosive Projections / Shattering Impact / an ability), **Find** (the best
+eight-slot build for a target, with its Forma), **Abilities** (damage per cast), Compare and
+Saved.
 
 ### From the phone or another device
 

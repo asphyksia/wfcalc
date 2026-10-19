@@ -46,6 +46,19 @@ damage result is a lower bound.
 
 Weapon arcanes whose slot fits the weapon, with max rank and description.
 
+## `GET /api/abilities`
+
+Every damage-dealing or armour-stripping ability in the snapshot, for pickers and agents that
+need to know what `stripFrom` accepts.
+
+```json
+[{ "ability": "Miasma", "frame": "Saryn", "damageType": "viral", "baseDamage": 150,
+   "perSecond": true, "durationSeconds": 6, "radius": 20, "armorStrip": null },
+ { "ability": "Avalanche", "frame": "Frost", "damageType": "cold", "baseDamage": 1500,
+   "perSecond": false, "durationSeconds": null, "radius": 4.5,
+   "armorStrip": { "mode": "percent", "value": 60 } }]
+```
+
 ## `GET /api/ability?name=Miasma&strength=200&enemy=Bombard&level=150`
 
 One damage-dealing ability, resolved through the same target maths weapons use: health-type
@@ -93,8 +106,8 @@ Finds the best eight-slot build for a target. Same options as the CLI's `wfcalc 
 - `maxForma: null` means "as many as needed" (that is the default when omitted).
 - `chooseIncarnon` lets the search pick evolution perks; it is off by default.
 - `base` fixes everything the search does not choose (arcanes, buffs, frame, riven, debuffs,
-  conditions, mode, combo). The top level is accepted as well, so the `/api/calc` body shape
-  works when `base` is omitted.
+  the armour strip, conditions, mode, combo). The top level is accepted as well, so the
+  `/api/calc` body shape works when `base` is omitted.
 
 Response (abridged):
 
@@ -130,6 +143,10 @@ Response (abridged):
   "incarnon": ["EVO2:0", "EVO4:1"],
   "comboHits": 220,
   "aoeDistance": 4,
+  "corrosiveProjections": 2,
+  "armorStripPercent": 30,
+  "stripFrom": "Avalanche",
+  "shatteringImpactHits": 20,
   "elementBonus": { "type": "heat", "value": 0.6 },
   "heavyAttack": false,
   "mods": [{ "name": "Serration" }, { "name": "Vital Sense", "rank": 3 }],
@@ -156,6 +173,11 @@ Response (abridged):
 - `frame` is optional: it validates Helminth availability of the requested buffs.
 - `warframeArcanes` apply to the weapon and to Ability Strength (Molt Augmented).
 - `debuffs` are status stacks kept up on the target: Viral amplifies health damage, Corrosive strips armour.
+- `corrosiveProjections` (0-4, 18% each), `armorStripPercent` (0-100), `stripFrom` (an ability
+  name from `GET /api/abilities`) and `shatteringImpactHits` (6 base armour each) are resolved
+  server-side into `debuffs.armorStrip` / `armorStripFlat` / `armorStripBaseFlat`. Percentage
+  strips add up: Terrify at 60% plus one Corrosive Projection leaves 22% of the armour, not 33%.
+  `stripFrom` uses `abilityStrength` for its scaling.
 - `conditions` toggles conditional mods: `onKill` (stacks), `onWeakPointHit`,
   `onWeakPointKill`, `onReload`, `aiming`, `sliding`, `holstered`, `statusTypes` (count).
 
