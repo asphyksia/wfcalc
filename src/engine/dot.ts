@@ -85,10 +85,22 @@ export interface DotContext {
   viralStacks?: number;
   /** Corrosive stacks: 26% armour reduction, then 6% more each, capped at 80%. */
   corrosiveStacks?: number;
-  /** Fraction of armour stripped by an ability, 0..1 (Avalanche, Terrify, Seeking Shuriken). */
+  /**
+   * Fraction of armour removed by percentage strips, 0..1. Ability strips and Corrosive
+   * Projection auras are **additive**: the wiki's own example is Terrify (60%) plus one
+   * Corrosive Projection (18%) leaving 22% of the armour, not 33%.
+   */
   armorStrip?: number;
-  /** Armour points removed by an ability (Polarize drains a flat amount). */
+  /** Armour points drained from the current value (Polarize). */
   armorStripFlat?: number;
+  /**
+   * Armour points removed from the enemy's *base* armour (Shattering Impact, 6 per hit at max
+   * rank). Base armour scales with level, so it is multiplied by the same factor the enemy's
+   * armour was scaled by.
+   */
+  armorStripBaseFlat?: number;
+  /** The enemy's level-1 armour, needed to scale a base-armour reduction. */
+  armorBase?: number;
 }
 
 /** Damage-to-health multiplier from Viral stacks (wiki: 100%, then +25% up to 325%). */
@@ -107,10 +119,13 @@ export function corrosiveArmorMultiplier(stacks: number): number {
 
 /** Effective armour after Corrosive procs. */
 export function effectiveArmor(armor: number, context: DotContext): number {
-  // Flat drains come off first (Polarize takes armour points), then the percentage strips
-  // and corrosive procs multiply what is left. Order changes the result on purpose: a flat
-  // drain of 400 against 500 armour leaves 100, which a 60% strip then halves.
-  const afterFlat = Math.max(0, armor - (context.armorStripFlat ?? 0));
+  // Shattering Impact works on base armour, which is the level-1 value the enemy scaled from,
+  // so its removal grows with the same factor the armour did.
+  const scale = context.armorBase && context.armorBase > 0 ? armor / context.armorBase : 1;
+  const fromBase = (context.armorStripBaseFlat ?? 0) * scale;
+  // Flat drains come off first (Polarize takes armour points, Shattering Impact chips at the
+  // base), then the additive percentage strips, then corrosive procs on what is left.
+  const afterFlat = Math.max(0, armor - (context.armorStripFlat ?? 0) - fromBase);
   const fraction = Math.max(0, Math.min(1, context.armorStrip ?? 0));
   return Math.max(0, afterFlat * (1 - fraction) * corrosiveArmorMultiplier(context.corrosiveStacks ?? 0));
 }

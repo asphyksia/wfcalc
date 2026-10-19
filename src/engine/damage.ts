@@ -82,7 +82,8 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
   const factionMultiplier = 1 + (build.factionBonus[factionKey] ?? 0) + (build.factionBonus.all ?? 0);
 
   // Status debuffs the player keeps up on the target.
-  const debuffs: DotContext = { ...build.debuffs, armorModel };
+  // The pool's amount is the level-1 armour, which a base-armour reduction has to be scaled by.
+  const debuffs: DotContext = { ...build.debuffs, armorModel, armorBase: armor?.amount };
   const viral = viralMultiplier(debuffs.viralStacks ?? 0);
   const armorAfterStatus = effectiveArmor(scaled.armor, debuffs);
 
@@ -176,7 +177,9 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
     level: scaled.level,
     health: scaled.health,
     shield: scaled.shield,
-    armor: scaled.armor,
+    // The armour actually applied, after strips: reporting the enemy's own value would make a
+    // stripped target look untouched.
+    armor: armorAfterStatus,
     breakdown,
     damagePerShotShield,
     damagePerShotHealth,

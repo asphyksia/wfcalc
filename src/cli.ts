@@ -115,22 +115,54 @@ function parseConditions(args: Args): Record<string, number> {
  * ability the player will cast ("--strip-from Avalanche --strength 200"). This is the seam
  * between the ability and the weapon: what a strip is worth shows up as weapon damage.
  */
-function armorStripDebuff(snapshot: Snapshot, args: Args): { armorStrip?: number; armorStripFlat?: number } {
+function armorStripDebuff(snapshot: Snapshot, args: Args): {
+  armorStrip?: number;
+  armorStripFlat?: number;
+  armorStripBaseFlat?: number;
+} {
+  // Percentage strips are additive, not multiplicative: the wiki's own example is Terrify at
+  // 60% plus one Corrosive Projection at 18% leaving 22% of the armour, not 33%.
+  let percent = 0;
+  let flat = 0;
+  let baseFlat = 0;
+
+  const cp = flag(args, 'cp');
+  if (cp !== undefined) {
+    const count = Number(cp);
+    if (!Number.isFinite(count) || count < 0 || count > 4) throw new Error('--cp expects 0 to 4 Corrosive Projections');
+    // 18% per squad member using it.
+    percent += 0.18 * count;
+  }
+
   const direct = flag(args, 'armor-strip');
   if (direct !== undefined) {
-    const percent = Number(direct);
-    if (!Number.isFinite(percent)) throw new Error(`--armor-strip expects a percentage, got "${direct}"`);
-    return { armorStrip: Math.max(0, Math.min(1, percent / 100)) };
+    const value = Number(direct);
+    if (!Number.isFinite(value)) throw new Error(`--armor-strip expects a percentage, got "${direct}"`);
+    percent += Math.max(0, value) / 100;
   }
-  const ability = flag(args, 'strip-from');
-  if (!ability) return {};
-  const cast = abilityCast(snapshot, ability, {
-    strength: flag(args, 'strength') ? Number(flag(args, 'strength')) : 100,
-  });
-  if (!cast.armorStrip) throw new Error(`${cast.ability} does not strip armour`);
+
+  const from = flag(args, 'strip-from');
+  if (from) {
+    const cast = abilityCast(snapshot, from, {
+      strength: flag(args, 'strength') ? Number(flag(args, 'strength')) : 100,
+    });
+    if (!cast.armorStrip) throw new Error(`${cast.ability} does not strip armour`);
+    if (cast.armorStrip.fraction !== null) percent += cast.armorStrip.fraction;
+    if (cast.armorStrip.points !== null) flat += cast.armorStrip.points;
+  }
+
+  const shattering = flag(args, 'shattering-impact');
+  if (shattering !== undefined) {
+    const hits = Number(shattering);
+    if (!Number.isFinite(hits) || hits < 0) throw new Error('--shattering-impact expects a number of hits');
+    // The mod removes 1 base armour per rank, so 6 per hit at max rank.
+    baseFlat += 6 * hits;
+  }
+
   return {
-    ...(cast.armorStrip.fraction !== null ? { armorStrip: cast.armorStrip.fraction } : {}),
-    ...(cast.armorStrip.points !== null ? { armorStripFlat: cast.armorStrip.points } : {}),
+    ...(percent > 0 ? { armorStrip: Math.min(1, percent) } : {}),
+    ...(flat > 0 ? { armorStripFlat: flat } : {}),
+    ...(baseFlat > 0 ? { armorStripBaseFlat: baseFlat } : {}),
   };
 }
 
@@ -232,6 +264,9 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
           shotsToKill: hit.shotsToKill,
           timeToKill: hit.timeToKill,
           factionMultiplier: hit.factionMultiplier,
+          // Armour actually applied, after every strip: the enemy's own value would make a
+          // stripped target look untouched.
+          armor: hit.armor,
           dot: hit.dot,
           totalDps: hit.totalDps,
           activeBuffs: resolved.activeBuffs,
@@ -609,6 +644,8 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
          --viral 10  --corrosive 10  (status debuffs on the target)
          --armor-strip 60            (percent of the target's armour removed)
          --strip-from "Avalanche"    (take the strip from an ability, at --strength)
+         --cp 2                      (Corrosive Projections in the squad, 18% each)
+         --shattering-impact 30      (melee hits that chipped the target's base armour)
          --armor-model armor-scaling|multiply|both   (open question, see docs/formulas.md)
          --combo-hits 220  --heavy   (melee combo multiplier / heavy attack)
          --aoe-distance 4            (AoE falloff distance in metres)

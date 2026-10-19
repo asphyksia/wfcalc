@@ -66,7 +66,10 @@ export interface Build {
   /** Riven mod stats for this weapon. */
   riven?: RivenSpec;
   /** Status debuffs on the target, in DotContext terms (viralStacks, corrosiveStacks). */
-  debuffs?: { viralStacks?: number; corrosiveStacks?: number; armorStrip?: number; armorStripFlat?: number };
+  debuffs?: {
+    viralStacks?: number; corrosiveStacks?: number; armorStrip?: number;
+    armorStripFlat?: number; armorStripBaseFlat?: number;
+  };
   /**
    * Distance to the centre of the blast, in metres, for AoE weapons. The arsenal stat
    * block counts the radial hit at its centre, so this replaces that portion with the
@@ -143,7 +146,10 @@ export interface ResolvedBuild {
   /** Ability Strength used for buffs (from frame mods when provided). */
   abilityStrength: number;
   /** Status debuffs kept up on the target (viral/corrosive stacks). */
-  debuffs: { viralStacks?: number; corrosiveStacks?: number; armorStrip?: number; armorStripFlat?: number };
+  debuffs: {
+    viralStacks?: number; corrosiveStacks?: number; armorStrip?: number;
+    armorStripFlat?: number; armorStripBaseFlat?: number;
+  };
   /** Elemental bonuses as they were combined, for display. */
   elements: Array<{ type: DamageType; share: number }>;
   /** Mods whose effects are not fully understood, so the result is a lower bound. */

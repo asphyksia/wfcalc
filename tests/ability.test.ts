@@ -88,6 +88,25 @@ test('effective armour applies the flat drain first, then the percentage', () =>
   assert.equal(effectiveArmor(2700, {}), 2700);
 });
 
+test('percentage strips are additive, as the wiki states', () => {
+  // "Terrify (60%) plus one Corrosive Projection (18%) leaves 22% of the armour": additive.
+  // Multiplicative stacking would leave 32.8%, which is the bug this pins.
+  const scaled = scaleEnemy(snapshot, snapshot.enemies['Bombard'], 150);
+  const both = effectiveArmor(scaled.armor, { armorStrip: 0.6 + 0.18 });
+  assert.ok(Math.abs(both - scaled.armor * 0.22) < 1e-9);
+  assert.notEqual(both, effectiveArmor(scaled.armor, { armorStrip: 1 - (1 - 0.6) * (1 - 0.18) }));
+});
+
+test('Shattering Impact removes base armour, so its effect grows with level', () => {
+  // 10 hits at max rank is 60 base armour; the Bombard's base is 500 and scales to 2700 at 150.
+  const base = 500;
+  const scaledArmor = 2700;
+  const hit = effectiveArmor(scaledArmor, { armorStripBaseFlat: 60, armorBase: base });
+  assert.ok(Math.abs(hit - (scaledArmor - 60 * (scaledArmor / base))) < 1e-9);
+  // The same hits at level 1, where no scaling applies, remove exactly 60.
+  assert.equal(effectiveArmor(base, { armorStripBaseFlat: 60, armorBase: base }), base - 60);
+});
+
 test('a strip is worth more to the weapon than the ability itself', () => {
   const weapon = ['Serration', 'Split Channel'].slice(0, 1).map((name) => ({ name }));
   const scaled = scaleEnemy(snapshot, snapshot.enemies['Bombard'], 150);

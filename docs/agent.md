@@ -51,6 +51,13 @@ Useful flags:
 | `--viral 10 --corrosive 0 --headshot` | Target debuffs and headshots |
 | `--armor-strip 60` | Percent of the target's armour already removed |
 | `--strip-from "Avalanche" --strength 200` | Take the strip from an ability you will cast |
+| `--cp 2` | Corrosive Projection auras in the squad, 18% each |
+| `--shattering-impact 30` | Melee hits that chipped the target's base armour, 6 each |
+
+Percentage strips from abilities, `--armor-strip` and Corrosive Projection are **additive**:
+Terrify at 60% plus one aura at 18% leaves 22% of the armour, not 33%. Shattering Impact works
+on base armour, so its effect scales with the enemy's level. The effective armour after all of
+it is returned as `armor`, so you can show it.
 | `--top N` | How many alternatives to return (default 3) |
 
 The response:
@@ -149,9 +156,9 @@ State these when they matter instead of guessing:
 - **Ability damage is raw damage only.** No headshots, no area falloff, no repeated ticks over
   time, and shields are left out of the casts-to-kill figure. An ability that ticks (Inferno,
   Miasma) will look weaker than it plays; say so.
-- **Armour strip is modelled for four abilities** (Avalanche, Terrify, Seeking Shuriken as a
-  percentage; Polarize as a flat drain). Others that strip, such as Corrosive Projection auras
-  or Shattering Impact, are not; pass `--armor-strip` with the number you expect instead.
+- **Armour strip covers four abilities** (Avalanche, Terrify, Seeking Shuriken as a percentage;
+  Polarize as a flat drain), Corrosive Projection auras and Shattering Impact. Anything else
+  that strips, such as Fusion Strike or an unknown augment, must be passed with `--armor-strip`.
 - **A meta is not a calculation.** If a mod is not in the snapshot, the tool cannot know it.
 
 ## Failure modes

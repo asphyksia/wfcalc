@@ -60,3 +60,21 @@ test('calc reports the time to kill an agent can quote', () => {
 test('an unknown weapon fails loudly instead of returning an empty build', () => {
   assert.throws(() => run(['mods', 'NotAWeaponAtAll', '--json']));
 });
+
+test('armour strip flags change the answer, and bad values fail loudly', () => {
+  const timeToKill = (extra: string[]): number => {
+    const result = run(['calc', 'Soma Prime', '--mod', 'Serration', '--enemy', 'Bombard', '--level', '150', '--json', ...extra]) as {
+      timeToKill: number | null;
+      armor: number;
+    };
+    return result.timeToKill ?? 0;
+  };
+  const bare = timeToKill([]);
+  const oneCorrosive = timeToKill(['--cp', '1']);
+  const fourCorrosive = timeToKill(['--cp', '4']);
+  assert.ok(oneCorrosive < bare, 'one Corrosive Projection should help');
+  assert.ok(fourCorrosive < oneCorrosive, 'four should help more');
+  // Additive strips: Terrify at 60% plus one aura at 18% leaves 22% of the armour.
+  assert.ok(timeToKill(['--strip-from', 'Terrify', '--cp', '1']) < timeToKill(['--strip-from', 'Terrify']));
+  assert.throws(() => run(['calc', 'Soma Prime', '--cp', '9', '--json']));
+});
