@@ -178,6 +178,16 @@ const cases: Case[] = [
     },
   },
   {
+    name: 'ability shields',
+    question: 'Does an ability answer account for Corpus shields?',
+    run: () => {
+      const result = run(['ability', 'Avalanche', '--strength', '200', '--enemy', 'Corpus Tech', '--level', '150', '--brief']);
+      check(result.status === 0, `exit ${result.status}: ${result.stderr}`);
+      contains(result.stdout, 'shields 3,000/cast');
+      contains(result.stdout, '58 casts');
+    },
+  },
+  {
     name: 'boss attenuation',
     question: 'Does an Eidolon answer cap damage, and can it be turned off?',
     run: () => {

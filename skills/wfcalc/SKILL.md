@@ -119,7 +119,8 @@ part of the build: do not omit it from the answer.
 - Do not quote a single hit for a ticking ability: use its total per cast (Miasma 900 direct,
   1,800 after its own Viral proc; Inferno ~26k at 200%). `statusPerCast` is called out
   separately when the ability applies Heat, Viral or Bleed. Shields are left out of
-  `castsToKill`, so it is a floor against Corpus.
+  `castsToKill` now includes shields (Toxin bypasses them), so the Corpus figure is no longer
+  optimistic.
 - Do not claim endgame certainty. Not modelled: the exponential smoothing of boss damage
   attenuation and Lich/Sister cap values (pass `--mdpt/--mdps`), Eidolon joints and boss
   invulnerability phases, status DoT/Magnetic amplification on **Overguard**, multi-target/AoE,

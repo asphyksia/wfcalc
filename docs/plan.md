@@ -10,7 +10,7 @@ Last updated: 2026-10-19.
 
 | | |
 |---|---|
-| Tests | **121 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 13/13 |
+| Tests | **123 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration vs Overframe | **50/50** (`node tools/calibrate.ts`), ranged builds only |
 | Types | `npm run check` clean |
@@ -96,6 +96,7 @@ Rules that have prevented repeated mistakes:
 | A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, `--brief=answer` for repeated calls, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
 | A6 | **`wfcalc batch`**: JSONL of calc/ability records priced in one process, one line per record, `--json` as compact rounded JSONL. Bad records do not abort the batch; exit 1. The JSON->Build mapping moved to `src/request.ts`, shared with the server. | `tests/cli.test.ts`; `tools/agent-eval.ts` case "batch" |
 | A7 | **Agent eval**: `npm run eval` pins ten real questions (best build, strip, melee Incarnon, CO, ability, errors, partial mods, batch) and fails if an answer or the brief size regresses. Runs in CI. | `tools/agent-eval.ts`, 10/10 |
+| A13 | **Shields in ability `castsToKill` (C3)**: a cast now removes shields first, with the shield type's damage modifiers and no armour; Toxin bypasses them. `castsToKill` sums Overguard, shield and health casts, and the target exposes `shield`, `shieldPerCast` and `bypassesShield`. | Avalanche at 200% vs a level 150 Corpus Tech: 22,668 shields at 3,000/cast = 8 casts, plus 50 for health = 58 (was 50); the test recomputes the phases independently |
 | A12 | **Ability statuses (C1)**: Inferno's guaranteed Heat, Miasma's Viral (one stack, doubling health damage) and Shuriken's guaranteed Bleed are resolved against the target and folded into `perCast`/`castsToKill`. Targets expose `statusPerCast`, `statusProcs` and `viralStacks`; `--viral N` seeds existing stacks. | Miasma 150/s x 6 = 900 → 315 per cast after its own Viral and Bombard armour (was 157); Shuriken's Bleed is 1,577.1 True per proc; Inferno's Heat proc is 469 on a Bombard. Tests pin all three |
 | A11 | **Damage attenuation (B2, caps)**: `--attenuation archon` applies MDPT 460,000, MDPS 935,000, 20% flat DR and 50% status DR; Eidolons get 200%/100% of max health automatically; `--mdpt/--mdps/--flat-dr/--status-dr` cover a known custom boss. Caps apply per instance and per second before the phase model; TTK is conservative because the exponential smoothing is not modelled. | Synthetic 1M hit on a 1M dummy: 1s → 2.72s under Archon; Eidolon 5M hit on 1M health: 0.2s → 1s; tests pin both and the CLI/API fields |
 | A10 | **Overguard (B1)**: Eximus targets get the wiki's level-scaled Overguard (base 12, q = level - 1, curves blended 45-50) or an explicit `--overguard N`; it is a separate layer before shields/health, neutral to all types except Void (+50%), no armour, for weapons **and** ability casts. | Bombard 150 Eximus: 281,865 Overguard; Soma Prime + Serration 776s → 1,229s; Avalanche at 200% needs 94 casts to break it plus 180 for health = 274; tests pin the formula, the Void multiplier, the TTK and the ability casts |
@@ -124,7 +125,6 @@ Known loose ends from A1:
 |---|---|
 | C1b | **More ability statuses**: Spores' Corrosive, Thermal Sunder's Heat/Cold, Fireball's AoE Heat, and Inferno's direct damage split (the wiki has 1,250 Impact + 1,250 Heat, the engine still one 2,500 Impact block) |
 | C2 | **Multi-target and real AoE**: ability falloff, Torid chains, and the Incarnon form's second hit |
-| C3 | **Shields in ability `castsToKill`** (ignored today: optimistic against Corpus) |
 
 ### D. Coverage and confidence
 
@@ -134,10 +134,10 @@ Known loose ends from A1:
 | D2 | **Calibration is not pinned**: the 50 builds are sampled from Overframe on every run, so the bar moves by itself | `tools/calibrate.ts` |
 | D3 | **No melee or secondary calibration**: the golden readings are all Soma Prime | `tests/ingame.test.ts` |
 
-Suggested order: **C3 → D2/D1 → C2 → C1b/B2b**, then F3/F4/F7. B1 (Overguard), B2's documented
-caps, C1's curated ability statuses, the cheap search wins (F1/F2/F5/F6) and the agent contract
-are done. Overguard's remaining gaps are deliberate: status DoT and Magnetic's amplification are
-not credited to it, and shields are still ignored in ability `castsToKill` (C3).
+Suggested order: **D2/D1 → C2 → C1b/B2b**, then F3/F4/F7. B1 (Overguard), B2's documented caps,
+C1's curated ability statuses, C3's shield phase, the cheap search wins (F1/F2/F5/F6) and the
+agent contract are done. Overguard's remaining gaps are deliberate: status DoT and Magnetic's
+amplification are not credited to it.
 
 ### E. Out of scope, decided
 
@@ -205,7 +205,7 @@ Useful commands: `wfcalc abilities`, `wfcalc ability <name> --strength N --enemy
 ```sh
 cd wfcalc
 git log --oneline | head -5      # the top commit
-npm test                          # 121 tests
+npm test                          # 123 tests
 npm run eval                      # 10 pinned agent cases
 node tools/validate.ts            # 0 violations
 node tools/calibrate.ts           # 50/50

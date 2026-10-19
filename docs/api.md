@@ -75,6 +75,7 @@ modifier, armour reduction and a minimum of 1 per damage type.
               "armorReduction": 0.9, "perCast": 315, "directPerCast": 315,
               "statusPerCast": 0, "viralStacks": 1,
               "statusProcs": [{ "type": "viral", "stacks": 1, "damageType": "viral", "total": 0 }],
+              "shield": 0, "shieldPerCast": 0, "bypassesShield": false,
               "overguard": 0, "overguardPerCast": 0, "castsToKill": 377 },
   "notes": ["Ability damage is flat: it does not crit, use multi..."]
 }
@@ -84,9 +85,11 @@ Parameters: `name` (required), `strength` (percent, default 100), `enemy`, `leve
 `armorModel` (`armor-scaling` | `multiply` | `both`), `eximus` (`1`/`true`), `overguard`
 (an explicit amount) and `viral` (Viral stacks already on the target; Miasma also applies its
 own). `target.castsToKill` includes the casts needed to break Overguard;
-`target.overguard` and `target.overguardPerCast` are reported separately. `perCast` is direct
-plus the guaranteed statuses (`statusPerCast`); `statusProcs` lists them and `viralStacks` the
-Viral stacks in effect. An unknown name is a 404 with
+`target.overguard` and `target.overguardPerCast` are reported separately. `perCast` is damage
+to health: direct plus the guaranteed statuses (`statusPerCast`); `statusProcs` lists them and
+`viralStacks` the Viral stacks in effect. `shield`/`shieldPerCast` are the shield phase (Toxin
+sets `bypassesShield`), and `castsToKill` is the sum of the Overguard, shield and health
+phases. An unknown name is a 404 with
 `{ "error": "..." }`.
 
 ## `POST /api/search`

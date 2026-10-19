@@ -203,3 +203,14 @@ test('Inferno guarantees a Heat proc seeded by half the meteorite damage', () =>
   assert.ok((proc?.total ?? 0) > 0);
   assert.ok((cast.target?.statusPerCast ?? 0) > 0);
 });
+
+test('ability castsToKill counts shields before health', () => {
+  const corpus = abilityCast(snapshot, 'Avalanche', { strength: 200, enemy: 'Corpus Tech', level: 150 });
+  const target = corpus.target!;
+  const scaled = scaleEnemy(snapshot, snapshot.enemies['Corpus Tech'], 150);
+  assert.ok(target.shield > 0);
+  assert.ok(target.shieldPerCast > 0);
+  const expected = Math.ceil(target.shield / target.shieldPerCast) + Math.ceil(scaled.health / target.perCast);
+  assert.equal(target.castsToKill, expected);
+  assert.ok((target.castsToKill ?? 0) > Math.ceil(scaled.health / target.perCast), 'shields must add casts');
+});

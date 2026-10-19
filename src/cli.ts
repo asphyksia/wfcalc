@@ -301,6 +301,7 @@ function abilityBriefLine(result: ReturnType<typeof abilityCast>, mode: 'full' |
     ? `vs ${result.target.enemy} ${result.target.level}: ${num(result.target.perCast)}/cast`
       + (result.target.statusPerCast > 0 ? ` (+${num(result.target.statusPerCast)} status)` : '')
       + ` · ${result.target.castsToKill === null ? 'cannot kill' : `${num(result.target.castsToKill)} casts`}`
+      + (result.target.shield > 0 && !result.target.bypassesShield ? ` · shields ${num(result.target.shieldPerCast)}/cast` : '')
       + (result.target.viralStacks > 0 ? ` · ${result.target.viralStacks} viral` : '')
       + (result.target.overguard > 0 ? ` · overguard ${num(result.target.overguard)}` : '')
     : '';
@@ -790,6 +791,9 @@ function main(): void {
         }
         if (result.target.viralStacks > 0) {
           console.log(`  viral        ${result.target.viralStacks} stack(s) on the target`);
+        }
+        if (result.target.shield > 0 && !result.target.bypassesShield) {
+          console.log(`  shields      ${num(result.target.shield)} (${num(result.target.shieldPerCast)}/cast)`);
         }
         if (result.target.overguard > 0) {
           console.log(`  overguard    ${num(result.target.overguard)} (${num(result.target.overguardPerCast)}/cast)`);

@@ -399,6 +399,9 @@ stats. It does **not** model:
 - **Overguard** is modelled for Eximus (`--eximus`) and for a known amount (`--overguard N`):
   base 12, wiki level scaling, Void +50%, no armour. Only direct damage is credited while it is
   up (status DoT and Magnetic's status amplification are not modelled).
+- **Ability shields**: a cast now removes shields before health, using the shield type's damage
+  modifiers (Toxin bypasses them as usual). Overguard, shield and health casts are counted
+  separately, so the total is conservative by at most two casts.
 - **Ability statuses**: only Inferno (Heat), Miasma (Viral) and Shuriken (Bleed) are curated;
   Spores, Thermal Sunder and the rest are not. Inferno's direct hit is still modelled as one
   Impact block, while the wiki splits it into Impact and Heat.

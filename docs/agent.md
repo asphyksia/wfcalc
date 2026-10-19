@@ -178,7 +178,8 @@ State these when they matter instead of guessing:
 - **Ability statuses are modelled only where the wiki states them**: Inferno's guaranteed Heat,
   Miasma's Viral (one stack, doubling health damage) and Shuriken's Bleed. Spores, Thermal Sunder
   and the rest are not. `target.statusPerCast`, `target.statusProcs` and `target.viralStacks`
-  carry the detail; shields are still left out of `castsToKill`, so treat it as a floor.
+  carry the detail. Shields are a separate phase in `castsToKill` (Toxin bypasses them), so the
+  Corpus figure is no longer optimistic.
 - **Overguard** is modelled for Eximus (`--eximus`) and custom amounts (`--overguard N`):
   a separate layer before shields/health, neutral except Void (+50%), no armour. Only direct
   damage is credited while it is up; status DoT and Magnetic's status amplification are not

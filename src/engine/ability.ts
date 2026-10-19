@@ -67,6 +67,10 @@ export interface AbilityCast {
     statusPerCast: number;
     /** Viral stacks (existing plus applied), and the health multiplier they give. */
     viralStacks: number;
+    /** Shield pool, direct damage per cast against it, and whether the type bypasses it. */
+    shield: number;
+    shieldPerCast: number;
+    bypassesShield: boolean;
     /** Guaranteed procs resolved against this target. Viral has no DoT and reports 0. */
     statusProcs: Array<{ type: DamageType; stacks: number; damageType: DamageType; total: number }>;
     /** Overguard the target has, and the direct damage of one cast against it. */
@@ -143,6 +147,8 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     const armorModel = options.armorModel ?? 'armor-scaling';
     // A pool's `amount` is its level-1 value: the scaled totals live on the enemy itself.
     const armor = scaled.pools.find((pool) => pool.category === 'armor');
+    const shields = scaled.pools.filter((pool) => pool.category === 'shield');
+    const shieldType = shields[0]?.type ?? null;
     const health = scaled.pools.filter((pool) => pool.category === 'health' || pool.category === 'object');
     const healthType = health[0]?.type ?? 'Cloned Flesh';
     const healthPool = scaled.health;
@@ -201,14 +207,27 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       amount * (1 + healthModifier(snapshot, type, 'Overguard'));
     const overguardPerCast = againstOverguard(entry.damageType, mainTotal)
       + (ticks?.damageType ? againstOverguard(ticks.damageType as DamageType, ticks.perSecond * ticks.seconds) : 0);
+    // Shields are a pool of their own: no armour, their own health-type modifiers. Toxin is the
+    // documented shield-bypassing type (the same rule weapons use).
+    const againstShield = (type: DamageType, amount: number): number =>
+      amount * (1 + (shieldType ? healthModifier(snapshot, type, shieldType) : 0));
+    const shieldPerCast = shieldType
+      ? againstShield(entry.damageType, mainTotal)
+        + (ticks?.damageType ? againstShield(ticks.damageType as DamageType, ticks.perSecond * ticks.seconds) : 0)
+      : 0;
+    const bypassesShield = entry.damageType === 'toxin';
     const overguardCasts = scaled.overguard > 0 && overguardPerCast > 0
       ? Math.ceil(scaled.overguard / overguardPerCast)
       : 0;
     const healthCasts = perCast > 0 && healthPool > 0 ? Math.ceil(healthPool / perCast) : 0;
-    const castsToKill = scaled.overguard > 0 && overguardPerCast <= 0
+    const shieldCasts = !bypassesShield && scaled.shield > 0 && shieldPerCast > 0
+      ? Math.ceil(scaled.shield / shieldPerCast)
+      : 0;
+    const shieldsUnbreakable = scaled.shield > 0 && !bypassesShield && shieldPerCast <= 0;
+    const castsToKill = (scaled.overguard > 0 && overguardPerCast <= 0) || shieldsUnbreakable
       ? null
-      : overguardCasts + healthCasts > 0
-        ? overguardCasts + healthCasts
+      : overguardCasts + shieldCasts + healthCasts > 0
+        ? overguardCasts + shieldCasts + healthCasts
         : null;
 
     target = {
@@ -220,6 +239,9 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       directPerCast,
       statusPerCast,
       viralStacks,
+      shield: scaled.shield,
+      shieldPerCast,
+      bypassesShield,
       statusProcs: resolvedProcs,
       overguard: scaled.overguard,
       overguardPerCast,
@@ -234,7 +256,11 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
         : `${proc.stacks}x ${proc.type}: no direct damage, health damage x${viralMultiplier(viralStacks).toFixed(2)}`);
       notes.push(`Guaranteed status: ${lines.join('; ')}.`);
     }
-    notes.push('Shields are ignored here: ability damage does not always bypass them, but the pool varies by ability.');
+    if (scaled.shield > 0) {
+      notes.push(bypassesShield
+        ? `${entry.damageType} bypasses shields: ${Math.round(scaled.shield)} shield remains untouched.`
+        : `Shields ${Math.round(scaled.shield)}: ${Math.round(shieldPerCast)} per cast; castsToKill includes them.`);
+    }
     if (scaled.overguard > 0) {
       notes.push(`Overguard ${Math.round(scaled.overguard)} is a separate layer: status DoT and Magnetic amplification are not modelled.`);
     }

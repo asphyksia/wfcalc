@@ -254,3 +254,9 @@ test('ability statuses are reported in the brief', () => {
   assert.equal(shuriken.status, 0);
   assert.match(shuriken.stdout, /\+1,577\.1 status/);
 });
+
+test('ability briefs show the shield phase against Corpus', () => {
+  const result = runRaw(['ability', 'Avalanche', '--strength', '200', '--enemy', 'Corpus Tech', '--level', '150', '--brief']);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /shields [\d,.]+\/cast/);
+});
