@@ -10,16 +10,18 @@ Last updated: 2026-10-19.
 
 | | |
 |---|---|
-| Tests | **105 pass, 0 fail** (`npm test`, ~6 s) |
+| Tests | **108 pass, 0 fail** (`npm test`, ~6 s); `npm run eval` 10/10 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration vs Overframe | **50/50** (`node tools/calibrate.ts`), ranged builds only |
 | Types | `npm run check` clean |
 | Snapshot | 622 weapons, 1550 mods, 479 enemies, 22 damage abilities, 19 buffs, 74 weapons with an Incarnon form (5 melee) |
+| Search speed | ~55 ms and ~550-780 builds evaluated per search; `--budget` never binds. Speed is **not** the current bottleneck |
 
 Run these four before starting anything and confirm they are still green:
 
 ```sh
 npm test
+npm run eval
 node tools/validate.ts
 node tools/calibrate.ts
 npm run check
@@ -88,9 +90,12 @@ Rules that have prevented repeated mistakes:
 | A1b | **Spectral hits ignore melee damage bonuses** (Pressure Point, Arcane Fury, riven damage, stance, combo multiplier) but take Condition Overload. Found while checking A1. | Ceramic Dagger + Pressure Point: 770 → 350 per hit; CO with 3 status types: 350 × 3.4 = 1190 |
 | A1c | **Condition Overload never applied**: `conditionStacks` returned early when an effect had no condition, so a mod whose only gate is `perStatusType` added nothing. | `tests/engine.test.ts` pins 1 status → +80%, 3 → +240% |
 | A2 | **`sync` did not watch the weapon modules** and, worse, called the fetchers without `--force`, so a detected change rebuilt from stale files. Source lists now live in `tools/sources.ts` (shared by `fetch` and `sync`); categories are compared by a hash because the API sends no `Last-Modified`. | `sync --check` went from "category changed" on every run to "up to date" in 2 s; a forced run rebuilt the snapshot and calibrated 60/60 |
-| A3 | **HTTP API lacked `search` and `ability`**, and the build construction was duplicated. `POST /api/search`, `GET /api/ability`, `GET /api/abilities`; shared `buildFromBody`. | `tests/server.test.ts`; documented in `docs/api.md` |
+| A3 | **HTTP API lacked `search` and `ability`**, and the build construction was duplicated. `POST /api/search`, `GET /api/ability`, `GET /api/abilities`; shared `buildFromJson` in `src/request.ts`. | `tests/server.test.ts`; documented in `docs/api.md` |
 | A4 | **UI had no strip, abilities or build finder**. New Find and Abilities tabs; Build gained Corrosive Projections, direct strip %, Shattering Impact and "strip from ability". Strip resolution moved to `src/engine/strip.ts`, shared by CLI and server. | Screenshots; Bombard 150: 2700 → 0 armour, 644 s → 64 s TTK; a found build loads with its 4 Forma and 57/60 capacity |
-| A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
+| A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, `--brief=answer` for repeated calls, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
+| A6 | **`wfcalc batch`**: JSONL of calc/ability records priced in one process, one line per record, `--json` as compact rounded JSONL. Bad records do not abort the batch; exit 1. The JSON->Build mapping moved to `src/request.ts`, shared with the server. | `tests/cli.test.ts`; `tools/agent-eval.ts` case "batch" |
+| A7 | **Agent eval**: `npm run eval` pins ten real questions (best build, strip, melee Incarnon, CO, ability, errors, partial mods, batch) and fails if an answer or the brief size regresses. Runs in CI. | `tools/agent-eval.ts`, 10/10 |
+| A8 | **The text report showed the wrong armour**: with `--armor-strip 100` it printed the enemy's own pool (2,700) while the damage used 0. Found while pricing a Haalvu build for Nyx. Now prints `armor 0 (base 2,700)`. | Test pins the stripped line; brief/JSON were already correct |
 
 Known loose ends from A1:
 
@@ -125,12 +130,33 @@ Known loose ends from A1:
 | D2 | **Calibration is not pinned**: the 50 builds are sampled from Overframe on every run, so the bar moves by itself | `tools/calibrate.ts` |
 | D3 | **No melee or secondary calibration**: the golden readings are all Soma Prime | `tests/ingame.test.ts` |
 
-Suggested order: **B1/B2 → C1 → D2/D1**.
+Suggested order: **B1/B2 → C1 → D2/D1**, with F1/F2 as the cheap detour that most improves the
+answers the search already gives.
 
 ### E. Out of scope, decided
 
 Stance slot is not searched; conditional mods are off by default (`--stacks`); rivens take manual
 stats with no weights or rerolls; companions, Archwing and Necramech are not supported.
+
+### F. Search friction found in real use (2026-10-19)
+
+Measured: a search is ~55 ms for 550-780 builds and `--budget` does not bind. The issue is not
+CPU; it is what the search does and does not consider, and what the answer fails to say.
+
+| # | Friction | Evidence / why it matters |
+|---|---|---|
+| F1 | **Arcanes are outside the search and invisible in the output.** `search` optimises mods only; the arcane is a manual `--arcane`, and neither the brief nor the search assumptions echo it. | Haalvu, same mods, Bombard 150: **325k dps without an arcane vs 896k with Primary Merciless at 12 stacks**. A "best build" answer can silently omit a 3x multiplier. Fix: `--arcane auto` (try the arcanes whose slot fits) + report the chosen arcane in `assumptions`. |
+| F2 | **`calc` does not report capacity or Forma.** Only `search` does; the UI computes it client-side. | Judging an existing build without knowing whether it fits (59/60, 3F) is half an answer. Export the search's capacity calculation and print `capacityUsed/capacity`, `formaNeeded` and `fits` in `calc` text/JSON. |
+| F3 | **Conditional mods are not identified.** Search says `Conditions: onKill=12, statusTypes=2` but not that Galvanized Chamber/Aptitude are the mods whose value depends on it. | The agent cannot tell the player what has to be true, and `--stacks` enables several effects at once. Add a per-build `conditionalMods` list (and `inactiveConditions` already exists in `calc`). |
+| F4 | **Tie-break ignores unmodelled drawbacks.** Heavy Caliber (+165% damage, -55% accuracy) ties with Serration because accuracy is not priced, and the search can pick either. | The Haalvu answer initially came out with Heavy Caliber. Prefer mods with fewer unsupported lines, or add `--prefer`/`--exclude` to the recommendation. |
+| F5 | **`--mod` does not accept a comma list.** `search --must "A,B"` splits, `calc --mod "A,B"` treats it as one name. | We hit it twice in one session. No mod name in the snapshot contains a comma, so splitting is safe. |
+| F6 | **Nyx's Psychic Bolts is not a strip ability in the data.** The curated strip list has Avalanche, Terrify, Seeking Shuriken and Polarize only. | The user had to pass `--armor-strip 100`; `--strip-from "Psychic Bolts"` fails. Add the known 100% strips (Psychic Bolts, Fusion Strike...) to the curated list. |
+| F7 | **`--status-types` is a global manual assumption.** Galvanized Aptitude's damage scales with it; the build itself applies Viral + Tau (2), but the caller must know and pass it. | A self-consistent search could infer the status types from the build's own damage profile (and known external procs) instead of a flag. Careful: this is circular with the optimiser, so measure before changing. |
+
+Quick wins before B1: **F1 and F2** (they change the recommended build and the verdict on an
+existing one, with no new physics). F5 and F6 are small data/CLI fixes. F4 and F7 need a model
+decision.
+
 
 ---
 
@@ -146,6 +172,7 @@ src/engine/ability.ts   ability damage, own ticks, strip
 src/engine/strip.ts     squad/weapon/ability armour strip -> one additive debuff
 src/engine/search.ts    build search (greedy + local search + Incarnon)
 src/engine/riven.ts     rivens
+src/request.ts          JSON request -> Build (HTTP API and batch share it)
 src/mods/parse.ts       mod effect parser (97% of the relevant lines)
 src/data.ts             snapshot loading, modsForWeapon
 src/cli.ts              every command, all with --json
@@ -155,6 +182,8 @@ tools/build-data.ts     WFCD + wiki -> data/snapshot.json
 tools/fetch*.ts         downloads (fetch, abilities, damage abilities, Incarnon, sets)
 tools/sync.ts           change detection, refresh, validate, calibrate, log
 tools/calibrate.ts      Overframe oracle
+tools/agent-eval.ts     pinned agent questions (npm run eval, CI)
+skills/wfcalc/          agent operating manual (SKILL.md)
 docs/agent.md           contract for an agent
 ```
 
@@ -169,7 +198,8 @@ Useful commands: `wfcalc abilities`, `wfcalc ability <name> --strength N --enemy
 ```sh
 cd wfcalc
 git log --oneline | head -5      # the top commit
-npm test                          # 102 tests
+npm test                          # 108 tests
+npm run eval                      # 10 pinned agent cases
 node tools/validate.ts            # 0 violations
 node tools/calibrate.ts           # 50/50
 ./tools/dev-server.sh 7801        # only if the web UI is needed
