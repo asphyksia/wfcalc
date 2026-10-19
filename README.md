@@ -274,12 +274,12 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
 - Incarnon perks that are mechanics rather than stats (they are stored as text, not applied).
 - The second hit of an Incarnon form (`Incarnon Form AoE`, the melee Spectral explosion):
   only the direct hit enters the number, and the report says which hit was left out.
-- 15 of the 69 weapons whose data mentions an Incarnon mode have no evolution table;
-  with variant inheritance 54 are covered, and the remainder look like export noise.
-- 17% of weapon mods are only partially understood — mostly pure utility
-  (beam range, dodge speed, combo efficiency). They are reported as
-  `unsupportedMods` and the result is flagged as a lower bound rather than silently
-  wrong. `npm run coverage` prints the current state.
+- 15 of the 74 weapons with an Incarnon form have no evolution table; with variant
+  inheritance 59 are covered, and the remainder look like export noise.
+- **2% of weapon-relevant mods** (9 of 596) still have a line the model does not use, mostly
+  conditionals without a toggle (Strain Infection's crit damage per Cyst) and stance prose.
+  They are reported as `unsupportedMods` and the result is flagged as a lower bound rather than
+  silently wrong. `npm run coverage` prints the current state.
 
 ## How do we know it is right?
 
@@ -310,17 +310,20 @@ Overframe's HTML is behind Cloudflare, but two things are not: its JSON API and 
 Next.js static host. That is enough to calibrate against real, public builds:
 
 ```sh
-node tools/fetch-overframe-db.ts      # learn Overframe's mod/item ids (no hardcoded hashes)
-node tools/calibrate.ts --battery 120 # compare 120 public builds, write a report
-node tools/calibrate.ts --build 1036746
+node tools/fetch-overframe-db.ts        # learn Overframe's mod/item ids (no hardcoded hashes)
+npm run calibrate:refresh               # fetch a fresh battery of public builds
+node tools/calibrate.ts                 # compare the pinned battery, offline
+node tools/calibrate.ts --build <id>    # one build's stat-by-stat detail
 ```
 
 `tools/calibrate.ts` resolves every mod and arcane from the learned ids, computes the build
 with wfcalc and diffs it against Overframe's own modifier block (`WEAPON_CRIT_CHANCE`,
-`WEAPON_FIRE_ITERATIONS`, ...). Results land in [docs/calibration-results.md](docs/calibration-results.md).
+`WEAPON_FIRE_ITERATIONS`, ...). The battery is committed as `data/calibration-builds.json`, so
+the default run is deterministic and offline; `calibrate:refresh` is the only network step.
+Results land in [docs/calibration-results.md](docs/calibration-results.md).
 
-Latest runs: **117/120** (after in-game verification, see
-[docs/verified-in-game.md](docs/verified-in-game.md)) on every applicable stat. `npm run audit`
+Latest battery: **35/35** unique public builds (the list API returns the same page for every
+`page` parameter, which used to create duplicates). `npm run audit`
 adds the *why*: mismatch rate per weapon category, per field, and mods over-represented in
 failures. Its last sweep found every failure concentrated in four weapons, one field each. The remaining mismatches are
 grouped by signature; the open ones are listed in [docs/data-notes.md](docs/data-notes.md).
@@ -364,6 +367,7 @@ npm run eval       # pinned answers for the questions an agent gets
 npm run check      # tsc --noEmit
 npm run coverage   # how much of the mod dataset is understood
 npm run validate   # invariants + cross-checks over the whole dataset
+npm run calibrate  # pinned Overframe battery, offline
 ```
 
 Layout:
@@ -391,8 +395,8 @@ JSON API: [docs/api.md](docs/api.md).
 ## Status and known limitations
 
 Usable now for comparing ranged weapon builds, mods, rivens, Incarnon and abilities against a
-concrete enemy. Calibration against 50 sampled Overframe builds matches on all seven arsenal
-stats. It does **not** model:
+concrete enemy. Calibration against 35 pinned public Overframe builds (seven arsenal stats
+each) matches 35/35, offline and deterministic. It does **not** model:
 
 - **Ability statuses** are modelled for the abilities whose wiki page states them: Inferno's
   guaranteed Heat, Miasma's Viral and Shuriken's Bleed. Other abilities' status effects are not.

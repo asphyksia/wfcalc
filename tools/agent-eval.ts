@@ -200,9 +200,9 @@ const cases: Case[] = [
   },
   {
     name: 'partial mods are a lower bound',
-    question: 'Split Flights on a Soma Prime: is the number exact?',
+    question: 'Spectral Serration on a Soma Prime: is the number exact?',
     run: () => {
-      const result = run(['calc', 'Soma Prime', '--mod', 'Split Flights', '--enemy', 'Bombard', '--level', '150', '--brief']);
+      const result = run(['calc', 'Soma Prime', '--mod', 'Spectral Serration', '--enemy', 'Bombard', '--level', '150', '--brief']);
       check(result.status === 0, `exit ${result.status}: ${result.stderr}`);
       contains(result.stdout, 'lower bound');
       contains(result.stdout, 'warning(s)');

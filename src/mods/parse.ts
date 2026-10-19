@@ -274,6 +274,7 @@ const NOISE_RULES: RegExp[] = [
   /^instant (?:reload|weapon swap)/i,
   /^(?:on kill|on hit)?:?\s*-?\d+% (?:weapon )?(?:shield|health|energy|overguard|sprint|parkour|mobility|loot|chance)/i,
   /^enables tennokai/i,
+  /^\([^)]*\)$/,
   /^refresh double jump/i,
   /^\d+\s*(?:m )?(?:beam range|heal rate)/i,
   /^\d+%? (?:dodge|revive|cast(?:ing)?|sprint|movement|slide|parkour|mobility) speed/i,
@@ -334,6 +335,14 @@ const OUT_OF_SCOPE_KEYWORDS: RegExp[] = [
   /secondary weapon for|squad begins|allies gain|affinity range/i,
   /charge rate|fire\/charge/i,
   /drop a universal orb|universal orb/i,
+  // Stats on a different weapon or on the player, not on this weapon's damage.
+  /secondary weapon/i,
+  /damage taken|marked zone|pull all enemies/i,
+  /tennokai|^\+1 'truth'|curse:/i,
+  // Range and utility melee stats. Shattering Impact's armour reduction is modelled by the
+  // --shattering-impact flag, not as a damage effect of the mod itself.
+  /^[+-]?\d+\s*range\b/i,
+  /reduces? enemy armor|armor by \d+/i,
 ];
 
 /** Returns true when a stat line is a real effect that this model cannot use. */
