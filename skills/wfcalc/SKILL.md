@@ -63,6 +63,7 @@ wfcalc calc "Soma Prime" --mod Serration --cp 2 --armor-strip 30 --enemy Bombard
 # abilities: damage and strip
 wfcalc abilities                                        # names, damage, strip
 wfcalc ability Miasma --strength 200 --enemy Bombard --level 150 --brief
+wfcalc ability Miasma --strength 200 --enemy Bombard --level 150 --targets 5 --brief
 wfcalc calc "Soma Prime" --mod Serration --eximus --enemy Bombard --level 150 --brief
 wfcalc calc "Rubico Prime" --mod Serration --enemy "Eidolon Teralyst" --level 30 --brief
 wfcalc ability Avalanche --strength 200 --brief          # 100% armour strip
@@ -78,7 +79,7 @@ wfcalc batch builds.jsonl --brief=answer
 
 Useful flags: `--objective ttk|dps`, `--capacity 30|60`, `--forma N`, `--must "A,B"`,
 `--exclude "A,B"`, `--arcane auto`, `--viral N`, `--corrosive N`, `--headshot`,
-`--eximus` / `--overguard N`, `--attenuation archon|eidolon`, `--stacks onKill=5`,
+`--eximus` / `--overguard N`, `--attenuation archon|eidolon`, `--targets N`, `--stacks onKill=5`,
 `--frame Rhino --frame-mods Intensify --buff roar`, `--riven damage,multishot,-zoom`. `--mod "A,B"` and repeated `--mod` are equivalent.
 Every command accepts `--json` (compact JSON) and `--brief` where it makes sense.
 
@@ -105,8 +106,8 @@ part of the build: do not omit it from the answer.
   Ability Strength. `--brief` prints them after the builds.
 - **`partial` mods / warnings**: those numbers are a **lower bound**. Say so.
 - **Incarnon**: it is never assumed. If the weapon has a form, say so and offer
-  `--incarnon auto`; the transformed profile and the perks are modelled, the second hit of the
-  form (an AoE/explosion) is not.
+  `--incarnon auto`; the transformed profile, the perks and the form's AoE/explosion at the
+  blast centre are modelled (`--aoe-distance` applies the explosion's falloff).
 - **Inactive conditions**: Galvanized/on-kill/"while aiming" effects are off unless
   `--stacks`/`--aiming` is passed. A build that relies on them is scored lower than it plays.
 
@@ -124,7 +125,8 @@ part of the build: do not omit it from the answer.
 - Do not claim endgame certainty. Not modelled: the exponential smoothing of boss damage
   attenuation and Lich/Sister cap values (pass `--mdpt/--mdps`), Eidolon joints and boss
   invulnerability phases, status DoT/Magnetic amplification on **Overguard**, multi-target/AoE,
-  stance modifiers, companions/Archwing/Necramech. Ability statuses are modelled only for
+  stance modifiers, companions/Archwing/Necramech, weapon multi-target (Torid chains, one AoE
+  shot hitting a group) and ability distance falloff. Ability statuses are modelled only for
   Inferno (Heat), Miasma (Viral) and Shuriken (Bleed); the rest are not. Melee and secondary
   builds have no external calibration yet. Eximus Overguard and the Archon/Eidolon caps *are*
   modelled.

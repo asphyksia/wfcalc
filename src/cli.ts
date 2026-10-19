@@ -304,6 +304,7 @@ function abilityBriefLine(result: ReturnType<typeof abilityCast>, mode: 'full' |
       + (result.target.shield > 0 && !result.target.bypassesShield ? ` · shields ${num(result.target.shieldPerCast)}/cast` : '')
       + (result.target.viralStacks > 0 ? ` · ${result.target.viralStacks} viral` : '')
       + (result.target.overguard > 0 ? ` · overguard ${num(result.target.overguard)}` : '')
+      + (result.target.targets > 1 ? ` · ${result.target.targets} targets = ${num(result.target.totalPerCast)}` : '')
     : '';
   return [
     `${result.frame} ${result.ability}${result.damageType ? ` (${result.damageType})` : ''}`,
@@ -755,6 +756,7 @@ function main(): void {
           level: flag(args, 'level') ? Number(flag(args, 'level')) : 30,
           armorModel: flag(args, 'armor-model') as never,
           viralStacks: flag(args, 'viral') ? Number(flag(args, 'viral')) : undefined,
+          targets: flag(args, 'targets') ? Number(flag(args, 'targets')) : undefined,
           ...targetScale(args),
         });
       } catch (error) {
@@ -794,6 +796,9 @@ function main(): void {
         }
         if (result.target.shield > 0 && !result.target.bypassesShield) {
           console.log(`  shields      ${num(result.target.shield)} (${num(result.target.shieldPerCast)}/cast)`);
+        }
+        if (result.target.targets > 1) {
+          console.log(`  targets      ${result.target.targets} -> ${num(result.target.totalPerCast)} per cast`);
         }
         if (result.target.overguard > 0) {
           console.log(`  overguard    ${num(result.target.overguard)} (${num(result.target.overguardPerCast)}/cast)`);
@@ -872,6 +877,7 @@ function main(): void {
                 level: record.level,
                 armorModel: record.armorModel as never,
                 viralStacks: record.viral !== undefined ? Number(record.viral) : undefined,
+                targets: record.targets !== undefined ? Number(record.targets) : undefined,
                 eximus: Boolean(record.eximus),
                 overguard: record.overguard !== undefined ? Number(record.overguard) : undefined,
               });
@@ -990,6 +996,7 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>] (search: auto)  --buff ro
 Ability options:
          --strength N          Ability Strength (100 = unmodded)
          --viral N             Viral stacks already on the target
+         --targets N           enemies hit by one ability cast (default 1)
          --enemy NAME --level N  apply the target's modifiers and armour
 
 Search options:

@@ -342,7 +342,8 @@ interface RawIncarnonForm {
   fireRate: number;
   multishot: number;
   magazineSize: number;
-  extra: Array<{ name: string; damage: Partial<Record<DamageType, number>> }>;
+  extra: Array<{ name: string; damage: Partial<Record<DamageType, number>>; falloff?: { start: number; end: number; reduction: number } }>;
+  directShare: number;
   /** True when the attack is one of the melee "Spectral" projectiles, not a gun form. */
   spectral: boolean;
 }
@@ -370,14 +371,33 @@ function readIncarnonForms(): Record<string, RawIncarnonForm> {
       const form = attacks.find((attack: Loose) => /incarnon form/i.test(nameOf(attack)) && !/aoe|radial|explosion/i.test(nameOf(attack)))
         ?? attacks.find((attack: Loose) => /spectral/i.test(nameOf(attack)) && !/explosion/i.test(nameOf(attack)));
       if (!form) continue;
+      // The transformed shot is the direct hit; radial children ("... AoE", "... Explosion")
+      // are separate attacks. Some weapon modules carry AttackParentIndex, others only the
+      // shared name prefix (Braton's "Incarnon Form AoE" has no parent index).
       const extra = attacks
-        .filter((attack: Loose) => /aoe|radial|explosion/i.test(nameOf(attack)) && String(attack?.AttackParentIndex) === String(form.AttackIndex))
+        .filter((attack: Loose) => attack !== form
+          && /aoe|radial|explosion/i.test(nameOf(attack))
+          && (String(attack?.AttackParentIndex) === String(form.AttackIndex)
+            || nameOf(attack).startsWith(nameOf(form))))
         .map((attack: Loose) => ({
           name: nameOf(attack),
           damage: Object.fromEntries(
             Object.entries<number>(attack.Damage ?? {}).filter(([, value]) => typeof value === 'number' && value > 0),
           ) as Partial<Record<DamageType, number>>,
+          ...(attack.Falloff && typeof attack.Falloff === 'object'
+            ? {
+                falloff: {
+                  start: Number(attack.Falloff.StartRange ?? 0),
+                  end: Number(attack.Falloff.EndRange ?? 0),
+                  reduction: Number(attack.Falloff.Reduction ?? 0),
+                },
+              }
+            : {}),
         }));
+      const damageSum = (damage: Loose): number =>
+        Object.values<number>(damage ?? {}).reduce((sum, value) => sum + (typeof value === 'number' ? value : 0), 0);
+      const directTotal = damageSum(form.Damage ?? {});
+      const extraTotal = extra.reduce((sum, attack) => sum + Object.values(attack.damage).reduce((n, value) => n + (value ?? 0), 0), 0);
       out[name] = {
         damage: (form.Damage ?? {}) as Loose,
         critChance: Number(form.CritChance ?? 0),
@@ -387,6 +407,7 @@ function readIncarnonForms(): Record<string, RawIncarnonForm> {
         multishot: Number(form.Multishot ?? 1),
         magazineSize: Number.isFinite(Number(form.AmmoCost)) ? Number(form.AmmoCost) : 0,
         extra,
+        directShare: directTotal + extraTotal > 0 ? directTotal / (directTotal + extraTotal) : 1,
         spectral: /spectral/i.test(nameOf(form)),
       };
     }
@@ -467,6 +488,7 @@ function buildWeapons(): Record<string, WeaponData> {
           ? {
               incarnonForm: incarnonFormStats(incarnonForms[name], stats),
               ...(incarnonForms[name].extra.length ? { incarnonFormExtra: incarnonForms[name].extra } : {}),
+              ...(incarnonForms[name].extra.length ? { incarnonFormDirectShare: incarnonForms[name].directShare } : {}),
               ...(incarnonForms[name].spectral ? { incarnonFormSpectral: true } : {}),
             }
           : {}),

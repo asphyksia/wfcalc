@@ -10,7 +10,7 @@ Last updated: 2026-10-19.
 
 | | |
 |---|---|
-| Tests | **124 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
+| Tests | **127 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration vs Overframe | **35/35** pinned public builds (`node tools/calibrate.ts`), offline, ranged only |
 | Types | `npm run check` clean |
@@ -97,6 +97,7 @@ Rules that have prevented repeated mistakes:
 | A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, `--brief=answer` for repeated calls, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
 | A6 | **`wfcalc batch`**: JSONL of calc/ability records priced in one process, one line per record, `--json` as compact rounded JSONL. Bad records do not abort the batch; exit 1. The JSON->Build mapping moved to `src/request.ts`, shared with the server. | `tests/cli.test.ts`; `tools/agent-eval.ts` case "batch" |
 | A7 | **Agent eval**: `npm run eval` pins ten real questions (best build, strip, melee Incarnon, CO, ability, errors, partial mods, batch) and fails if an answer or the brief size regresses. Runs in CI. | `tools/agent-eval.ts`, 10/10 |
+| A16 | **Incarnon second hits and ability targets (C2, first half)**: the form's AoE/explosion is merged into the shot at the blast centre, with its own falloff under `--aoe-distance`; direct-only multipliers (Condition Overload, Galvanized Aptitude) are scaled by the direct share so they do not inflate the radial hit. Abilities accept `--targets N` (all at full damage inside the radius). | Braton form 50 → 100 total, 95 at 3 m; Ceramic Dagger + CO 3 statuses = direct 1,190 + explosion 350 = 1,540; Miasma 5 targets = 1,575 per cast; tests pin all three |
 | A15 | **Mod coverage (D1)**: utility lines were being counted as unknown, so Bow had 2/6 partial mods and Melee 6/122. Parenthetical qualifiers, secondary-weapon buffs, range, Tennokai, block/damage-taken, slam pull and Shattering Impact's armour chip are now out of scope, not unknown; Split Flights' multishot is fully applied. | Bow 2/6 → **0/6**, Melee 6/122 → **1/122** (Strain Infection), weapon-relevant unknown lines 16 → 9 (98% fully modelled); `tests/coverage.test.ts` pins it |
 | A14 | **Pinned calibration (D2)**: `tools/calibrate.ts` now reads `data/calibration-builds.json` (35 public Overframe builds with weapon, mods, arcanes and the oracle block) instead of sampling a new set on every run. `--refresh` fetches and rewrites the battery; only builds whose weapon and mods resolve are kept, and the list API's page bug is deduplicated. | Two consecutive runs produce the same report hash; CI runs the calibration offline; 35/35 |
 | A13 | **Shields in ability `castsToKill` (C3)**: a cast now removes shields first, with the shield type's damage modifiers and no armour; Toxin bypasses them. `castsToKill` sums Overguard, shield and health casts, and the target exposes `shield`, `shieldPerCast` and `bypassesShield`. | Avalanche at 200% vs a level 150 Corpus Tech: 22,668 shields at 3,000/cast = 8 casts, plus 50 for health = 58 (was 50); the test recomputes the phases independently |
@@ -108,11 +109,9 @@ Rules that have prevented repeated mistakes:
 
 Known loose ends from A1:
 
-- The second hit of an Incarnon form (`Incarnon Form AoE`, the melee Spectral explosion) is
-  **not added** to the number. It is kept in `incarnonFormExtra` and reported in `incarnon`.
 - Ceramic Dagger fires **2 spectral daggers** per heavy attack; the attack table has no
-  multishot for melee, so the model counts one. That undercount roughly offsets the missing
-  explosion, but both are known inaccuracies.
+  multishot for melee, so the model counts one. With the explosion now included, the melee form
+  is a lower bound by roughly a factor of two on that pair.
 - Flat EVO2 base damage: Okina's page says the spectral daggers *do* use it, Ceramic Dagger and
   Hate say they do not. The engine keeps flat Incarnon base damage on all three.
 
@@ -127,7 +126,7 @@ Known loose ends from A1:
 | # | Gap |
 |---|---|
 | C1b | **More ability statuses**: Spores' Corrosive, Thermal Sunder's Heat/Cold, Fireball's AoE Heat, and Inferno's direct damage split (the wiki has 1,250 Impact + 1,250 Heat, the engine still one 2,500 Impact block) |
-| C2 | **Multi-target and real AoE**: ability falloff, Torid chains, and the Incarnon form's second hit |
+| C2b | **Weapon multi-target and ability distance falloff**: Torid chains to five enemies at 75% per link, one AoE shot hitting a group, and abilities whose damage falls off with distance |
 
 ### D. Coverage and confidence
 
@@ -135,9 +134,10 @@ Known loose ends from A1:
 |---|---|---|
 | D3 | **No melee or secondary calibration**: the golden readings are all Soma Prime | `tests/ingame.test.ts` |
 
-Suggested order: **C2 → C1b/B2b**, then F3/F4/F7. B1 (Overguard), B2's documented caps, C1's
-curated ability statuses, C3's shield phase, D1/D2 (coverage and pinned calibration), the cheap
-search wins (F1/F2/F5/F6) and the agent contract are done. Overguard's remaining gaps are deliberate: status DoT and Magnetic's
+Suggested order: **C1b/B2b**, then F3/F4/F7. B1 (Overguard), B2's documented caps, C1's curated
+ability statuses, C2's Incarnon second hits and ability targets, C3's shield phase, D1/D2
+(coverage and pinned calibration), the cheap search wins (F1/F2/F5/F6) and the agent contract are
+done. Overguard's remaining gaps are deliberate: status DoT and Magnetic's
 amplification are not credited to it.
 
 ### E. Out of scope, decided
@@ -207,7 +207,7 @@ Useful commands: `wfcalc abilities`, `wfcalc ability <name> --strength N --enemy
 ```sh
 cd wfcalc
 git log --oneline | head -5      # the top commit
-npm test                          # 124 tests
+npm test                          # 127 tests
 npm run eval                      # 10 pinned agent cases
 node tools/validate.ts            # 0 violations
 node tools/calibrate.ts           # 35/35 pinned, offline

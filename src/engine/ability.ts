@@ -26,6 +26,8 @@ export interface AbilityCastOptions {
   overguard?: number;
   /** Viral stacks already on the target (the ability may add its own). */
   viralStacks?: number;
+  /** Enemies hit by one cast, all inside the radius (default 1). */
+  targets?: number;
 }
 
 export interface AbilityCast {
@@ -60,8 +62,11 @@ export interface AbilityCast {
     healthMultiplier: number;
     /** Fraction of damage removed by armour. */
     armorReduction: number;
-    /** Damage a single cast deals in total: direct plus the statuses it applies. */
+    /** Damage a single cast deals to one target: direct plus the statuses it applies. */
     perCast: number;
+    /** Enemies assumed inside the radius, and the whole cast's damage across them. */
+    targets: number;
+    totalPerCast: number;
     /** The same split into direct damage and guaranteed status damage. */
     directPerCast: number;
     statusPerCast: number;
@@ -230,12 +235,15 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
         ? overguardCasts + shieldCasts + healthCasts
         : null;
 
+    const targets = Math.max(1, Math.floor(options.targets ?? 1));
     target = {
       enemy: enemy.name,
       level,
       healthMultiplier: 1 + healthMod,
       armorReduction: dr,
       perCast,
+      targets,
+      totalPerCast: perCast * targets,
       directPerCast,
       statusPerCast,
       viralStacks,

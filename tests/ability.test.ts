@@ -214,3 +214,13 @@ test('ability castsToKill counts shields before health', () => {
   assert.equal(target.castsToKill, expected);
   assert.ok((target.castsToKill ?? 0) > Math.ceil(scaled.health / target.perCast), 'shields must add casts');
 });
+
+test('--targets multiplies one cast across enemies at full damage', () => {
+  const one = abilityCast(snapshot, 'Miasma', { enemy: 'Bombard', level: 150 });
+  const five = abilityCast(snapshot, 'Miasma', { enemy: 'Bombard', level: 150, targets: 5 });
+  assert.equal(five.target?.targets, 5);
+  assert.equal(five.target?.perCast, one.target?.perCast);
+  assert.equal(five.target?.totalPerCast, (one.target?.perCast ?? 0) * 5);
+  // Casts to kill one target do not change; the flag is a group-damage report.
+  assert.equal(five.target?.castsToKill, one.target?.castsToKill);
+});

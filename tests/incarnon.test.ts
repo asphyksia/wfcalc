@@ -36,16 +36,17 @@ test('the five melee Incarnon forms carry the wiki spectral stats', () => {
   }
   // The explosion is a second hit on the same shot, kept separate instead of dropped.
   assert.deepEqual(snapshot.weapons['Ceramic Dagger'].incarnonFormExtra,
-    [{ name: 'Spectral Dagger Explosion', damage: { Heat: 350 } }]);
+    [{ name: 'Spectral Dagger Explosion', damage: { Heat: 350 }, falloff: { start: 0, end: 4, reduction: 0.3 } }]);
 });
 
 test('a melee form can be used without an evolution selection', () => {
   // Okina Prime inherits Okina's tree, but the form is usable even with no perks picked.
   const resolved = resolveBuild(snapshot, { weapon: 'Ceramic Dagger', mods: [], incarnon: ['form'] });
-  assert.equal(resolved.damage.projectileTotal, 350); // spectral dagger only
+  // Spectral dagger 350 + its 350 Heat explosion at the blast centre.
+  assert.equal(resolved.damage.projectileTotal, 700);
   assert.ok(resolved.incarnonLines.includes('form only, no evolution perks'));
-  assert.ok(resolved.incarnonLines.some((line) => /Spectral Dagger Explosion not modelled \(\+350 Heat\)/.test(line)),
-    `expected the unmodelled explosion in ${JSON.stringify(resolved.incarnonLines)}`);
+  assert.ok(resolved.incarnonLines.some((line) => /Spectral Dagger Explosion included at the blast centre/.test(line)),
+    `expected the explosion in ${JSON.stringify(resolved.incarnonLines)}`);
 });
 
 test('Incarnon option names keep apostrophes and EVO1 is not an option', () => {
@@ -60,7 +61,8 @@ test('Incarnon option names keep apostrophes and EVO1 is not an option', () => {
 test('spectral direct hits ignore melee damage bonuses but keep Condition Overload', () => {
   // Wiki (Ceramic Dagger, Hate, Okina pages): spectral hits are not affected by Pressure
   // Point, the stance or the combo multiplier, while direct hits *are* affected by Condition
-  // Overload. 350 x (1 + 0.8 x 3 status types) = 1190.
+  // Overload, whose multiplier only scales the direct share (350 of the 700 total):
+  // direct 350 x 3.4 + explosion 350 = 1540.
   const resolved = resolveBuild(snapshot, {
     weapon: 'Ceramic Dagger',
     mods: ['Pressure Point', 'Condition Overload'],
@@ -69,11 +71,20 @@ test('spectral direct hits ignore melee damage bonuses but keep Condition Overlo
     comboHits: 220,
     heavyAttack: true,
   });
-  assert.ok(Math.abs(resolved.damage.projectileTotal - 1190) < 1e-6,
-    `expected 1190, got ${resolved.damage.projectileTotal}`);
+  assert.ok(Math.abs(resolved.damage.projectileTotal - 1540) < 1e-6,
+    `expected 1540, got ${resolved.damage.projectileTotal}`);
   assert.ok(resolved.inactiveConditions.some((line) => /Pressure Point/.test(line)),
     `Pressure Point should be reported as inactive: ${JSON.stringify(resolved.inactiveConditions)}`);
   assert.equal(resolved.shotDamage, resolved.damage.projectileTotal); // no 12x heavy multiplier
+});
+
+test('the Incarnon second hit follows falloff', () => {
+  // Braton's form is 50 direct + 50 Heat AoE at the centre; at 3 m the AoE keeps 90%.
+  const at = (distance?: number) => resolveBuild(snapshot, {
+    weapon: 'Braton', mods: [], incarnon: ['form'], aoeDistance: distance,
+  }).damage.projectileTotal;
+  assert.equal(at(0), 100);
+  assert.ok(Math.abs(at(3) - 95) < 1e-9);
 });
 
 test('a gun Incarnon form is unaffected by the spectral rule', () => {

@@ -73,6 +73,7 @@ Flags:
 | `--viral 10 --corrosive 0 --headshot` | Target debuffs and headshots |
 | `--eximus` | Target is an Eximus: add its level-scaled Overguard (base 12) |
 | `--overguard N` | Explicit Overguard amount instead of the Eximus formula |
+| `--targets N` | (ability) enemies hit by one cast, all at full damage |
 | `--attenuation archon\|eidolon` | Boss damage caps; Eidolons apply theirs automatically |
 | `--mdpt N --mdps N` | Explicit caps per hit and per second (Archons use 460k/935k) |
 | `--flat-dr 20 --status-dr 50` | Extra flat and status-only damage reduction, in percent |
@@ -165,16 +166,20 @@ State these when they matter instead of guessing:
   weapon and tries every combination of perks (exact: the largest tree has 18). Perks with no
   parsed stats are invisible; read the tree with `wfcalc incarnon <weapon>`. `--incarnon form`
   uses the transformed profile with no perks, which is the way in for the five melee forms
-  (their attacks are the wiki's "Spectral Axe/Dagger/Blade"). The melee forms' explosion is a
-  second hit on the same shot and is **not** in the number; the result says so. Spectral direct
+  (their attacks are the wiki's "Spectral Axe/Dagger/Blade"). The form's AoE/explosion is a
+  second hit on the same shot and **is** included at the blast centre; `--aoe-distance` applies
+  its falloff. Direct-only multipliers (Condition Overload, Galvanized Aptitude) are scaled by
+  the direct share so they do not inflate the radial hit. Spectral direct
   hits drop melee damage bonuses (Pressure Point, Arcane Fury, riven damage), the stance and the
   combo multiplier, while Condition Overload and every elemental/faction/crit/status bonus count.
 - **Rivens must be spelled out**: `--riven damage,multishot,-zoom --riven-roll 1.05`.
 - **Conditional mods default to inactive.** Galvanized stacks, on-kill effects and "while
   aiming" need `--stacks onKill=5` or similar; otherwise the build is scored lower than it
   plays. Say which conditions your answer assumes.
-- **One target, average damage.** No spread, no multi-target, no enemy AI. Time to kill is a
-  model of sustained fire including reloads, not a stopwatch.
+- **One target by default, average damage.** No spread, no enemy AI; time to kill is a model of
+  sustained fire including reloads. Abilities accept `--targets N` (N enemies at full damage
+  inside the radius). Weapon multi-target (Torid's chain to five enemies, one AoE shot hitting a
+  group) and distance falloff for abilities are not modelled.
 - **Ability statuses are modelled only where the wiki states them**: Inferno's guaranteed Heat,
   Miasma's Viral (one stack, doubling health damage) and Shuriken's Bleed. Spores, Thermal Sunder
   and the rest are not. `target.statusPerCast`, `target.statusProcs` and `target.viralStacks`

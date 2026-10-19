@@ -150,7 +150,17 @@ export interface WeaponData {
    * forms' "Spectral Axe Explosion"). The single-profile model adds only the direct hit, so
    * they are kept here to be reported instead of silently dropped.
    */
-  incarnonFormExtra?: Array<{ name: string; damage: Partial<Record<DamageType, number>> }>;
+  incarnonFormExtra?: Array<{
+    name: string;
+    damage: Partial<Record<DamageType, number>>;
+    falloff?: { start: number; end: number; reduction: number };
+  }>;
+  /**
+   * Share of the transformed profile's base damage that comes from the direct hit (0..1).
+   * Direct-only multipliers (Condition Overload, Galvanized Aptitude) scale by it, because the
+   * wiki says the radial hit does not take them.
+   */
+  incarnonFormDirectShare?: number;
   /**
    * The form fires a spectral projectile instead of swinging the weapon. The wiki states that
    * those hits ignore melee damage bonuses (Pressure Point, Arcane Fury, the stance and the

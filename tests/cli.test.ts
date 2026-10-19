@@ -260,3 +260,9 @@ test('ability briefs show the shield phase against Corpus', () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /shields [\d,.]+\/cast/);
 });
+
+test('ability --targets reports the whole cast', () => {
+  const result = runRaw(['ability', 'Miasma', '--strength', '100', '--enemy', 'Bombard', '--level', '150', '--targets', '5', '--brief']);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /5 targets = 1,575/);
+});

@@ -23,7 +23,7 @@ const GOLDEN = {
   brammaTtk: 'ttk 644.33s',
   somaStrippedTtk: 'ttk 160.76s',
   avalancheCast: '3,000 at 200%',
-  ceramicIncarnonHit: 1190,
+  ceramicIncarnonHit: 1540,
   eximusOverguard: '281,865',
   miasmaCast: '315/cast',
   shurikenStatus: '+1,577.1 status',

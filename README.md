@@ -125,6 +125,7 @@ current state, the working method and what is left to do.
 | `--incarnon "EVO2:0,EVO4:1"` | Incarnon evolutions per tier (see `wfcalc incarnon`) |
 | `--incarnon form` | Transformed profile with no evolution perks |
 | `--eximus` / `--overguard N` | Add level-scaled Eximus Overguard, or an explicit amount |
+| `--targets N` | (ability) enemies hit by one cast, all at full damage |
 | `--attenuation archon\|eidolon` | Boss damage caps; Eidolons are automatic |
 | `--mdpt N --mdps N` | Custom caps per hit / per second |
 | `--flat-dr 20 --status-dr 50` | Extra flat and status-only damage reduction, percent |
@@ -272,8 +273,6 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
   the damage a single target takes, so it does not enter a single-target TTK.
 - Per-pellet status variance (damage uses expectations; crit spread is reported).
 - Incarnon perks that are mechanics rather than stats (they are stored as text, not applied).
-- The second hit of an Incarnon form (`Incarnon Form AoE`, the melee Spectral explosion):
-  only the direct hit enters the number, and the report says which hit was left out.
 - 15 of the 74 weapons with an Incarnon form have no evolution table; with variant
   inheritance 59 are covered, and the remainder look like export noise.
 - **2% of weapon-relevant mods** (9 of 596) still have a line the model does not use, mostly
@@ -406,6 +405,11 @@ each) matches 35/35, offline and deterministic. It does **not** model:
 - **Ability shields**: a cast now removes shields before health, using the shield type's damage
   modifiers (Toxin bypasses them as usual). Overguard, shield and health casts are counted
   separately, so the total is conservative by at most two casts.
+- **Incarnon second hits** (`Incarnon Form AoE`, the melee Spectral explosion) are part of the
+  shot at the blast centre; `--aoe-distance` applies their falloff. Direct-only multipliers
+  (Condition Overload, Galvanized Aptitude) scale by the direct share, so the explosion is not
+  inflated by them.
+- **Ability multi-target**: `--targets N` reports one cast across N enemies at full damage.
 - **Ability statuses**: only Inferno (Heat), Miasma (Viral) and Shuriken (Bleed) are curated;
   Spores, Thermal Sunder and the rest are not. Inferno's direct hit is still modelled as one
   Impact block, while the wiki splits it into Impact and Heat.
@@ -413,8 +417,9 @@ each) matches 35/35, offline and deterministic. It does **not** model:
   `--mdpt/--mdps`; the exponential smoothing between hits is not modelled, and Liches/Sisters
   have no published cap values (pass your own). Eidolon joints/invulnerability phases and Lich
   ranks are also not modelled.
-- Shields in an ability's `castsToKill`, multi-target/AoE for abilities, and the second hit of
-  an Incarnon form (the report says when a hit was left out).
+- Weapon multi-target: hitting several enemies with one AoE shot (Torid's chain to five at 75%
+  per link) and distance falloff for abilities. `--targets N` on an ability counts enemies at
+  full damage inside the radius, not a geometry simulation.
 - Stance modifiers, companions, Archwing and Necramech.
 
 `docs/plan.md` keeps the full list, the evidence for each gap, and the order to close them.

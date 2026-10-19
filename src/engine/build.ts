@@ -245,14 +245,25 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     if (weapon.incarnonFormSpectral) {
       incarnonLines.push('spectral hits ignore melee damage mods, stance and combo multiplier (wiki)');
     }
-    // The form can fire a second hit on the same shot ("Incarnon Form AoE", the melee forms'
-    // spectral explosion). This model carries one damage profile, so the result says the hit
-    // exists instead of pretending the shot is complete.
+    // The form fires a second hit on the same shot ("Incarnon Form AoE", the melee forms'
+    // spectral explosion). It is part of the shot at the blast centre; with --aoe-distance it
+    // keeps only the falloff-reduced share. Mods apply to both, as in the game.
     for (const extra of weapon.incarnonFormExtra ?? []) {
-      const damage = Object.entries(extra.damage).map(([type, value]) => `${value} ${type}`).join(' + ');
-      incarnonLines.push(`${extra.name} not modelled (+${damage})`);
+      const distance = build.aoeDistance ?? 0;
+      const factor = extra.falloff ? falloffFactor(extra.falloff, distance) : 1;
+      for (const [type, value] of Object.entries(extra.damage)) {
+        const key = type.toLowerCase() as DamageType;
+        if (!(key in stats) || typeof value !== 'number') continue;
+        stats[key] = (stats[key] ?? 0) + value * factor;
+      }
+      incarnonLines.push(`${extra.name} included${build.aoeDistance !== undefined ? ` at ${build.aoeDistance} m` : ' at the blast centre'}`);
     }
   }
+  // Direct-only multipliers (Condition Overload, Galvanized Aptitude) must not scale the
+  // radial second hit. We approximate by their share of the transformed profile's base damage.
+  const directShare = build.incarnon?.length && weapon.incarnonForm && weapon.incarnonFormExtra?.length
+    ? weapon.incarnonFormDirectShare ?? 1
+    : 1;
 
   // Kuva/Tenet elemental bonus: a player-chosen element worth 25-60% of base damage,
   // baked in before anything else so it combines like innate damage.
@@ -267,7 +278,9 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   // AoE: the arsenal block counts the radial hit at the blast centre. Swap that portion
   // for the falloff-reduced value at the requested distance.
   const aoeDistance = build.aoeDistance;
-  if (aoeDistance !== undefined && aoeDistance >= 0) {
+  // The Incarnon form carries its own radial second hit with its own falloff; the base
+  // weapon's radial mode must not be applied on top of it.
+  if (aoeDistance !== undefined && aoeDistance >= 0 && !(build.incarnon?.length && weapon.incarnonForm)) {
     const radial = weapon.modes.find((candidate) => candidate.falloff);
     if (radial && radial.falloff) {
       const factor = falloffFactor(radial.falloff, aoeDistance);
@@ -513,7 +526,8 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
       // "(x2 for Bows)": the mod text doubles the effect on bows.
       const bowFactor = effect.doublesForBows && /bow/i.test(weapon.type) ? 2 : 1;
       const setFactor = 1 + amplifyFor(source.set, source.name);
-      const value = effect.value * rankFraction * stacks * comboFactor * bowFactor * setFactor;
+      const directOnly = effect.perStatusType ? directShare : 1;
+      const value = effect.value * rankFraction * stacks * comboFactor * bowFactor * setFactor * directOnly;
       if (effect.op === 'mult' && effect.target === 'elementMultiplier' && effect.element) {
         // "x2.5 Heat damage" (Accelerant): multiplies that damage type only.
         collected.elementMultipliers.set(effect.element, (collected.elementMultipliers.get(effect.element) ?? 1) * (1 + value));
