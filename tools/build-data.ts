@@ -739,6 +739,8 @@ function buildDamageAbilities(): Record<string, DamageAbilityData> {
     statusProcs?: Array<{ type: string; stacks: number; seedFraction?: number; seed?: number }> | null;
     damageComponents?: Array<{ type: string; amount: number }> | null;
     modes?: Record<string, any> | null;
+    statusRamp?: { type: string; procsPerSecond: number; maxStacks: number } | null;
+    distanceFalloff?: { start: number; end: number; reduction: number } | null;
   }>;
   try {
     entries = readJson('damage-abilities.json');
@@ -762,6 +764,8 @@ function buildDamageAbilities(): Record<string, DamageAbilityData> {
       ...(entry.statusProcs?.length ? { statusProcs: entry.statusProcs as DamageAbilityData['statusProcs'] } : {}),
       ...(entry.damageComponents?.length ? { damageComponents: entry.damageComponents as DamageAbilityData['damageComponents'] } : {}),
       ...(entry.modes && Object.keys(entry.modes).length ? { modes: entry.modes as DamageAbilityData['modes'] } : {}),
+      ...(entry.statusRamp ? { statusRamp: entry.statusRamp as DamageAbilityData['statusRamp'] } : {}),
+      ...(entry.distanceFalloff ? { distanceFalloff: entry.distanceFalloff } : {}),
     };
   }
   console.log(`damage abilities: ${Object.keys(out).length}`);

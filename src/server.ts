@@ -366,6 +366,7 @@ const server = createServer(async (req, res) => {
           viralStacks: url.searchParams.get('viral') ? Number(url.searchParams.get('viral')) : undefined,
           targets: url.searchParams.get('targets') ? Number(url.searchParams.get('targets')) : undefined,
           mode: url.searchParams.get('mode') ?? undefined,
+          distance: url.searchParams.get('distance') ? Number(url.searchParams.get('distance')) : undefined,
         });
         return json(res, 200, result);
       } catch (error) {

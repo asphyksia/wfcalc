@@ -332,6 +332,10 @@ export interface AbilityModeData {
   statusProcs?: Array<{ type: DamageType; stacks: number; seedFraction?: number; seed?: number }> | null;
   /** Alternative modes (Thermal Sunder tap/hold), keyed by the mode name. */
   modes?: Record<string, AbilityModeData> | null;
+  /** A status that ramps over the cast (Spores' Corrosive), with expected procs per second. */
+  statusRamp?: { type: DamageType; procsPerSecond: number; maxStacks: number } | null;
+  /** Damage falloff with distance from the cast point (Discharge: 50% at max range). */
+  distanceFalloff?: { start: number; end: number; reduction: number } | null;
   perSecond?: boolean;
   durationSeconds?: number | null;
   extraDot?: { perSecond: number; damageType: string | null; seconds: number } | null;
@@ -366,6 +370,10 @@ export interface DamageAbilityData {
   statusProcs?: Array<{ type: DamageType; stacks: number; seedFraction?: number; seed?: number }> | null;
   /** Alternative modes (Thermal Sunder tap/hold), keyed by the mode name. */
   modes?: Record<string, AbilityModeData> | null;
+  /** A status that ramps over the cast (Spores' Corrosive), with expected procs per second. */
+  statusRamp?: { type: DamageType; procsPerSecond: number; maxStacks: number } | null;
+  /** Damage falloff with distance from the cast point (Discharge: 50% at max range). */
+  distanceFalloff?: { start: number; end: number; reduction: number } | null;
 }
 
 export interface IncarnonOption {

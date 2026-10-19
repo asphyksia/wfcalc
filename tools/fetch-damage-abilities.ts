@@ -63,6 +63,16 @@ const DAMAGE_COMPONENTS: Record<string, Array<{ type: string; amount: number }>>
  * Thermal Sunder's Hold casts 1,500 Heat at max rank/battery with a guaranteed Heat proc;
  * the Cold mode is the base entry.
  */
+/** Status ramps: Spores has 3 spores at 50% Corrosive chance each, i.e. 1.5 procs/s. */
+const STATUS_RAMP: Record<string, { type: string; procsPerSecond: number; maxStacks: number }> = {
+  Spores: { type: 'corrosive', procsPerSecond: 1.5, maxStacks: 10 },
+};
+
+/** Linear damage falloff to `reduction` at `end` metres (Discharge: 50% at 20 m). */
+const ABILITY_FALLOFF: Record<string, { start: number; end: number; reduction: number }> = {
+  Discharge: { start: 0, end: 20, reduction: 0.5 },
+};
+
 const ABILITY_MODES: Record<string, Record<string, {
   damageType: string; baseDamage: number; damageComponents: Array<{ type: string; amount: number }>;
   statusProcs: Array<{ type: string; stacks: number; seed?: number }>; perSecond: boolean;
@@ -214,6 +224,8 @@ async function main(): Promise<void> {
     statusProcs: Array<{ type: string; stacks: number; seedFraction?: number; seed?: number }>;
     damageComponents: Array<{ type: string; amount: number }>;
     modes: Record<string, any>;
+    statusRamp: { type: string; procsPerSecond: number; maxStacks: number } | null;
+    distanceFalloff: { start: number; end: number; reduction: number } | null;
   }> = [];
   let failures = 0;
 
@@ -247,6 +259,8 @@ async function main(): Promise<void> {
     const statusProcs = STATUS_PROCS[entry.ability] ?? [];
     const damageComponents = DAMAGE_COMPONENTS[entry.ability] ?? [];
     const modes = ABILITY_MODES[entry.ability] ?? {};
+    const statusRamp = STATUS_RAMP[entry.ability] ?? null;
+    const distanceFalloff = ABILITY_FALLOFF[entry.ability] ?? null;
     const strengthRaw = templateParam(wikitext, 'strength');
     if (!strengthRaw && !armorStrip) {
       console.error(`SKIP  ${entry.ability}: no strength line`);
@@ -283,7 +297,7 @@ async function main(): Promise<void> {
 
     out.push({
       frame: entry.frame, ability: entry.ability, damageType, baseDamage, radius, page: entry.page,
-      armorStrip, perSecond, durationSeconds, extraDot, statusProcs, damageComponents, modes,
+      armorStrip, perSecond, durationSeconds, extraDot, statusProcs, damageComponents, modes, statusRamp, distanceFalloff,
     });
     console.log(
       `${entry.frame.padEnd(11)} ${entry.ability.padEnd(20)} ${String(baseDamage).padStart(6)}${perSecond ? '/s' : '  '} ${String(damageType ?? '?').padEnd(11)} r=${String(radius ?? '-').padEnd(5)} `

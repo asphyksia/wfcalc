@@ -105,6 +105,8 @@ export interface ResolvedBuild {
   mode: WeaponMode | null;
   /** True when these stats come from the Incarnon form. */
   incarnonFormActive: boolean;
+  /** Blast-centre distance used for AoE falloff, if any. */
+  aoeDistance: number | null;
   damage: ResolvedDamage;
   critChance: number;
   critMultiplier: number;
@@ -758,6 +760,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     weapon,
     mode,
     incarnonFormActive,
+    aoeDistance: build.aoeDistance ?? null,
     damage: { perProjectile: damage, projectileTotal },
     critChance,
     critMultiplier: crit,

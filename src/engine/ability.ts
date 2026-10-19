@@ -11,7 +11,7 @@
  * follows for every ability modelled here.
  */
 import { armorDamageReduction, scaleEnemy, type ArmorModel, type ScaledEnemy } from './enemy.ts';
-import { statusProcDamage, viralMultiplier } from './dot.ts';
+import { corrosiveArmorMultiplier, statusProcDamage, viralMultiplier } from './dot.ts';
 import type { DamageType, Snapshot } from '../types.ts';
 
 export interface AbilityCastOptions {
@@ -30,6 +30,8 @@ export interface AbilityCastOptions {
   targets?: number;
   /** Alternative mode (Thermal Sunder's "heat"), when the ability has one. */
   mode?: string;
+  /** Distance from the cast point, for abilities with distance falloff (Discharge). */
+  distance?: number;
 }
 
 export interface AbilityCast {
@@ -52,6 +54,9 @@ export interface AbilityCast {
   totalDamage: number;
   /** Direct damage split across types, scaled by Ability Strength. */
   damageComponents: Array<{ type: DamageType; amount: number }>;
+  /** Distance from the cast point and the falloff factor it applied. */
+  distance: number;
+  distanceFactor: number;
   /** Ticking part of the cast, if any (Inferno's ring alongside its direct hit). */
   ticks: { perSecond: number; damageType: string | null; seconds: number } | null;
   radius: number | null;
@@ -78,6 +83,9 @@ export interface AbilityCast {
     statusPerCast: number;
     /** Viral stacks (existing plus applied), and the health multiplier they give. */
     viralStacks: number;
+    /** Corrosive stacks the ability ramps to (Spores), and the final armour multiplier. */
+    corrosiveStacks: number;
+    corrosiveArmorMultiplier: number;
     /** Shield pool, direct damage per cast against it, and whether the type bypasses it. */
     shield: number;
     shieldPerCast: number;
@@ -118,6 +126,13 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
   // second for 6 seconds, not 150 once. Inferno is a direct hit plus a ring that ticks.
   const durationSeconds = active.durationSeconds ?? null;
   const seconds = active.perSecond && durationSeconds ? durationSeconds : 1;
+  const distance = Math.max(0, options.distance ?? 0);
+  const falloff = active.distanceFalloff;
+  const distanceFactor = falloff
+    ? distance <= falloff.start ? 1
+      : distance >= falloff.end ? Math.max(0, 1 - falloff.reduction)
+      : 1 - falloff.reduction * ((distance - falloff.start) / (falloff.end - falloff.start))
+    : 1;
   const components = (active.damageComponents?.length
     ? active.damageComponents
     : active.damageType && active.baseDamage
@@ -125,7 +140,7 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       : []
   ).map((component) => ({
     type: component.type as DamageType,
-    amount: component.amount * (strength / 100) * seconds,
+    amount: component.amount * (strength / 100) * seconds * distanceFactor,
   }));
   const mainTotal = components.reduce((sum, component) => sum + component.amount, 0);
   const ticks = active.extraDot
@@ -180,12 +195,33 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     const healthPool = scaled.health;
     const armorAmount = scaled.armor;
 
+    // A status that ramps over the cast (Spores' Corrosive): expected procs per second, capped.
+    // The ability's own damage uses the average strip over the window; the final strip is
+    // reported so the weapon can be priced with --corrosive N.
+    const ramp = active.statusRamp;
+    let corrosiveStacks = 0;
+    let corrosiveFinalMultiplier = 1;
+    let rampedArmor = armorAmount;
+    if (falloff) {
+      notes.push(`Distance ${distance} m: damage x${distanceFactor.toFixed(2)} (linear falloff to ${(1 - falloff.reduction) * 100}% at ${falloff.end} m).`);
+    }
+    if (ramp) {
+      const window = durationSeconds ?? 10;
+      const capTime = ramp.maxStacks / Math.max(1e-9, ramp.procsPerSecond);
+      const averageStacks = window <= capTime
+        ? (ramp.procsPerSecond * window) / 2
+        : ((ramp.procsPerSecond * capTime * capTime) / 2 + ramp.maxStacks * (window - capTime)) / window;
+      corrosiveStacks = Math.min(ramp.maxStacks, ramp.procsPerSecond * window);
+      corrosiveFinalMultiplier = corrosiveArmorMultiplier(corrosiveStacks);
+      rampedArmor = armorAmount * corrosiveArmorMultiplier(Math.min(ramp.maxStacks, averageStacks));
+    }
+
     if (!active.damageType || !active.baseDamage) {
       // Nothing to damage: only the strip matters, and it is already reported above.
       return {
         frame: entry.frame, ability: entry.ability, mode: options.mode ?? null, damageType: active.damageType,
         baseDamage: 0, strength, scaledDamage, perSecond: Boolean(active.perSecond),
-        durationSeconds, totalDamage, ticks, damageComponents: [], radius: entry.radius ?? null,
+        durationSeconds, totalDamage, ticks, damageComponents: [], distance, distanceFactor, radius: entry.radius ?? null,
         armorStrip, target: null, notes,
       };
     }
@@ -202,7 +238,7 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     const against = (type: DamageType, amount: number): { dealt: number; healthMod: number; dr: number } => {
       const healthMod = healthModifier(snapshot, type, healthType);
       const armorMod = armor ? healthModifier(snapshot, type, armor.type) : 0;
-      const dr = armor ? armorDamageReduction(armorAmount, armorMod, armorModel) : 0;
+      const dr = armor ? armorDamageReduction(rampedArmor, armorMod, armorModel) : 0;
       const armorOnDamage = armorModel === 'armor-scaling' ? 1 : 1 + armorMod;
       // Same floor rule as weapons: on an armoured target every damage type deals at least 1.
       return { dealt: Math.max(amount * (1 + healthMod) * (1 - dr) * viral * armorOnDamage, armor ? 1 : 0), healthMod, dr };
@@ -280,6 +316,8 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       directPerCast,
       statusPerCast,
       viralStacks,
+      corrosiveStacks,
+      corrosiveArmorMultiplier: corrosiveFinalMultiplier,
       shield: scaled.shield,
       shieldPerCast,
       bypassesShield,
@@ -289,7 +327,10 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       castsToKill,
     };
     if (armor) {
-      notes.push(`Target armour ${Math.round(armorAmount)} reduces this type by ${(dr * 100).toFixed(1)}%.`);
+      notes.push(`Target armour ${Math.round(rampedArmor)} reduces this type by ${(dr * 100).toFixed(1)}%${ramp ? ' (average after the Corrosive ramp)' : ''}.`);
+    }
+    if (ramp) {
+      notes.push(`Corrosive ramp: ~${ramp.procsPerSecond}/s, ${Math.round(corrosiveStacks)} stacks (${((1 - corrosiveFinalMultiplier) * 100).toFixed(0)}% armour strip); price the weapon with --corrosive ${Math.round(corrosiveStacks)}.`);
     }
     if (components.length > 1) {
       notes.push(`Damage split: ${components.map((component) => `${Math.round(component.amount)} ${component.type}`).join(' + ')}.`);
@@ -322,6 +363,8 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     durationSeconds,
     totalDamage,
     damageComponents: components,
+    distance,
+    distanceFactor,
     ticks,
     radius: entry.radius ?? null,
     armorStrip,

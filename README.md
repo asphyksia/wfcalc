@@ -125,7 +125,8 @@ current state, the working method and what is left to do.
 | `--incarnon "EVO2:0,EVO4:1"` | Incarnon evolutions per tier (see `wfcalc incarnon`) |
 | `--incarnon form` | Transformed profile with no evolution perks |
 | `--eximus` / `--overguard N` | Add level-scaled Eximus Overguard, or an explicit amount |
-| `--targets N` | (ability) enemies hit by one cast, all at full damage; for Torid's Incarnon, the chain links |
+| `--targets N` | Group report: abilities hit N enemies at full damage; Torid chains; an AoE weapon adds the radial share for the extras |
+| `--ability-distance N` | Distance from the cast point for abilities with falloff (Discharge) |
 | `--attenuation archon\|eidolon` | Boss damage caps; Eidolons are automatic |
 | `--mdpt N --mdps N` | Custom caps per hit / per second |
 | `--flat-dr 20 --status-dr 50` | Extra flat and status-only damage reduction, percent |
@@ -413,19 +414,19 @@ each) matches 35/35, offline and deterministic. It does **not** model:
   inflated by them.
 - **Ability multi-target**: `--targets N` reports one cast across N enemies at full damage.
 - **Torid chain**: the Incarnon beam chains to up to five nearby enemies at 75% per link;
-  `--targets N` reports the group total (same target profile assumed). Other weapons warn if
-  asked for multiple targets.
+  `--targets N` reports the group total (same target profile assumed). An AoE weapon adds the
+  radial share for the extra targets at the same distance; a weapon with no chain or radial
+  warns.
 - **Ability statuses**: Inferno (Heat), Fireball (Heat), Thermal Sunder's Heat mode, Miasma
-  (Viral) and Shuriken (Bleed) are curated; Spores' Corrosive procs are not yet. Inferno's direct
-  hit is split into the wiki's 1,250 Impact + 1,250 Heat. Use `--ability-mode heat` for Thermal
-  Sunder's Hold cast.
+  (Viral), Shuriken (Bleed) and Spores' Corrosive ramp (1.5 procs/s, 10 stacks, 80% strip;
+  price the weapon with `--corrosive 10`). Inferno's direct hit is split into the wiki's 1,250
+  Impact + 1,250 Heat. Use `--ability-mode heat` for Thermal Sunder's Hold cast.
 - **Damage attenuation**: per-hit attenuation uses the wiki's hyperbolic formula for
   Archons/Eidolons and explicit `--mdpt/--mdps`; the per-second exponential smoothing is not
   modelled, and Liches/Sisters have no published cap values (pass your own). Eidolon
   joints/invulnerability phases and Lich ranks are also not modelled.
-- Weapon multi-target: hitting several enemies with one AoE shot (Torid's chain to five at 75%
-  per link) and distance falloff for abilities. `--targets N` on an ability counts enemies at
-  full damage inside the radius, not a geometry simulation.
+- **Ability distance falloff**: Discharge falls linearly to 50% at max range; use
+  `--ability-distance N`. Other abilities have no documented distance falloff.
 - Stance modifiers, companions, Archwing and Necramech.
 
 `docs/plan.md` keeps the full list, the evidence for each gap, and the order to close them.

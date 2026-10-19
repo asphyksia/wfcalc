@@ -127,10 +127,10 @@ part of the build: do not omit it from the answer.
 - Do not claim endgame certainty. Not modelled: the exponential smoothing of boss damage
   attenuation and Lich/Sister cap values (pass `--mdpt/--mdps`), Eidolon joints and boss
   invulnerability phases, status DoT/Magnetic amplification on **Overguard**, multi-target/AoE,
-  stance modifiers, companions/Archwing/Necramech, one AoE shot hitting a group, and ability
-  distance falloff. Torid's chain is modelled with `--targets N`. Ability statuses are modelled only for
-  Inferno and Fireball (Heat), Thermal Sunder's Heat mode, Miasma (Viral) and Shuriken (Bleed);
-  Spores is not. Melee and secondary
+  stance modifiers, companions/Archwing/Necramech. `--targets N` covers Torid's chain and an AoE
+  weapon's radial share; `--ability-distance N` covers Discharge's falloff. Ability statuses are modelled only for
+  Inferno and Fireball (Heat), Thermal Sunder's Heat mode, Miasma (Viral), Shuriken (Bleed) and
+  Spores' Corrosive ramp (price the weapon with `--corrosive 10`). Melee and secondary
   builds have no external calibration yet. Eximus Overguard and the Archon/Eidolon caps *are*
   modelled.
 - Do not present a search result as a measurement; it is the best build under the model.

@@ -266,7 +266,40 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
     multiTargetDps = totalDps * multiTargetFactor;
     warnings.push(`Chain: ${links} extra target(s) at 75% per link, same profile assumed`);
   } else if (requestedTargets > 1) {
-    warnings.push(`multi-target is only modelled for a chained Incarnon (Torid); ${requestedTargets} targets ignored`);
+    // One AoE shot: the primary target takes the whole profile, the others only the radial
+    // share (the direct hit is a single point). Same target profile and distance assumed.
+    let secondaryShare = 0;
+    if (build.incarnonFormActive && build.weapon.incarnonFormExtra?.length) {
+      const extra = build.weapon.incarnonFormExtra[0];
+      const distance = build.aoeDistance ?? 0;
+      const falloff = extra.falloff ? Math.max(0, 1 - extra.falloff.reduction * (
+        distance <= extra.falloff.start ? 0
+        : distance >= extra.falloff.end ? 1
+        : (distance - extra.falloff.start) / (extra.falloff.end - extra.falloff.start)
+      )) : 1;
+      secondaryShare = (1 - (build.weapon.incarnonFormDirectShare ?? 1)) * falloff;
+    } else {
+      const radial = build.weapon.modes.find((mode) => mode.falloff);
+      if (radial?.falloff) {
+        const damageKeys = ['impact','puncture','slash','heat','cold','electricity','toxin','blast','corrosive','gas','magnetic','radiation','viral','true','void','tau'] as const;
+        const sum = (stats: Record<string, number>) => damageKeys.reduce((total, key) => total + (stats[key] ?? 0), 0);
+        const radialTotal = sum(radial.stats as unknown as Record<string, number>);
+        const baseTotal = sum(build.weapon.stats as unknown as Record<string, number>);
+        const distance = build.aoeDistance ?? 0;
+        const { start, end, reduction } = radial.falloff;
+        const falloff = distance <= start ? 1
+          : distance >= end ? Math.max(0, 1 - reduction)
+          : 1 - reduction * ((distance - start) / (end - start));
+        secondaryShare = baseTotal > 0 ? (radialTotal / baseTotal) * falloff : 0;
+      }
+    }
+    if (secondaryShare > 0) {
+      multiTargetFactor = 1 + (requestedTargets - 1) * secondaryShare;
+      multiTargetDps = totalDps * multiTargetFactor;
+      warnings.push(`AoE group: ${requestedTargets - 1} extra target(s) at the same distance, radial share ${(secondaryShare * 100).toFixed(0)}%`);
+    } else {
+      warnings.push(`multi-target is not modelled for this weapon; ${requestedTargets} targets ignored`);
+    }
   }
   const num = (value: number): string => value.toLocaleString('en-US', { maximumFractionDigits: 0 });
   if (scaled.overguard > 0) {

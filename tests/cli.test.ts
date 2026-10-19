@@ -282,6 +282,16 @@ test('ability briefs show a split damage type', () => {
   assert.match(result.stdout, /Inferno \(impact\+heat\)/);
 });
 
+test('an AoE weapon reports the radial share across a group', () => {
+  const result = run(['calc', 'Kuva Bramma', '--targets', '5', '--enemy', 'Bombard', '--level', '150', '--json']) as {
+    totalDps: number; multiTargetDps: number | null; multiTargetFactor: number; warnings: string[];
+  };
+  // Direct 187 Impact + radial 839 Blast: 4 extra targets x 81.7% radial share.
+  assert.ok(result.multiTargetFactor > 4.2 && result.multiTargetFactor < 4.3);
+  assert.ok((result.multiTargetDps ?? 0) > result.totalDps);
+  assert.ok(result.warnings.some((line) => /AoE group/.test(line)));
+});
+
 test('Torid chains with --targets and other weapons warn instead', () => {
   const torid = run(['calc', 'Torid', '--incarnon', 'form', '--targets', '6', '--enemy', 'Bombard', '--level', '150', '--json']) as {
     totalDps: number; multiTargetDps: number | null; multiTargetFactor: number; warnings: string[];
@@ -294,7 +304,7 @@ test('Torid chains with --targets and other weapons warn instead', () => {
     multiTargetDps: number | null; warnings: string[];
   };
   assert.equal(soma.multiTargetDps, null);
-  assert.ok(soma.warnings.some((line) => /only modelled for a chained Incarnon/.test(line)));
+  assert.ok(soma.warnings.some((line) => /multi-target is not modelled for this weapon/.test(line)));
 });
 
 test('Thermal Sunder accepts --ability-mode heat', () => {
@@ -325,4 +335,16 @@ test('search --status-types auto reports the inferred count', () => {
   ]) as { assumptions: string[] };
   assert.ok(result.assumptions.some((line) => /statusTypes inferred: 2/.test(line)));
   assert.ok(result.assumptions.some((line) => /statusTypes=2/.test(line)));
+});
+
+test('Spores brief shows the Corrosive strip', () => {
+  const result = runRaw(['ability', 'Spores', '--enemy', 'Bombard', '--level', '150', '--brief']);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /corrosive 10 \(80% strip\)/);
+});
+
+test('ability distance falloff is reported in the brief', () => {
+  const result = runRaw(['ability', 'Discharge', '--enemy', 'Bombard', '--level', '150', '--ability-distance', '20', '--brief']);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /20 m \(x0\.50\)/);
 });

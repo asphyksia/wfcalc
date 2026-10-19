@@ -252,3 +252,17 @@ test('Thermal Sunder has a Heat mode with its own damage and guaranteed proc', (
   assert.ok((heat.target?.statusPerCast ?? 0) > 0);
   assert.equal(heat.target?.statusProcs[0]?.type, 'heat');
 });
+
+test('Spores ramps Corrosive and reports the armour strip it gives the weapon', () => {
+  const cast = abilityCast(snapshot, 'Spores', { enemy: 'Bombard', level: 150 });
+  assert.equal(cast.target?.corrosiveStacks, 10);
+  assert.ok(Math.abs((cast.target?.corrosiveArmorMultiplier ?? 0) - 0.2) < 1e-9);
+  assert.ok(cast.notes.some((line) => /price the weapon with --corrosive 10/.test(line)));
+});
+
+test('Discharge falls off to 50% at its maximum range', () => {
+  const at0 = abilityCast(snapshot, 'Discharge', { enemy: 'Bombard', level: 150 });
+  const at20 = abilityCast(snapshot, 'Discharge', { enemy: 'Bombard', level: 150, distance: 20 });
+  assert.equal(at20.distanceFactor, 0.5);
+  assert.ok(Math.abs((at20.target?.perCast ?? 0) - (at0.target?.perCast ?? 0) * 0.5) < 1e-9);
+});

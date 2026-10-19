@@ -311,6 +311,8 @@ function abilityBriefLine(result: ReturnType<typeof abilityCast>, mode: 'full' |
       + ` · ${result.target.castsToKill === null ? 'cannot kill' : `${num(result.target.castsToKill)} casts`}`
       + (result.target.shield > 0 && !result.target.bypassesShield ? ` · shields ${num(result.target.shieldPerCast)}/cast` : '')
       + (result.target.viralStacks > 0 ? ` · ${result.target.viralStacks} viral` : '')
+      + (result.target.corrosiveStacks > 0 ? ` · corrosive ${result.target.corrosiveStacks} (${((1 - result.target.corrosiveArmorMultiplier) * 100).toFixed(0)}% strip)` : '')
+      + (result.distance > 0 ? ` · ${result.distance} m (x${result.distanceFactor.toFixed(2)})` : '')
       + (result.target.overguard > 0 ? ` · overguard ${num(result.target.overguard)}` : '')
       + (result.target.targets > 1 ? ` · ${result.target.targets} targets = ${num(result.target.totalPerCast)}` : '')
     : '';
@@ -813,6 +815,7 @@ function main(): void {
           viralStacks: flag(args, 'viral') ? Number(flag(args, 'viral')) : undefined,
           targets: flag(args, 'targets') ? Number(flag(args, 'targets')) : undefined,
           mode: flag(args, 'ability-mode'),
+          distance: flag(args, 'ability-distance') ? Number(flag(args, 'ability-distance')) : undefined,
           ...targetScale(args),
         });
       } catch (error) {
@@ -850,6 +853,12 @@ function main(): void {
         }
         if (result.target.viralStacks > 0) {
           console.log(`  viral        ${result.target.viralStacks} stack(s) on the target`);
+        }
+        if (result.target.corrosiveStacks > 0) {
+          console.log(`  corrosive    ${result.target.corrosiveStacks} stack(s), ${((1 - result.target.corrosiveArmorMultiplier) * 100).toFixed(0)}% armour strip at the end`);
+        }
+        if (result.distance > 0) {
+          console.log(`  distance     ${result.distance} m, damage x${result.distanceFactor.toFixed(2)}`);
         }
         if (result.target.shield > 0 && !result.target.bypassesShield) {
           console.log(`  shields      ${num(result.target.shield)} (${num(result.target.shieldPerCast)}/cast)`);
@@ -936,6 +945,7 @@ function main(): void {
                 viralStacks: record.viral !== undefined ? Number(record.viral) : undefined,
                 targets: record.targets !== undefined ? Number(record.targets) : undefined,
                 mode: record.abilityMode,
+                distance: record.distance !== undefined ? Number(record.distance) : undefined,
                 eximus: Boolean(record.eximus),
                 overguard: record.overguard !== undefined ? Number(record.overguard) : undefined,
               });
@@ -1059,6 +1069,7 @@ Ability options:
          --viral N             Viral stacks already on the target
          --targets N           enemies hit by one ability cast (default 1)
          --ability-mode heat   alternative ability mode (Thermal Sunder)
+         --ability-distance N  distance from the cast point (Discharge falloff)
          --enemy NAME --level N  apply the target's modifiers and armour
 
 Search options:

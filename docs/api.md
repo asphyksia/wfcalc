@@ -73,7 +73,8 @@ modifier, armour reduction and a minimum of 1 per damage type.
   "armorStrip": null,
   "target": { "enemy": "Bombard", "level": 150, "healthMultiplier": 1.75,
               "armorReduction": 0.9, "perCast": 315, "directPerCast": 315,
-              "statusPerCast": 0, "viralStacks": 1, "targets": 1, "totalPerCast": 315,
+              "statusPerCast": 0, "viralStacks": 1, "corrosiveStacks": 0, "corrosiveArmorMultiplier": 1,
+              "targets": 1, "totalPerCast": 315,
               "statusProcs": [{ "type": "viral", "stacks": 1, "damageType": "viral", "total": 0 }],
               "shield": 0, "shieldPerCast": 0, "bypassesShield": false,
               "overguard": 0, "overguardPerCast": 0, "castsToKill": 377 },
@@ -84,8 +85,8 @@ modifier, armour reduction and a minimum of 1 per damage type.
 Parameters: `name` (required), `strength` (percent, default 100), `enemy`, `level`,
 `armorModel` (`armor-scaling` | `multiply` | `both`), `eximus` (`1`/`true`), `overguard`
 (an explicit amount), `viral` (Viral stacks already on the target; Miasma also applies its
-own), `targets` (enemies hit by one cast, all at full damage) and `mode` (Thermal Sunder's
-`heat`). `target.castsToKill` includes the casts needed to break Overguard;
+own), `targets` (enemies hit by one cast, all at full damage), `mode` (Thermal Sunder's `heat`)
+and `distance` (Discharge's falloff). `target.castsToKill` includes the casts needed to break Overguard;
 `target.overguard` and `target.overguardPerCast` are reported separately. `perCast` is damage
 to health: direct plus the guaranteed statuses (`statusPerCast`); `statusProcs` lists them and
 `viralStacks` the Viral stacks in effect. `shield`/`shieldPerCast` are the shield phase (Toxin
@@ -199,7 +200,8 @@ Response (abridged):
 - `conditions.covenantDamage` feeds Harrow's Covenant (damage prevented).
 - `eximus` adds the level-scaled Eximus Overguard; `overguard` sets an explicit amount instead.
 - `targets` reports a group: abilities hit N enemies at full damage; Torid's Incarnon chains to
-  N targets in total (75% per link). Other weapons ignore it with a warning.
+  N targets in total (75% per link); an AoE weapon gives the extras only the radial share. A
+  weapon with neither warns.
 - `attenuation` applies boss caps (`"archon"`, `"eidolon"`, `"none"`) or a custom object
   `{ "id": "custom", "mdpi": 460000, "mdps": 935000, "flatDr": 0.2, "statusDr": 0.5 }`.
   `mdpt`/`mdps`/`flatDr`/`statusDr` at the top level are shorthand for a custom profile

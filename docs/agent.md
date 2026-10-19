@@ -73,7 +73,8 @@ Flags:
 | `--viral 10 --corrosive 0 --headshot` | Target debuffs and headshots |
 | `--eximus` | Target is an Eximus: add its level-scaled Overguard (base 12) |
 | `--overguard N` | Explicit Overguard amount instead of the Eximus formula |
-| `--targets N` | (ability) enemies hit by one cast; for Torid's Incarnon, total targets in the chain |
+| `--targets N` | Group report: ability targets, Torid chain links, or AoE weapon targets (radial share) |
+| `--ability-distance N` | Distance from the cast point (Discharge's falloff) |
 | `--attenuation archon\|eidolon` | Boss damage caps; Eidolons apply theirs automatically |
 | `--mdpt N --mdps N` | Explicit caps per hit and per second (Archons use 460k/935k) |
 | `--flat-dr 20 --status-dr 50` | Extra flat and status-only damage reduction, in percent |
@@ -185,16 +186,17 @@ State these when they matter instead of guessing:
   and iterates the search until it is self-consistent. It is still an assumption: the target may
   carry more statuses from the squad.
 - **One target by default, average damage.** No spread, no enemy AI; time to kill is a model of
-  sustained fire including reloads. Abilities accept `--targets N` (N enemies at full damage
-  inside the radius). Torid's Incarnon accepts `--targets N` too: the beam chains to up to five
-  nearby enemies at 75% per link, and `multiTargetDps` is the group total with the same target
-  profile assumed. Other weapons warn that multi-target is not modelled. One AoE shot hitting a
-  group and distance falloff for abilities are still not modelled.
+  sustained fire including reloads. `--targets N` reports a group: abilities hit N enemies at full
+  damage inside the radius; Torid's Incarnon chains to up to five at 75% per link; an AoE weapon
+  gives the primary target the whole profile and the extras only the radial share at the same
+  distance. All assume the same target profile. Discharge's distance falloff is modelled with
+  `--ability-distance N` (linear to 50% at 20 m); other abilities have no documented falloff.
 - **Ability statuses are modelled only where the wiki states them**: Inferno's and Fireball's
   guaranteed Heat, Thermal Sunder's Heat mode, Miasma's Viral (one stack, doubling health
-  damage) and Shuriken's Bleed. Spores' Corrosive procs are not. Inferno's direct damage is split
-  1,250 Impact + 1,250 Heat; Fireball's 800 direct and 300 area are both Heat. Pass
-  `--ability-mode heat` to cast Thermal Sunder's Hold version (1,500 Heat + proc). `target.statusPerCast`, `target.statusProcs` and `target.viralStacks`
+  damage), Shuriken's Bleed and Spores' Corrosive ramp (~1.5/s, 10 stacks, 80% strip; the note
+  says to price the weapon with `--corrosive 10`). Inferno's direct damage is split 1,250 Impact
+  + 1,250 Heat; Fireball's 800 direct and 300 area are both Heat. Pass `--ability-mode heat` to
+  cast Thermal Sunder's Hold version (1,500 Heat + proc). `target.statusPerCast`, `target.statusProcs` and `target.viralStacks`
   carry the detail. Shields are a separate phase in `castsToKill` (Toxin bypasses them), so the
   Corpus figure is no longer optimistic.
 - **Overguard** is modelled for Eximus (`--eximus`) and custom amounts (`--overguard N`):

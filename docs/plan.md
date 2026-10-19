@@ -10,7 +10,7 @@ Last updated: 2026-10-19.
 
 | | |
 |---|---|
-| Tests | **142 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
+| Tests | **147 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration vs Overframe | **35/35** pinned public builds (`node tools/calibrate.ts`), offline, ranged only |
 | Types | `npm run check` clean |
@@ -97,6 +97,9 @@ Rules that have prevented repeated mistakes:
 | A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, `--brief=answer` for repeated calls, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
 | A6 | **`wfcalc batch`**: JSONL of calc/ability records priced in one process, one line per record, `--json` as compact rounded JSONL. Bad records do not abort the batch; exit 1. The JSON->Build mapping moved to `src/request.ts`, shared with the server. | `tests/cli.test.ts`; `tools/agent-eval.ts` case "batch" |
 | A7 | **Agent eval**: `npm run eval` pins ten real questions (best build, strip, melee Incarnon, CO, ability, errors, partial mods, batch) and fails if an answer or the brief size regresses. Runs in CI. | `tools/agent-eval.ts`, 10/10 |
+| A27 | **Ability distance falloff (C2d)**: Discharge falls linearly to 50% at 20 m; `--ability-distance N` applies the factor to the components and reports it in the brief/JSON. | Discharge 0 m 82.76 per cast vs 20 m 41.38 (x0.50); tests pin the factor and the brief |
+| A26 | **Spores Corrosive ramp (C1d)**: Spores applies ~1.5 Corrosive procs/s, caps at 10 stacks and reports 80% armour strip; its own damage uses the average strip over the window, and the note tells the agent to price the weapon with `--corrosive 10`. | Spores per cast 43.1 on a Bombard, `corrosiveStacks: 10`, `corrosiveArmorMultiplier: 0.2`; tests pin the stack count, strip and note |
+| A25 | **AoE groups (C2c)**: `--targets N` on a weapon with a radial mode gives the primary the whole profile and each extra only the radial share at the same distance; `aoeDistance` is used for both. No chain or radial warns. | Kuva Bramma 5 targets: factor ~4.27 (81.7% radial), 69.4 → 296.4 dps; tests pin the factor and the warning |
 | A24 | **Status types from the build (F7)**: `--status-types auto` counts the damage types the resolved build applies (Tau + Viral = 2), re-resolves `calc` once and iterates `search` until the count is self-consistent. The assumption is printed. | Haalvu + Galvanized Aptitude: 1 type 1,414 dps vs 2 inferred 2,043; search assumptions say `statusTypes inferred: 2`; tests pin both |
 | A23 | **Thermal Sunder Heat mode (C1c)**: `--ability-mode heat` selects the Hold cast: 1,500 Heat at max rank with a guaranteed Heat proc, instead of the Cold base mode. | Heat mode 1,500 total + 562.9 status on a Bombard; Cold mode stays 6,000 over its duration; tests pin both |
 | A22 | **Per-hit attenuation formula (B2b, first half)**: the wiki's Hemocyte/Archon formula `damage × MDPI / (damage × multishot + MDPI)` replaces the hard per-instance min, including the multishot term. | 1M hit on a 1M dummy: 1s → 3.97s under Archon (was 2.72s with a hard cap); a 2-pellet 500k case pins the multishot denominator |
@@ -133,15 +136,15 @@ Known loose ends from A1:
 
 | # | Gap |
 |---|---|
-| C1d | **Spores' Corrosive procs**: the expected stack growth over its ticks and the armour strip it gives the weapon; it needs a dynamic model, not a single status entry |
-| C2c | **Weapon AoE groups and ability distance falloff**: one AoE shot hitting a group (the direct/radial split is known but the group geometry is not), and abilities whose damage falls off with distance (Discharge) |
+| — | All modelling items are done; **B2c** remains the only data-blocked one |
 
 ### D. Coverage and confidence
 
 D1–D3 are done: 98% of weapon-relevant mods, a pinned offline battery and melee/secondary coverage.
 In-game captures beyond Soma Prime remain a nice-to-have, not a gap.
 
-Suggested order: **C2c/C1d → B2c (blocked by data)**, with **B2c** documented as blocked by unpublished inputs. B1
+Remaining: **B2c**, blocked by unpublished inputs (per-second smoothing equation, Lich/Sister
+values, boss phases)., with **B2c** documented as blocked by unpublished inputs. B1
 (Overguard), B2's per-hit formula, C1's curated ability statuses and damage split, C2's Incarnon
 second hits, ability targets and Torid chain, C3's shield phase, D1–D3 (coverage, pinned
 calibration, melee/secondary), the search friction F1–F6 and the agent contract are done. Overguard's remaining gaps are deliberate: status DoT and Magnetic's
@@ -211,7 +214,7 @@ Useful commands: `wfcalc abilities`, `wfcalc ability <name> --strength N --enemy
 ```sh
 cd wfcalc
 git log --oneline | head -5      # the top commit
-npm test                          # 142 tests
+npm test                          # 145 tests
 npm run eval                      # 10 pinned agent cases
 node tools/validate.ts            # 0 violations
 node tools/calibrate.ts           # 35/35 pinned, offline
