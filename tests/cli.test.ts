@@ -275,3 +275,9 @@ test('search briefs name the conditional mods', () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /conditional Galvanized Chamber/);
 });
+
+test('ability briefs show a split damage type', () => {
+  const result = runRaw(['ability', 'Inferno', '--strength', '100', '--enemy', 'Bombard', '--level', '150', '--brief']);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /Inferno \(impact\+heat\)/);
+});

@@ -410,9 +410,9 @@ each) matches 35/35, offline and deterministic. It does **not** model:
   (Condition Overload, Galvanized Aptitude) scale by the direct share, so the explosion is not
   inflated by them.
 - **Ability multi-target**: `--targets N` reports one cast across N enemies at full damage.
-- **Ability statuses**: only Inferno (Heat), Miasma (Viral) and Shuriken (Bleed) are curated;
-  Spores, Thermal Sunder and the rest are not. Inferno's direct hit is still modelled as one
-  Impact block, while the wiki splits it into Impact and Heat.
+- **Ability statuses**: Inferno (Heat), Fireball (Heat), Miasma (Viral) and Shuriken (Bleed) are
+  curated; Spores' Corrosive and Thermal Sunder's Heat/Cold modes are not. Inferno's direct hit
+  is split into the wiki's 1,250 Impact + 1,250 Heat.
 - **Damage attenuation**: the documented caps are applied for Archons/Eidolons and for explicit
   `--mdpt/--mdps`; the exponential smoothing between hits is not modelled, and Liches/Sisters
   have no published cap values (pass your own). Eidolon joints/invulnerability phases and Lich

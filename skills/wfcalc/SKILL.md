@@ -128,7 +128,8 @@ part of the build: do not omit it from the answer.
   invulnerability phases, status DoT/Magnetic amplification on **Overguard**, multi-target/AoE,
   stance modifiers, companions/Archwing/Necramech, weapon multi-target (Torid chains, one AoE
   shot hitting a group) and ability distance falloff. Ability statuses are modelled only for
-  Inferno (Heat), Miasma (Viral) and Shuriken (Bleed); the rest are not. Melee and secondary
+  Inferno and Fireball (Heat), Miasma (Viral) and Shuriken (Bleed); Spores and Thermal Sunder
+  are not. Melee and secondary
   builds have no external calibration yet. Eximus Overguard and the Archon/Eidolon caps *are*
   modelled.
 - Do not present a search result as a measurement; it is the best build under the model.

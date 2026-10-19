@@ -41,10 +41,21 @@ const ARMOR_STRIP: Record<string, { mode: 'percent' | 'flat'; value: number }> =
  * Heat, so the proc's seed is half the listed damage. Miasma: 100% Viral status on cast.
  * Shuriken: one guaranteed Bleed per shuriken.
  */
-const STATUS_PROCS: Record<string, Array<{ type: string; stacks: number; seedFraction?: number }>> = {
+const STATUS_PROCS: Record<string, Array<{ type: string; stacks: number; seedFraction?: number; seed?: number }>> = {
   Inferno: [{ type: 'heat', stacks: 1, seedFraction: 0.5 }],
+  Fireball: [{ type: 'heat', stacks: 1, seed: 300 }],
   Miasma: [{ type: 'viral', stacks: 1 }],
   Shuriken: [{ type: 'slash', stacks: 1 }],
+};
+
+/**
+ * Direct damage split across types, from the ability's own strength line.
+ * Inferno: 2,500 "distributed evenly between Impact and Heat". Fireball: 800 direct + 300 AoE,
+ * both Heat, for a target at the impact point.
+ */
+const DAMAGE_COMPONENTS: Record<string, Array<{ type: string; amount: number }>> = {
+  Inferno: [{ type: 'impact', amount: 1250 }, { type: 'heat', amount: 1250 }],
+  Fireball: [{ type: 'heat', amount: 800 }, { type: 'heat', amount: 300 }],
 };
 
 const ABILITIES: Array<{ frame: string; page: string; ability: string }> = [
@@ -182,7 +193,8 @@ async function main(): Promise<void> {
     armorStrip: { mode: 'percent' | 'flat'; value: number } | null;
     perSecond: boolean; durationSeconds: number | null;
     extraDot: { perSecond: number; damageType: string | null; seconds: number } | null;
-    statusProcs: Array<{ type: string; stacks: number; seedFraction?: number }>;
+    statusProcs: Array<{ type: string; stacks: number; seedFraction?: number; seed?: number }>;
+    damageComponents: Array<{ type: string; amount: number }>;
   }> = [];
   let failures = 0;
 
@@ -214,6 +226,7 @@ async function main(): Promise<void> {
 
     const armorStrip = ARMOR_STRIP[entry.ability] ?? null;
     const statusProcs = STATUS_PROCS[entry.ability] ?? [];
+    const damageComponents = DAMAGE_COMPONENTS[entry.ability] ?? [];
     const strengthRaw = templateParam(wikitext, 'strength');
     if (!strengthRaw && !armorStrip) {
       console.error(`SKIP  ${entry.ability}: no strength line`);
@@ -250,7 +263,7 @@ async function main(): Promise<void> {
 
     out.push({
       frame: entry.frame, ability: entry.ability, damageType, baseDamage, radius, page: entry.page,
-      armorStrip, perSecond, durationSeconds, extraDot, statusProcs,
+      armorStrip, perSecond, durationSeconds, extraDot, statusProcs, damageComponents,
     });
     console.log(
       `${entry.frame.padEnd(11)} ${entry.ability.padEnd(20)} ${String(baseDamage).padStart(6)}${perSecond ? '/s' : '  '} ${String(damageType ?? '?').padEnd(11)} r=${String(radius ?? '-').padEnd(5)} `

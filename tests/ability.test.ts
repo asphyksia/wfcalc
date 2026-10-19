@@ -224,3 +224,18 @@ test('--targets multiplies one cast across enemies at full damage', () => {
   // Casts to kill one target do not change; the flag is a group-damage report.
   assert.equal(five.target?.castsToKill, one.target?.castsToKill);
 });
+
+test('Inferno splits its direct damage into Impact and Heat', () => {
+  const cast = abilityCast(snapshot, 'Inferno', { enemy: 'Bombard', level: 150 });
+  assert.deepEqual(cast.damageComponents.map((component) => component.type), ['impact', 'heat']);
+  assert.deepEqual(cast.damageComponents.map((component) => component.amount), [1250, 1250]);
+  // The Heat half now takes Cloned Flesh's +25% instead of being modelled as Impact.
+  assert.ok(Math.abs((cast.target?.directPerCast ?? 0) - 1562.5) < 1e-6);
+});
+
+test('Fireball counts its direct and area Heat and guarantees a Heat proc', () => {
+  const cast = abilityCast(snapshot, 'Fireball', { enemy: 'Bombard', level: 150 });
+  assert.equal(cast.totalDamage, 1100);
+  assert.deepEqual(cast.damageComponents.map((component) => component.amount), [800, 300]);
+  assert.ok((cast.target?.statusPerCast ?? 0) > 0);
+});

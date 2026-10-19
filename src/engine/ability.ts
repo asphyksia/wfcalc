@@ -46,6 +46,8 @@ export interface AbilityCast {
   durationSeconds: number | null;
   /** Everything a single cast deals, ticks included, at 100% accuracy against nothing. */
   totalDamage: number;
+  /** Direct damage split across types, scaled by Ability Strength. */
+  damageComponents: Array<{ type: DamageType; amount: number }>;
   /** Ticking part of the cast, if any (Inferno's ring alongside its direct hit). */
   ticks: { perSecond: number; damageType: string | null; seconds: number } | null;
   radius: number | null;
@@ -106,7 +108,16 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
   // second for 6 seconds, not 150 once. Inferno is a direct hit plus a ring that ticks.
   const durationSeconds = entry.durationSeconds ?? null;
   const seconds = entry.perSecond && durationSeconds ? durationSeconds : 1;
-  const mainTotal = scaledDamage * seconds;
+  const components = (entry.damageComponents?.length
+    ? entry.damageComponents
+    : entry.damageType && entry.baseDamage
+      ? [{ type: entry.damageType, amount: entry.baseDamage }]
+      : []
+  ).map((component) => ({
+    type: component.type as DamageType,
+    amount: component.amount * (strength / 100) * seconds,
+  }));
+  const mainTotal = components.reduce((sum, component) => sum + component.amount, 0);
   const ticks = entry.extraDot
     ? {
         perSecond: entry.extraDot.perSecond * (strength / 100),
@@ -164,7 +175,7 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       return {
         frame: entry.frame, ability: entry.ability, damageType: entry.damageType,
         baseDamage: 0, strength, scaledDamage, perSecond: Boolean(entry.perSecond),
-        durationSeconds, totalDamage, ticks, radius: entry.radius ?? null,
+        durationSeconds, totalDamage, ticks, damageComponents: [], radius: entry.radius ?? null,
         armorStrip, target: null, notes,
       };
     }
@@ -187,7 +198,17 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       return { dealt: Math.max(amount * (1 + healthMod) * (1 - dr) * viral * armorOnDamage, armor ? 1 : 0), healthMod, dr };
     };
 
-    const main = against(entry.damageType, mainTotal);
+    const main = components.reduce(
+      (total, component) => {
+        const hit = against(component.type, component.amount);
+        return {
+          dealt: total.dealt + hit.dealt,
+          healthMod: total.healthMod || hit.healthMod,
+          dr: total.dr || hit.dr,
+        };
+      },
+      { dealt: 0, healthMod: 0, dr: 0 },
+    );
     const extra = ticks?.damageType ? against(ticks.damageType as DamageType, ticks.perSecond * ticks.seconds) : null;
     const directPerCast = main.dealt + (extra?.dealt ?? 0);
     const healthMod = main.healthMod;
@@ -195,7 +216,9 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
 
     const resolvedProcs = declaredProcs.map((proc) => {
       if (proc.type === 'viral') return { type: proc.type, stacks: proc.stacks, damageType: proc.type, total: 0 };
-      const seed = scaledDamage * (proc.seedFraction ?? 1);
+      const seed = proc.seed !== undefined
+        ? proc.seed * (strength / 100) * seconds
+        : scaledDamage * (proc.seedFraction ?? 1);
       const dot = statusProcDamage(snapshot, proc.type, seed, scaled, { armorModel, armorBase: armor?.amount }, viralStacks);
       return {
         type: proc.type,
@@ -210,14 +233,14 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     // Overguard is neutral except Void (+50%), ignores armour, and is a separate layer first.
     const againstOverguard = (type: DamageType, amount: number): number =>
       amount * (1 + healthModifier(snapshot, type, 'Overguard'));
-    const overguardPerCast = againstOverguard(entry.damageType, mainTotal)
+    const overguardPerCast = components.reduce((sum, component) => sum + againstOverguard(component.type, component.amount), 0)
       + (ticks?.damageType ? againstOverguard(ticks.damageType as DamageType, ticks.perSecond * ticks.seconds) : 0);
     // Shields are a pool of their own: no armour, their own health-type modifiers. Toxin is the
     // documented shield-bypassing type (the same rule weapons use).
     const againstShield = (type: DamageType, amount: number): number =>
       amount * (1 + (shieldType ? healthModifier(snapshot, type, shieldType) : 0));
     const shieldPerCast = shieldType
-      ? againstShield(entry.damageType, mainTotal)
+      ? components.reduce((sum, component) => sum + againstShield(component.type, component.amount), 0)
         + (ticks?.damageType ? againstShield(ticks.damageType as DamageType, ticks.perSecond * ticks.seconds) : 0)
       : 0;
     const bypassesShield = entry.damageType === 'toxin';
@@ -258,6 +281,9 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     if (armor) {
       notes.push(`Target armour ${Math.round(armorAmount)} reduces this type by ${(dr * 100).toFixed(1)}%.`);
     }
+    if (components.length > 1) {
+      notes.push(`Damage split: ${components.map((component) => `${Math.round(component.amount)} ${component.type}`).join(' + ')}.`);
+    }
     if (declaredProcs.length) {
       const lines = resolvedProcs.map((proc) => proc.total > 0
         ? `${proc.stacks}x ${proc.type}: ${Math.round(proc.total)} damage per cast`
@@ -284,6 +310,7 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     perSecond: Boolean(entry.perSecond),
     durationSeconds,
     totalDamage,
+    damageComponents: components,
     ticks,
     radius: entry.radius ?? null,
     armorStrip,

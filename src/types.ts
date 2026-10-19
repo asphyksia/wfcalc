@@ -330,6 +330,8 @@ export interface DamageAbilityData {
   damageType: DamageType | null;
   /** Damage at 100% Ability Strength, max rank. Null when the ability deals none. */
   baseDamage: number | null;
+  /** Direct damage split across types when one type is not enough (Inferno, Fireball). */
+  damageComponents?: Array<{ type: DamageType; amount: number }> | null;
   radius: number | null;
   /**
    * Armour strip at 100% Ability Strength: a fraction of the total, or a flat number of points.
@@ -347,7 +349,7 @@ export interface DamageAbilityData {
    * damage that seeds the DoT (Inferno's meteorite is half Heat); omitted means all of it.
    * Viral has no DoT: it amplifies health damage instead.
    */
-  statusProcs?: Array<{ type: DamageType; stacks: number; seedFraction?: number }> | null;
+  statusProcs?: Array<{ type: DamageType; stacks: number; seedFraction?: number; seed?: number }> | null;
 }
 
 export interface IncarnonOption {

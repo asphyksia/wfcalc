@@ -306,8 +306,9 @@ function abilityBriefLine(result: ReturnType<typeof abilityCast>, mode: 'full' |
       + (result.target.overguard > 0 ? ` · overguard ${num(result.target.overguard)}` : '')
       + (result.target.targets > 1 ? ` · ${result.target.targets} targets = ${num(result.target.totalPerCast)}` : '')
     : '';
+  const damageTypes = [...new Set(result.damageComponents.map((component) => component.type))];
   return [
-    `${result.frame} ${result.ability}${result.damageType ? ` (${result.damageType})` : ''}`,
+    `${result.frame} ${result.ability}${damageTypes.length ? ` (${damageTypes.join('+')})` : result.damageType ? ` (${result.damageType})` : ''}`,
     `${num(result.scaledDamage)}${result.perSecond ? '/s' : ''} at ${num(result.strength)}%`,
     ...(mode === 'full' ? [`total ${num(result.totalDamage)}`] : []),
     target,
@@ -774,7 +775,8 @@ function main(): void {
         console.log(abilityBriefLine(result, brief));
         break;
       }
-      console.log(`${result.frame} — ${result.ability} (${result.damageType ?? 'no damage'})`);
+      const damageTypes = [...new Set(result.damageComponents.map((component) => component.type))];
+      console.log(`${result.frame} — ${result.ability} (${damageTypes.length ? damageTypes.join('+') : result.damageType ?? 'no damage'})`);
       const per = result.perSecond ? '/s' : '';
       console.log(`  ${num(result.baseDamage, 0)}${per} at 100% strength -> ${num(result.scaledDamage, 0)}${per} at ${result.strength}%`);
       if (result.perSecond && result.durationSeconds) {
