@@ -283,10 +283,11 @@ function calcBriefLine(
     `armour ${num(hit.armor)}`,
     ...(hit.overguard > 0 ? [`overguard ${num(hit.overguard)}`] : []),
     ...(hit.attenuation ? [`attenuation ${hit.attenuation.id}`] : []),
+    ...(hit.multiTargetDps !== null ? [`${hit.multiTargetTargets} targets = ${num(hit.multiTargetDps)} dps`] : []),
     ...(fit && fit.mods.length ? [`${fit.capacityUsed}/${fit.capacity} cap${fit.fits ? '' : ' OVER'}`, `${fit.formaNeeded}F`] : []),
     ...(arcanes?.length ? [`arcane ${arcanes.map((arcane) => arcane.name).join(' + ')}`] : []),
   ];
-  const warnings = resolved.warnings.length + resolved.unsupportedMods.length;
+  const warnings = resolved.warnings.length + hit.warnings.length + resolved.unsupportedMods.length;
   if (warnings) parts.push(`${warnings} warning(s)`);
   if (resolved.unsupportedMods.length) parts.push('lower bound');
   return parts.join(' · ');
@@ -326,7 +327,9 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
   const hit = hitEnemy(snapshot, resolved, scaled, {
     armorModel: (flag(args, 'armor-model') as never) ?? undefined,
     attenuation: attenuationFromArgs(args),
+    targets: flag(args, 'targets') ? Number(flag(args, 'targets')) : undefined,
   });
+  const allWarnings = [...resolved.warnings, ...hit.warnings];
   const capacityLimit = flag(args, 'capacity') ? Number(flag(args, 'capacity')) : 60;
   const fit = capacityOf(snapshot, resolved.weapon, build.mods, capacityLimit);
 
@@ -370,6 +373,8 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
           overguard: hit.overguard,
           overguardDps: hit.overguardDps,
           attenuation: hit.attenuation,
+          multiTargetDps: hit.multiTargetDps,
+          multiTargetFactor: hit.multiTargetFactor,
           dot: hit.dot,
           totalDps: hit.totalDps,
           arcanes: (build.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
@@ -383,7 +388,7 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
           capacity: fit.capacity,
           formaNeeded: fit.formaNeeded,
           fits: fit.fits,
-          warnings: resolved.warnings,
+          warnings: allWarnings,
           unsupportedMods: resolved.unsupportedMods,
           inactiveConditions: resolved.inactiveConditions,
         },
@@ -419,6 +424,9 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
       (hit.armor !== scaled.armor ? ` (base ${num(scaled.armor)})` : '') +
       `   -> ${num(hit.shotsToKill)} shots${hit.timeToKill !== null ? `, ${num(hit.timeToKill, 2)}s` : ''}`,
   );
+  if (hit.multiTargetDps !== null) {
+    console.log(`  multi-target  ${num(hit.multiTargetFactor, 2)}x across the chain -> ${num(hit.multiTargetDps)} dps`);
+  }
   if (hit.attenuation) {
     console.log(`  attenuation  ${hit.attenuation.id}  caps ${num(hit.attenuation.mdpi)}/hit · ${num(hit.attenuation.mdps)}/s`
       + `${hit.attenuation.flatDr ? ` · ${(hit.attenuation.flatDr * 100).toFixed(0)}% DR` : ''}`);
@@ -463,7 +471,7 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
         `  → ${num(entry.toHealth, 2).padStart(8)}   proc ${pct(entry.procShare)}`,
     );
   }
-  for (const warning of resolved.warnings) console.log(`  ! ${warning}`);
+  for (const warning of allWarnings) console.log(`  ! ${warning}`);
   if (resolved.unsupportedMods.length) console.log(`  ! mods with unknown effects (result is a lower bound): ${resolved.unsupportedMods.join(', ')}`);
   if (resolved.inactiveConditions.length) console.log(`  · inactive conditions: ${resolved.inactiveConditions.length} (use --stacks to enable)`);
 }
@@ -913,6 +921,7 @@ function main(): void {
             overguard: record.overguard !== undefined ? Number(record.overguard) : undefined,
           }), {
             armorModel: record.armorModel as never,
+            targets: record.targets !== undefined ? Number(record.targets) : undefined,
             attenuation: record.attenuation ?? (record.mdpt !== undefined || record.mdps !== undefined
               ? {
                   id: 'custom',
@@ -936,9 +945,11 @@ function main(): void {
               arcanes: (build.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
               armor: round(hit.armor, 1), overguard: round(hit.overguard, 1),
               attenuation: hit.attenuation ? { id: hit.attenuation.id, mdpi: round(hit.attenuation.mdpi, 0), mdps: round(hit.attenuation.mdps, 0) } : null,
+              multiTargetDps: hit.multiTargetDps === null ? null : round(hit.multiTargetDps, 1),
+              multiTargetFactor: round(hit.multiTargetFactor, 3),
               capacityUsed: fit.capacityUsed, capacity: fit.capacity,
               formaNeeded: fit.formaNeeded, fits: fit.fits,
-              warnings: resolved.warnings, unsupportedMods: resolved.unsupportedMods,
+              warnings: [...resolved.warnings, ...hit.warnings], unsupportedMods: resolved.unsupportedMods,
             }));
           } else {
             console.log(`${label}: ${calcBriefLine(

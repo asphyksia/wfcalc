@@ -482,7 +482,7 @@ function searchOnce(snapshot: Snapshot, request: SearchRequest): SearchResult {
       critMultiplier: scored.resolved.critMultiplier,
       statusChance: scored.resolved.statusChance,
       multishot: scored.resolved.multishot,
-      warnings: scored.resolved.warnings,
+      warnings: [...scored.resolved.warnings, ...scored.hit.warnings],
       arcanes: (base.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
       conditionalMods: names.filter((name) => (snapshot.mods[name]?.effects ?? []).some((effect) => effect.condition)),
       incarnon: [...incarnonSelection],

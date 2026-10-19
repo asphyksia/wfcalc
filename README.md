@@ -125,7 +125,7 @@ current state, the working method and what is left to do.
 | `--incarnon "EVO2:0,EVO4:1"` | Incarnon evolutions per tier (see `wfcalc incarnon`) |
 | `--incarnon form` | Transformed profile with no evolution perks |
 | `--eximus` / `--overguard N` | Add level-scaled Eximus Overguard, or an explicit amount |
-| `--targets N` | (ability) enemies hit by one cast, all at full damage |
+| `--targets N` | (ability) enemies hit by one cast, all at full damage; for Torid's Incarnon, the chain links |
 | `--attenuation archon\|eidolon` | Boss damage caps; Eidolons are automatic |
 | `--mdpt N --mdps N` | Custom caps per hit / per second |
 | `--flat-dr 20 --status-dr 50` | Extra flat and status-only damage reduction, percent |
@@ -411,6 +411,9 @@ each) matches 35/35, offline and deterministic. It does **not** model:
   (Condition Overload, Galvanized Aptitude) scale by the direct share, so the explosion is not
   inflated by them.
 - **Ability multi-target**: `--targets N` reports one cast across N enemies at full damage.
+- **Torid chain**: the Incarnon beam chains to up to five nearby enemies at 75% per link;
+  `--targets N` reports the group total (same target profile assumed). Other weapons warn if
+  asked for multiple targets.
 - **Ability statuses**: Inferno (Heat), Fireball (Heat), Miasma (Viral) and Shuriken (Bleed) are
   curated; Spores' Corrosive and Thermal Sunder's Heat/Cold modes are not. Inferno's direct hit
   is split into the wiki's 1,250 Impact + 1,250 Heat.

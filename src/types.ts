@@ -161,6 +161,8 @@ export interface WeaponData {
    * wiki says the radial hit does not take them.
    */
   incarnonFormDirectShare?: number;
+  /** The form chains to nearby enemies (Torid: 5 links at 75% of the previous link). */
+  incarnonFormChain?: { maxTargets: number; falloff: number } | null;
   /**
    * The form fires a spectral projectile instead of swinging the weapon. The wiki states that
    * those hits ignore melee damage bonuses (Pressure Point, Arcane Fury, the stance and the

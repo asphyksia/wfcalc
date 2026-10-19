@@ -103,6 +103,8 @@ export interface ResolvedDamage {
 export interface ResolvedBuild {
   weapon: WeaponData;
   mode: WeaponMode | null;
+  /** True when these stats come from the Incarnon form. */
+  incarnonFormActive: boolean;
   damage: ResolvedDamage;
   critChance: number;
   critMultiplier: number;
@@ -238,8 +240,9 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   // The Incarnon form replaces the weapon's stats outright, and mods apply on top of it, which
   // is what the game does. Applying perks to the base profile was an approximation.
   const incarnonLines: string[] = [];
-  const spectralForm = Boolean(build.incarnon?.length && weapon.incarnonForm && weapon.incarnonFormSpectral);
-  if (build.incarnon?.length && weapon.incarnonForm) {
+  const incarnonFormActive = Boolean(build.incarnon?.length && weapon.incarnonForm);
+  const spectralForm = Boolean(incarnonFormActive && weapon.incarnonFormSpectral);
+  if (incarnonFormActive && weapon.incarnonForm) {
     stats = { ...weapon.incarnonForm };
     incarnonLines.push('Incarnon form profile');
     if (weapon.incarnonFormSpectral) {
@@ -754,6 +757,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   return {
     weapon,
     mode,
+    incarnonFormActive,
     damage: { perProjectile: damage, projectileTotal },
     critChance,
     critMultiplier: crit,

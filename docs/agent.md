@@ -73,7 +73,7 @@ Flags:
 | `--viral 10 --corrosive 0 --headshot` | Target debuffs and headshots |
 | `--eximus` | Target is an Eximus: add its level-scaled Overguard (base 12) |
 | `--overguard N` | Explicit Overguard amount instead of the Eximus formula |
-| `--targets N` | (ability) enemies hit by one cast, all at full damage |
+| `--targets N` | (ability) enemies hit by one cast; for Torid's Incarnon, total targets in the chain |
 | `--attenuation archon\|eidolon` | Boss damage caps; Eidolons apply theirs automatically |
 | `--mdpt N --mdps N` | Explicit caps per hit and per second (Archons use 460k/935k) |
 | `--flat-dr 20 --status-dr 50` | Extra flat and status-only damage reduction, in percent |
@@ -183,8 +183,10 @@ State these when they matter instead of guessing:
   plays. Say which conditions your answer assumes.
 - **One target by default, average damage.** No spread, no enemy AI; time to kill is a model of
   sustained fire including reloads. Abilities accept `--targets N` (N enemies at full damage
-  inside the radius). Weapon multi-target (Torid's chain to five enemies, one AoE shot hitting a
-  group) and distance falloff for abilities are not modelled.
+  inside the radius). Torid's Incarnon accepts `--targets N` too: the beam chains to up to five
+  nearby enemies at 75% per link, and `multiTargetDps` is the group total with the same target
+  profile assumed. Other weapons warn that multi-target is not modelled. One AoE shot hitting a
+  group and distance falloff for abilities are still not modelled.
 - **Ability statuses are modelled only where the wiki states them**: Inferno's and Fireball's
   guaranteed Heat, Miasma's Viral (one stack, doubling health damage) and Shuriken's Bleed.
   Spores' Corrosive and Thermal Sunder's Heat/Cold modes are not. Inferno's direct damage is

@@ -897,3 +897,17 @@ test('Eidolon attenuation is automatic and health-relative', () => {
   close(capped.timeToKill!, 1);
   assert.equal(capped.attenuation?.id, 'eidolon');
 });
+
+test('a chained Incarnon adds 75% links behind the primary target', () => {
+  // Torid: 1 + 0.75 + 0.5625 + ... for five links = 3.2880859375.
+  const snap = snapshot([weapon({ toxin: 100 })], []);
+  snap.weapons['Test Weapon'].incarnonForm = stats({ toxin: 100 });
+  snap.weapons['Test Weapon'].incarnonFormChain = { maxTargets: 5, falloff: 0.75 };
+  const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: [], incarnon: ['form'] });
+  const hit = hitEnemy(snap, resolved, scaleEnemy(snap, dummy, 1), { targets: 6 });
+  close(hit.multiTargetFactor, 3.2880859375);
+  close(hit.multiTargetDps!, hit.totalDps * 3.2880859375);
+  const single = hitEnemy(snap, resolved, scaleEnemy(snap, dummy, 1), { targets: 1 });
+  assert.equal(single.multiTargetDps, null);
+  assert.equal(single.multiTargetFactor, 1);
+});

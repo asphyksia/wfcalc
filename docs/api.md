@@ -173,6 +173,7 @@ Response (abridged):
   "shatteringImpactHits": 20,
   "elementBonus": { "type": "heat", "value": 0.6 },
   "heavyAttack": false,
+  "targets": 1,
   "eximus": false,
   "overguard": null,
   "attenuation": "archon",
@@ -196,6 +197,8 @@ Response (abridged):
 - `elementBonus` is the Kuva/Tenet bonus (`value` as a fraction or a percentage).
 - `conditions.covenantDamage` feeds Harrow's Covenant (damage prevented).
 - `eximus` adds the level-scaled Eximus Overguard; `overguard` sets an explicit amount instead.
+- `targets` reports a group: abilities hit N enemies at full damage; Torid's Incarnon chains to
+  N targets in total (75% per link). Other weapons ignore it with a warning.
 - `attenuation` applies boss caps (`"archon"`, `"eidolon"`, `"none"`) or a custom object
   `{ "id": "custom", "mdpi": 460000, "mdps": 935000, "flatDr": 0.2, "statusDr": 0.5 }`.
   `mdpt`/`mdps`/`flatDr`/`statusDr` at the top level are shorthand for a custom profile
@@ -229,6 +232,7 @@ Response (abridged):
   "arcanes": [{ "name": "Primary Merciless", "rank": 5 }],
   "elements": [{ "type": "blast", "share": 0.935 }],
   "overguard": 0, "overguardDps": 0, "attenuation": null,
+  "multiTargetDps": null, "multiTargetFactor": 1,
   "capacityUsed": 59, "capacity": 60, "formaNeeded": 3, "fits": true, "arcanes": [],
   "target": {
     "name": "Bombard", "level": 150, "health": 118480.2, "armor": 2700,

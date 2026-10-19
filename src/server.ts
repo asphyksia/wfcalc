@@ -112,6 +112,7 @@ function calculate(body: any) {
   const capacity = capacityOf(snapshot, weapon, build.mods, body.capacity !== undefined ? Number(body.capacity) : 60);
 
   let target = null;
+  let hitWarnings: string[] = [];
   if (body.enemy) {
     const { item: enemy, suggestions: enemySuggestions } = findEnemy(snapshot, body.enemy);
     if (!enemy) return { error: `enemy not found: ${body.enemy}`, suggestions: enemySuggestions };
@@ -130,7 +131,11 @@ function calculate(body: any) {
             statusDr: body.statusDr !== undefined ? Number(body.statusDr) / 100 : undefined,
           }
         : undefined);
-    const hit = hitEnemy(snapshot, resolved, scaled, { attenuation });
+    const hit = hitEnemy(snapshot, resolved, scaled, {
+      attenuation,
+      targets: body.targets !== undefined ? Number(body.targets) : undefined,
+    });
+    hitWarnings = hit.warnings;
     target = { name: enemy.name, faction: enemy.faction, pools: scaled.pools, ...hit };
   }
 
@@ -198,7 +203,7 @@ function calculate(body: any) {
     elements: resolved.elements,
     procs: statusProcs(resolved),
     contributions,
-    warnings: resolved.warnings,
+    warnings: [...resolved.warnings, ...hitWarnings],
     unsupportedMods: resolved.unsupportedMods,
     inactiveConditions: resolved.inactiveConditions,
     target,

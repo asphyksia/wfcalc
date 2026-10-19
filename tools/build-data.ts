@@ -490,6 +490,7 @@ function buildWeapons(): Record<string, WeaponData> {
               ...(incarnonForms[name].extra.length ? { incarnonFormExtra: incarnonForms[name].extra } : {}),
               ...(incarnonForms[name].extra.length ? { incarnonFormDirectShare: incarnonForms[name].directShare } : {}),
               ...(incarnonForms[name].spectral ? { incarnonFormSpectral: true } : {}),
+              ...(INCARNON_CHAIN[name] ? { incarnonFormChain: INCARNON_CHAIN[name] } : {}),
             }
           : {}),
       };
@@ -707,6 +708,12 @@ function buildRivenStats(): Record<string, Record<string, number>> {
  * Vandal/Prisma weapon inherits the tree of its base version. This is why 44 of the 69
  * Incarnon-capable weapons have no page of their own.
  */
+// Chaining Incarnon forms, from the weapon's own page: Torid's beam chains to up to five
+// nearby enemies within 7 m of each other, each link doing 75% of the previous one.
+const INCARNON_CHAIN: Record<string, { maxTargets: number; falloff: number }> = {
+  Torid: { maxTargets: 5, falloff: 0.75 },
+};
+
 const VARIANT_PREFIXES = [/^Mk1-/, /^Prisma /, /^Telos /, /^Rakta /, /^Synoid /, /^Dex /, /^Kuva /];
 const VARIANT_SUFFIXES = [/ Prime$/, / Wraith$/, / Vandal$/, / Prisma$/, / Umbra$/];
 

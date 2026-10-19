@@ -37,6 +37,8 @@ export interface HitOptions {
    * Eidolons get theirs automatically from the enemy name.
    */
   attenuation?: string | AttenuationProfile | null;
+  /** Total enemies hit by one shot when the weapon has a chain (Torid). */
+  targets?: number;
 }
 
 export interface EnemyHit {
@@ -54,6 +56,11 @@ export interface EnemyHit {
   overguardDps: number;
   /** The attenuation actually applied, if any. */
   attenuation: ResolvedAttenuation | null;
+  /** Multi-target result when the shot chains (Torid); null for a single target. */
+  multiTargetDps: number | null;
+  multiTargetFactor: number;
+  /** Targets requested for the multi-target report (1 when single). */
+  multiTargetTargets: number;
   /** Trigger pulls needed to remove shields, then health. */
   shotsToKill: number;
   /** Seconds to kill, accounting for reloads. */
@@ -231,6 +238,25 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
   // included. With no Overguard or shields this is the old health rate, so the documented
   // health/totalDps == timeToKill relation still holds for a plain Bombard.
   const totalDps = timeToKill !== null && timeToKill > 0 ? totalPool / timeToKill : healthDps + overguardDps;
+  // A chained Incarnon (Torid) hits nearby enemies at a fraction of the previous link. The
+  // primary target is unchanged; the extra targets share the same profile here, which is an
+  // approximation (health types, armour and distance differ in a real group).
+  const requestedTargets = Math.max(1, Math.floor(options.targets ?? 1));
+  const chain = build.incarnonFormActive ? build.weapon.incarnonFormChain : undefined;
+  let multiTargetFactor = 1;
+  let multiTargetDps: number | null = null;
+  if (requestedTargets > 1 && chain) {
+    const links = Math.min(requestedTargets - 1, chain.maxTargets);
+    let share = 1;
+    for (let link = 0; link < links; link++) {
+      share *= chain.falloff;
+      multiTargetFactor += share;
+    }
+    multiTargetDps = totalDps * multiTargetFactor;
+    warnings.push(`Chain: ${links} extra target(s) at 75% per link, same profile assumed`);
+  } else if (requestedTargets > 1) {
+    warnings.push(`multi-target is only modelled for a chained Incarnon (Torid); ${requestedTargets} targets ignored`);
+  }
   const num = (value: number): string => value.toLocaleString('en-US', { maximumFractionDigits: 0 });
   if (scaled.overguard > 0) {
     warnings.push('Overguard: direct damage only, status DoT not applied; Magnetic amplification not modelled');
@@ -262,6 +288,9 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
     overguard: scaled.overguard,
     overguardDps: effectiveOverguardDps,
     attenuation,
+    multiTargetDps,
+    multiTargetFactor,
+    multiTargetTargets: requestedTargets,
     shotsToKill,
     timeToKill,
     factionMultiplier,

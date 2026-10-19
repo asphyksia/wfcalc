@@ -10,7 +10,7 @@ Last updated: 2026-10-19.
 
 | | |
 |---|---|
-| Tests | **135 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
+| Tests | **137 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration vs Overframe | **35/35** pinned public builds (`node tools/calibrate.ts`), offline, ranged only |
 | Types | `npm run check` clean |
@@ -97,6 +97,7 @@ Rules that have prevented repeated mistakes:
 | A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, `--brief=answer` for repeated calls, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
 | A6 | **`wfcalc batch`**: JSONL of calc/ability records priced in one process, one line per record, `--json` as compact rounded JSONL. Bad records do not abort the batch; exit 1. The JSON->Build mapping moved to `src/request.ts`, shared with the server. | `tests/cli.test.ts`; `tools/agent-eval.ts` case "batch" |
 | A7 | **Agent eval**: `npm run eval` pins ten real questions (best build, strip, melee Incarnon, CO, ability, errors, partial mods, batch) and fails if an answer or the brief size regresses. Runs in CI. | `tools/agent-eval.ts`, 10/10 |
+| A21 | **Torid chain (C2b)**: the Incarnon beam chains to up to five nearby enemies at 75% per link; `--targets N` reports `multiTargetDps`/`multiTargetFactor` for the group, assuming the same target profile. Other weapons warn that multi-target is not modelled. | Torid form with 6 targets: factor 3.288, 53.2 → 174.8 dps; engine and CLI tests pin the factor and the warning |
 | A20 | **Melee and secondary calibration (D3)**: the pinned battery already contained 8 melee and 5 secondary builds; the report now breaks the 35/35 down by category and `tests/calibration.test.ts` checks that slice offline with the same mode selection as the tool. | Report: primary 20/20 · melee 8/8 · secondary 5/5 · archgun 1/1 · sentinel 1/1; the test fails if any melee/secondary stat drifts |
 | A19 | **Inferno split and Fireball Heat (C1b, first half)**: abilities can carry `damageComponents`; Inferno is 1,250 Impact + 1,250 Heat (its Heat proc now seeds from the Heat half), Fireball is 800 direct + 300 area Heat with a guaranteed Heat proc. | Inferno direct 1,562.5 on a Bombard (was 1,500 as one Impact block); Fireball 1,100 total + 112.9 status; components exposed in the ability JSON; tests pin both |
 | A18 | **Tie-break without unmodelled drawbacks (F4)**: when a mod with a negative accuracy effect ties on damage, the search swaps it for an equal alternative that fits (Serration over Heavy Caliber). Real DPS is never traded; remaining penalties are named in the notes. | Haalvu meta search now returns Serration, not Heavy Caliber, at the same 896,105 dps; a search test pins it |
@@ -130,17 +131,17 @@ Known loose ends from A1:
 | # | Gap |
 |---|---|
 | C1c | **More ability statuses**: Spores' Corrosive procs and Thermal Sunder's Heat/Cold modes (the Cold mode has no DoT; the Heat mode needs a mode selector) |
-| C2b | **Weapon multi-target and ability distance falloff**: Torid chains to five enemies at 75% per link, one AoE shot hitting a group, and abilities whose damage falls off with distance |
+| C2c | **Weapon AoE groups and ability distance falloff**: one AoE shot hitting a group (the direct/radial split is known but the group geometry is not), and abilities whose damage falls off with distance (Discharge) |
 
 ### D. Coverage and confidence
 
 D1–D3 are done: 98% of weapon-relevant mods, a pinned offline battery and melee/secondary coverage.
 In-game captures beyond Soma Prime remain a nice-to-have, not a gap.
 
-Suggested order: **C2b/B2b → C1c/F7**. B1 (Overguard), B2's documented caps, C1's curated ability
-statuses and damage split, C2's Incarnon second hits and ability targets, C3's shield phase,
-D1–D3 (coverage, pinned calibration, melee/secondary), the search friction F1–F6 and the agent
-contract are done. Overguard's remaining gaps are deliberate: status DoT and Magnetic's
+Suggested order: **B2b → C2c/C1c/F7**. B1 (Overguard), B2's documented caps, C1's curated ability
+statuses and damage split, C2's Incarnon second hits, ability targets and Torid chain, C3's shield
+phase, D1–D3 (coverage, pinned calibration, melee/secondary), the search friction F1–F6 and the
+agent contract are done. Overguard's remaining gaps are deliberate: status DoT and Magnetic's
 amplification are not credited to it.
 
 ### E. Out of scope, decided
@@ -208,7 +209,7 @@ Useful commands: `wfcalc abilities`, `wfcalc ability <name> --strength N --enemy
 ```sh
 cd wfcalc
 git log --oneline | head -5      # the top commit
-npm test                          # 135 tests
+npm test                          # 137 tests
 npm run eval                      # 10 pinned agent cases
 node tools/validate.ts            # 0 violations
 node tools/calibrate.ts           # 35/35 pinned, offline

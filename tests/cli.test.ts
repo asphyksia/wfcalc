@@ -281,3 +281,18 @@ test('ability briefs show a split damage type', () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /Inferno \(impact\+heat\)/);
 });
+
+test('Torid chains with --targets and other weapons warn instead', () => {
+  const torid = run(['calc', 'Torid', '--incarnon', 'form', '--targets', '6', '--enemy', 'Bombard', '--level', '150', '--json']) as {
+    totalDps: number; multiTargetDps: number | null; multiTargetFactor: number; warnings: string[];
+  };
+  assert.ok(torid.multiTargetFactor > 3.28 && torid.multiTargetFactor < 3.29);
+  assert.ok((torid.multiTargetDps ?? 0) > torid.totalDps);
+  assert.ok(torid.warnings.some((line) => /Chain/.test(line)));
+
+  const soma = run(['calc', 'Soma Prime', '--targets', '2', '--enemy', 'Bombard', '--level', '150', '--json']) as {
+    multiTargetDps: number | null; warnings: string[];
+  };
+  assert.equal(soma.multiTargetDps, null);
+  assert.ok(soma.warnings.some((line) => /only modelled for a chained Incarnon/.test(line)));
+});
