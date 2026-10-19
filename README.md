@@ -393,6 +393,8 @@ docs/agent.md       agent contract: fields, assumptions, failure modes
 
 Formulas and their sources: [docs/formulas.md](docs/formulas.md).
 JSON API: [docs/api.md](docs/api.md).
+Contributors and beta review records: [CONTRIBUTORS.md](CONTRIBUTORS.md) and
+[docs/reviews/](docs/reviews/README.md).
 
 ## Status and known limitations
 
