@@ -338,6 +338,8 @@ interface RawIncarnonForm {
   multishot: number;
   magazineSize: number;
   extra: Array<{ name: string; damage: Partial<Record<DamageType, number>> }>;
+  /** True when the attack is one of the melee "Spectral" projectiles, not a gun form. */
+  spectral: boolean;
 }
 
 function readIncarnonForms(): Record<string, RawIncarnonForm> {
@@ -380,6 +382,7 @@ function readIncarnonForms(): Record<string, RawIncarnonForm> {
         multishot: Number(form.Multishot ?? 1),
         magazineSize: Number.isFinite(Number(form.AmmoCost)) ? Number(form.AmmoCost) : 0,
         extra,
+        spectral: /spectral/i.test(nameOf(form)),
       };
     }
   }
@@ -457,6 +460,7 @@ function buildWeapons(): Record<string, WeaponData> {
           ? {
               incarnonForm: incarnonFormStats(incarnonForms[name], stats),
               ...(incarnonForms[name].extra.length ? { incarnonFormExtra: incarnonForms[name].extra } : {}),
+              ...(incarnonForms[name].spectral ? { incarnonFormSpectral: true } : {}),
             }
           : {}),
       };

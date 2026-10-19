@@ -56,3 +56,29 @@ test('Incarnon option names keep apostrophes and EVO1 is not an option', () => {
   assert.ok(names.every((name) => !/^[+\d]/.test(name)), `option names should be names: ${names.join(', ')}`);
   assert.ok((snapshot.incarnons['Hate'] ?? []).every((option) => option.tier !== 'EVO1'));
 });
+
+test('spectral direct hits ignore melee damage bonuses but keep Condition Overload', () => {
+  // Wiki (Ceramic Dagger, Hate, Okina pages): spectral hits are not affected by Pressure
+  // Point, the stance or the combo multiplier, while direct hits *are* affected by Condition
+  // Overload. 350 x (1 + 0.8 x 3 status types) = 1190.
+  const resolved = resolveBuild(snapshot, {
+    weapon: 'Ceramic Dagger',
+    mods: ['Pressure Point', 'Condition Overload'],
+    incarnon: ['form'],
+    conditions: { statusTypes: 3 },
+    comboHits: 220,
+    heavyAttack: true,
+  });
+  assert.ok(Math.abs(resolved.damage.projectileTotal - 1190) < 1e-6,
+    `expected 1190, got ${resolved.damage.projectileTotal}`);
+  assert.ok(resolved.inactiveConditions.some((line) => /Pressure Point/.test(line)),
+    `Pressure Point should be reported as inactive: ${JSON.stringify(resolved.inactiveConditions)}`);
+  assert.equal(resolved.shotDamage, resolved.damage.projectileTotal); // no 12x heavy multiplier
+});
+
+test('a gun Incarnon form is unaffected by the spectral rule', () => {
+  const resolved = resolveBuild(snapshot, { weapon: 'Torid', mods: ['Serration'], incarnon: ['form'] });
+  // 51 Toxin x 2.65 Serration: a ranged form still takes its damage mods.
+  assert.ok(Math.abs(resolved.damage.projectileTotal - 51 * 2.65) < 1e-6);
+  assert.ok(!resolved.incarnonLines.some((line) => /spectral/.test(line)));
+});

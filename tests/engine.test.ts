@@ -840,3 +840,17 @@ test('the floor does not apply to targets without armour', () => {
   const hit = hitEnemy(snap, build(snap, []), scaleEnemy(snap, dummy, 1));
   close(hit.damagePerShotHealth, 0.1);
 });
+
+test('Condition Overload scales with the status types on the target', () => {
+  // "+80% Melee Damage per Status Type affecting the target": the wiki's example is
+  // 1 status -> +80%, 3 statuses -> +240%. The modifier has no condition of its own, and an
+  // early return on that used to make it add nothing at all.
+  const conditionOverload = mod('Condition Overload', 5, ['+80% Melee Damage per Status Type affecting the target'], { classes: ['Melee'] });
+  const melee = { ...weapon({ slash: 100 }), category: 'melee', type: 'Sword', modClasses: ['Melee'] };
+  const snap = snapshot([melee], [conditionOverload]);
+  const at = (statusTypes: number) => resolveBuild(snap, {
+    weapon: 'Test Weapon', mods: ['Condition Overload'], conditions: { statusTypes },
+  }).damage.projectileTotal;
+  close(at(1), 100 * 1.8);
+  close(at(3), 100 * 3.4);
+});

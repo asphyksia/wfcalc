@@ -168,12 +168,15 @@ export interface ResolvedBuild {
  * Taking the minimum would silently cap the stacks at 1.
  */
 function conditionStacks(effect: Effect, conditions: Conditions): number {
-  if (!effect.condition) return 1;
   let stacks = 1;
-  for (const part of effect.condition.split('+')) {
-    const raw = conditions[part];
-    if (!raw) return 0; // undefined, false or 0 -> effect inactive
-    if (typeof raw === 'number' && raw > stacks) stacks = raw;
+  // Condition Overload has no condition of its own: it scales with the statuses on the
+  // target, so it must reach the perStatusType step below instead of returning early.
+  if (effect.condition) {
+    for (const part of effect.condition.split('+')) {
+      const raw = conditions[part];
+      if (!raw) return 0; // undefined, false or 0 -> effect inactive
+      if (typeof raw === 'number' && raw > stacks) stacks = raw;
+    }
   }
   if (effect.maxStacks) stacks = Math.min(stacks, effect.maxStacks);
   if (effect.perStatusType) stacks *= Math.max(1, Number(conditions.statusTypes ?? 1));
@@ -235,9 +238,13 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   // The Incarnon form replaces the weapon's stats outright, and mods apply on top of it, which
   // is what the game does. Applying perks to the base profile was an approximation.
   const incarnonLines: string[] = [];
+  const spectralForm = Boolean(build.incarnon?.length && weapon.incarnonForm && weapon.incarnonFormSpectral);
   if (build.incarnon?.length && weapon.incarnonForm) {
     stats = { ...weapon.incarnonForm };
     incarnonLines.push('Incarnon form profile');
+    if (weapon.incarnonFormSpectral) {
+      incarnonLines.push('spectral hits ignore melee damage mods, stance and combo multiplier (wiki)');
+    }
     // The form can fire a second hit on the same shot ("Incarnon Form AoE", the melee forms'
     // spectral explosion). This model carries one damage profile, so the result says the hit
     // exists instead of pretending the shot is complete.
@@ -300,6 +307,8 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     partial: boolean;
     incompatible: string[];
     set?: string | null;
+    /** Where the bonus comes from: a melee form treats them differently. */
+    kind: 'mod' | 'weaponArcane' | 'incarnon' | 'riven' | 'warframeArcane' | 'buff';
   }
   const sources: Source[] = [];
   if (aoeWarning) collected.warnings.push(aoeWarning);
@@ -333,7 +342,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     equipped.push(mod.name);
     sources.push({
       name: mod.name, maxRank: mod.maxRank, rank, effects: mod.effects,
-      partial: mod.partial, incompatible: mod.incompatible, set: mod.set,
+      partial: mod.partial, incompatible: mod.incompatible, set: mod.set, kind: 'mod',
     });
   }
 
@@ -358,7 +367,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
     if (arcane.slot && !allowed.includes(arcane.slot)) {
       collected.warnings.push(`${arcane.name} is a ${arcane.slot} arcane and does not fit a ${weapon.category} weapon`);
     }
-    sources.push({ name: arcane.name, maxRank: arcane.maxRank, rank, effects: arcane.effects, partial: false, incompatible: [] });
+    sources.push({ name: arcane.name, maxRank: arcane.maxRank, rank, effects: arcane.effects, partial: false, incompatible: [], kind: 'weaponArcane' });
   }
 
   // Incarnon evolutions: only weapons with a tree in the dataset have options.
@@ -392,6 +401,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
         effects: chosen.effects as Effect[],
         partial: false,
         incompatible: [],
+        kind: 'incarnon',
       });
     }
   }
@@ -400,7 +410,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   if (build.riven) {
     const riven = rivenEffects(snapshot, weapon, build.riven);
     for (const warning of riven.warnings) collected.warnings.push(`riven: ${warning}`);
-    sources.push({ name: 'Riven', maxRank: 0, effects: riven.effects, partial: false, incompatible: [] });
+    sources.push({ name: 'Riven', maxRank: 0, effects: riven.effects, partial: false, incompatible: [], kind: 'riven' });
     rivenLines.push(...riven.lines);
   }
 
@@ -433,6 +443,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
       effects: arcane.effects.filter((effect) => effect.target !== 'abilityStrength'),
       partial: false,
       incompatible: [],
+      kind: 'warframeArcane',
     });
   }
 
@@ -457,7 +468,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
       continue;
     }
     activeBuffs.push(definition.ability);
-    sources.push({ name: definition.ability, maxRank: 0, effects, partial: false, incompatible: [] });
+    sources.push({ name: definition.ability, maxRank: 0, effects, partial: false, incompatible: [], kind: 'buff' });
   }
 
   // Set Mods: count equipped pieces per set. Sets whose bonus "enhances the mods in this
@@ -485,6 +496,15 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
       const stacks = conditionStacks(effect, conditions);
       if (stacks === 0) {
         collected.inactive.push(`${source.name}: ${effect.raw}`);
+        continue;
+      }
+      // A melee Incarnon form fires spectral projectiles, and the wiki states those hits take
+      // no melee damage bonus: Pressure Point, Arcane Fury, the stance and the combo
+      // multiplier do nothing. Elemental, faction, crit, status and Condition Overload still
+      // apply, so only plain "melee damage" rolls are dropped.
+      if (spectralForm && effect.target === 'baseDamage' && !effect.flat && !effect.perStatusType
+        && (source.kind === 'riven' || /melee damage/i.test(effect.raw))) {
+        collected.inactive.push(`${source.name}: ${effect.raw} (spectral hits ignore melee damage)`);
         continue;
       }
       const rankFraction = source.maxRank > 0 ? rankScale({ maxRank: source.maxRank } as ModData, source.rank) : 1;
@@ -695,7 +715,7 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   const headshotMultiplier = build.headshot ? Math.max(2, weakPointOverride) * (1 + bonus('headshotMultiplier')) : 1;
 
   // Heavy attacks spend the combo counter for a damage multiplier (wiki: Melee Combo).
-  const heavyMultiplier = build.heavyAttack ? comboMultiplier : 1;
+  const heavyMultiplier = build.heavyAttack && !spectralForm ? comboMultiplier : 1;
   const shotDamage = projectileTotal * multishot * headshotMultiplier * heavyMultiplier;
   const averageShotDamage = shotDamage * averageCritMultiplier;
 

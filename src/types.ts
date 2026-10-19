@@ -147,6 +147,13 @@ export interface WeaponData {
    * they are kept here to be reported instead of silently dropped.
    */
   incarnonFormExtra?: Array<{ name: string; damage: Partial<Record<DamageType, number>> }>;
+  /**
+   * The form fires a spectral projectile instead of swinging the weapon. The wiki states that
+   * those hits ignore melee damage bonuses (Pressure Point, Arcane Fury, the stance and the
+   * combo multiplier) while still taking elemental, faction, crit, status and Condition
+   * Overload bonuses.
+   */
+  incarnonFormSpectral?: boolean;
   /** Flavour text from the game data, shown under the weapon name. */
   description?: string;
   /** The arsenal stat block: what the game shows as the weapon's damage. */

@@ -197,7 +197,9 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
   bonus/malus weights × an optional roll.
 - **Incarnon evolutions**: per-weapon perk trees scraped from the wiki, with the parsed
   stat bonuses applied (flat base damage included). Variants (Prime/Wraith/Vandal...)
-  inherit the tree of their base weapon, which is how the game works.
+  inherit the tree of their base weapon, which is how the game works. The five melee
+  forms (Ack & Brunt, Ceramic Dagger, Hate, Okina, Okina Prime) use the wiki's Spectral
+  attack as their profile, and drop melee damage bonuses as the game does.
 - **AoE falloff**: the game's own `{start, end, reduction}` per attack, so a Bramma at
   4 m from the blast does what it does in game.
 - **Melee combo**: the 2x-12x multiplier ladder, combo-scaling mods (Blood Rush,
@@ -219,6 +221,8 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
   the damage a single target takes, so it does not enter a single-target TTK.
 - Per-pellet status variance (damage uses expectations; crit spread is reported).
 - Incarnon perks that are mechanics rather than stats (they are stored as text, not applied).
+- The second hit of an Incarnon form (`Incarnon Form AoE`, the melee Spectral explosion):
+  only the direct hit enters the number, and the report says which hit was left out.
 - 15 of the 69 weapons whose data mentions an Incarnon mode have no evolution table;
   with variant inheritance 54 are covered, and the remainder look like export noise.
 - 17% of weapon mods are only partially understood — mostly pure utility
