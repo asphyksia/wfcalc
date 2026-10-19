@@ -60,7 +60,8 @@ after closing the terminal: `setsid wfcalc serve --host 0.0.0.0 >/tmp/wfcalc.log
 | `wfcalc update` | Re-download sources and rebuild the snapshot |
 
 Every command takes `--json`. For driving the tool from an AI agent, see
-[docs/agent.md](docs/agent.md) and the `wfcalc` skill.
+[docs/agent.md](docs/agent.md) and the `wfcalc` skill. [docs/plan.md](docs/plan.md) records the
+current state, the working method and what is left to do.
 
 ### Options
 
