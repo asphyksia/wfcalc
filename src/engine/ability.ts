@@ -24,13 +24,20 @@ export interface AbilityCastOptions {
 export interface AbilityCast {
   frame: string;
   ability: string;
-  damageType: DamageType;
-  /** Damage at 100% Ability Strength. */
+  /** Null when the ability deals no damage and is kept only for its armour strip. */
+  damageType: DamageType | null;
+  /** Damage at 100% Ability Strength. 0 when the ability deals none. */
   baseDamage: number;
   strength: number;
   /** Base damage scaled by Ability Strength. */
   scaledDamage: number;
   radius: number | null;
+  /**
+   * Armour this cast removes, scaled by Ability Strength. Percentage strips scale linearly and
+   * cap at the whole armour; Polarize drains a flat number of points. This is what a weapon
+   * build benefits from, so it is reported here rather than buried in the ability.
+   */
+  armorStrip: { mode: 'percent' | 'flat'; fraction: number | null; points: number | null } | null;
   target: {
     enemy: string;
     level: number;
@@ -60,10 +67,31 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
   }
 
   const strength = options.strength ?? 100;
-  const scaledDamage = entry.baseDamage * (strength / 100);
-  const notes: string[] = [
-    'Ability damage is flat: it does not crit, use multishot or roll status, and mods on the weapon do not apply.',
-  ];
+  const scaledDamage = (entry.baseDamage ?? 0) * (strength / 100);
+  const armorStrip = entry.armorStrip
+    ? {
+        mode: entry.armorStrip.mode,
+        fraction: entry.armorStrip.mode === 'percent'
+          ? Math.min(1, (entry.armorStrip.value * (strength / 100)) / 100)
+          : null,
+        points: entry.armorStrip.mode === 'flat'
+          ? entry.armorStrip.value * (strength / 100)
+          : null,
+      }
+    : null;
+  const notes: string[] = [];
+  if (entry.baseDamage) {
+    notes.push('Ability damage is flat: it does not crit, use multishot or roll status, and mods on the weapon do not apply.');
+  } else {
+    notes.push(`${entry.ability} deals no damage of its own; it is here for its armour strip.`);
+  }
+  if (armorStrip) {
+    notes.push(
+      armorStrip.mode === 'percent'
+        ? `Removes ${(armorStrip.fraction! * 100).toFixed(1)}% of the target's armour; it is the weapon that benefits.`
+        : `Drains ${Math.round(armorStrip.points!)} armour points; it is the weapon that benefits.`,
+    );
+  }
 
   let target: AbilityCast['target'] = null;
   if (options.enemy) {
@@ -79,6 +107,13 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     const healthPool = scaled.health;
     const armorAmount = scaled.armor;
 
+    if (!entry.damageType || !entry.baseDamage) {
+      // Nothing to damage: only the strip matters, and it is already reported above.
+      return {
+        frame: entry.frame, ability: entry.ability, damageType: entry.damageType,
+        baseDamage: 0, strength, scaledDamage, radius: entry.radius ?? null, armorStrip, target: null, notes,
+      };
+    }
     const healthMod = healthModifier(snapshot, entry.damageType, healthType);
     const armorMod = armor ? healthModifier(snapshot, entry.damageType, armor.type) : 0;
     const dr = armor ? armorDamageReduction(armorAmount, armorMod, armorModel) : 0;
@@ -104,10 +139,11 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     frame: entry.frame,
     ability: entry.ability,
     damageType: entry.damageType,
-    baseDamage: entry.baseDamage,
+    baseDamage: entry.baseDamage ?? 0,
     strength,
     scaledDamage,
     radius: entry.radius ?? null,
+    armorStrip,
     target,
     notes,
   };

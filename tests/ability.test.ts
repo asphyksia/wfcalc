@@ -10,6 +10,9 @@ import assert from 'node:assert/strict';
 import { loadSnapshot } from '../src/data.ts';
 import { abilityCast } from '../src/engine/ability.ts';
 import { armorDamageReduction, scaleEnemy } from '../src/engine/enemy.ts';
+import { resolveBuild } from '../src/engine/build.ts';
+import { hitEnemy } from '../src/engine/damage.ts';
+import { effectiveArmor } from '../src/engine/dot.ts';
 
 const snapshot = loadSnapshot();
 
@@ -51,12 +54,51 @@ test('the ability list is data, not guesses', () => {
   const abilities = Object.values(snapshot.damageAbilities ?? {});
   assert.ok(abilities.length >= 15, `only ${abilities.length} damage abilities`);
   for (const ability of abilities) {
-    assert.ok(ability.baseDamage >= 10, `${ability.ability} has an implausible amount`);
-    assert.ok(ability.damageType, `${ability.ability} has no damage type`);
+    assert.ok((ability.baseDamage ?? 0) >= 10 || ability.armorStrip, `${ability.ability} has an implausible amount`);
+    assert.ok(ability.damageType || ability.armorStrip, `${ability.ability} has neither damage nor strip`);
     assert.ok(ability.frame, `${ability.ability} has no frame`);
   }
 });
 
 test('an unknown ability fails loudly', () => {
   assert.throws(() => abilityCast(snapshot, 'Not An Ability'), /ability not found/);
+});
+
+test('armour strip: percentage scales with strength and caps at the whole armour', () => {
+  // Avalanche removes 60% at 100% Ability Strength and the wiki says armour is fully gone at 167%.
+  const at100 = abilityCast(snapshot, 'Avalanche', { strength: 100 });
+  assert.equal(at100.armorStrip?.mode, 'percent');
+  assert.ok(Math.abs((at100.armorStrip?.fraction ?? 0) - 0.6) < 1e-9);
+  const at167 = abilityCast(snapshot, 'Avalanche', { strength: 167 });
+  assert.equal(at167.armorStrip?.fraction, 1);
+  const at200 = abilityCast(snapshot, 'Avalanche', { strength: 200 });
+  assert.equal(at200.armorStrip?.fraction, 1, 'cannot remove more than all of it');
+
+  // Polarize drains a flat number of points instead.
+  const polarize = abilityCast(snapshot, 'Polarize', { strength: 200 });
+  assert.equal(polarize.armorStrip?.mode, 'flat');
+  assert.ok(Math.abs((polarize.armorStrip?.points ?? 0) - 800) < 1e-9);
+});
+
+test('effective armour applies the flat drain first, then the percentage', () => {
+  assert.equal(effectiveArmor(500, { armorStripFlat: 400, armorStrip: 0.6 }), 40);
+  assert.equal(effectiveArmor(500, { armorStrip: 1 }), 0);
+  assert.equal(effectiveArmor(0, { armorStrip: 1 }), 0);
+  // Without any strip the armour is untouched.
+  assert.equal(effectiveArmor(2700, {}), 2700);
+});
+
+test('a strip is worth more to the weapon than the ability itself', () => {
+  const weapon = ['Serration', 'Split Channel'].slice(0, 1).map((name) => ({ name }));
+  const scaled = scaleEnemy(snapshot, snapshot.enemies['Bombard'], 150);
+  const damage = (armorStrip?: number) => {
+    const resolved = resolveBuild(snapshot, { weapon: 'Soma Prime', mods: weapon, debuffs: armorStrip ? { armorStrip } : {} });
+    return hitEnemy(snapshot, resolved, scaled, {});
+  };
+  const bare = damage();
+  const stripped = damage(1);
+  assert.ok(stripped.timeToKill! < bare.timeToKill!, 'full strip should kill faster');
+  // The dps figure and the time to kill must agree, or an agent quoting both looks wrong.
+  assert.ok(Math.abs(scaled.health / stripped.totalDps - stripped.timeToKill!) < 1e-6);
+  assert.ok(Math.abs(scaled.health / bare.totalDps - bare.timeToKill!) < 1e-6);
 });

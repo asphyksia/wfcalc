@@ -49,6 +49,8 @@ Useful flags:
 | `--exclude "Primed X,Galvanized Y"` | Mods the player does not own |
 | `--frame Rhino --frame-mods Intensify --buff roar` | Warframe buffs applied to the weapon |
 | `--viral 10 --corrosive 0 --headshot` | Target debuffs and headshots |
+| `--armor-strip 60` | Percent of the target's armour already removed |
+| `--strip-from "Avalanche" --strength 200` | Take the strip from an ability you will cast |
 | `--top N` | How many alternatives to return (default 3) |
 
 The response:
@@ -61,7 +63,7 @@ The response:
     "mods": [{"name": "Serration", "rank": 10, "drain": 7, "halvedByPolarity": true}, ...],
     "capacityUsed": 60, "capacity": 60, "formaNeeded": 2, "fits": true,
     "sustainedDps": 37200,        // direct damage only
-    "totalDps": 41000,            // against this target, status damage included
+    "totalDps": 41000,            // against this target: armour applied, status damage included
     "timeToKill": 11.94, "shotsToKill": 240,
     "critChance": 0.9, "critMultiplier": 6.6, "statusChance": 0.1, "multishot": 1.9,
     "incarnon": ["EVO2:0", "EVO3:2", "EVO4:0"],
@@ -79,8 +81,10 @@ Exilus mod in a standard slot, and no trigger-locked mod (Cannonade) on a weapon
 does not match.
 
 `--objective dps` scores **`totalDps`**, the damage against the given target including status
-procs: scoring direct damage alone makes Weeping Wounds, slash and heat builds invisible
-(measured on a Nikana Prime, 33.6k real damage per second scored the same as 17.9k).
+procs and after its armour: scoring direct damage alone makes Weeping Wounds, slash and heat
+builds invisible (measured on a Nikana Prime, 33.6k real damage per second scored the same as
+17.9k). `totalDps` and `timeToKill` always agree — health divided by `totalDps` is the time to
+kill — so quoting both is safe.
 
 ## Recipe: judge a build the player already has
 
@@ -103,7 +107,13 @@ against the target: the health-type modifier, the fraction armour removes, damag
 casts to kill. Ability damage is **flat**: it never crits, ignores the weapon and its mods, and
 against a level 150 Bombard most of it is lost to armour (Rhino Stomp: 160 of 1,600).
 
-`wfcalc abilities --json` lists the 19 abilities with parsed numbers. That is a curated list,
+**Armour strip is the point of most damage abilities.** `wfcalc ability Avalanche --strength 200`
+reports that it removes 100% of armour (60% at 100% strength, full at 167%). Feeding that to a
+weapon with `--strip-from` is where the numbers move: a Soma Prime against a level 150 Bombard
+goes from 271s to kill to 41s. Use `--strip-from` instead of `--armor-strip` whenever the player
+told you which frame they run.
+
+`wfcalc abilities --json` lists the 21 damage abilities with parsed numbers. That is a curated list,
 not every ability in the game: the wiki has no machine-readable index of damage abilities.
 
 ## Recipe: with a warframe
@@ -137,8 +147,11 @@ State these when they matter instead of guessing:
 - **One target, average damage.** No spread, no multi-target, no enemy AI. Time to kill is a
   model of sustained fire including reloads, not a stopwatch.
 - **Ability damage is raw damage only.** No headshots, no area falloff, no repeated ticks over
-  time, no armour stripping, and shields are left out of the casts-to-kill figure. An ability
-  that ticks (Inferno, Miasma) will look weaker than it plays; say so.
+  time, and shields are left out of the casts-to-kill figure. An ability that ticks (Inferno,
+  Miasma) will look weaker than it plays; say so.
+- **Armour strip is modelled for four abilities** (Avalanche, Terrify, Seeking Shuriken as a
+  percentage; Polarize as a flat drain). Others that strip, such as Corrosive Projection auras
+  or Shattering Impact, are not; pass `--armor-strip` with the number you expect instead.
 - **A meta is not a calculation.** If a mod is not in the snapshot, the tool cannot know it.
 
 ## Failure modes

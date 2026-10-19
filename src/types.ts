@@ -297,10 +297,16 @@ export interface AbilityData {
 export interface DamageAbilityData {
   frame: string;
   ability: string;
-  damageType: DamageType;
-  /** Damage at 100% Ability Strength, max rank. */
-  baseDamage: number;
+  /** Null for an ability kept only for its armour strip. */
+  damageType: DamageType | null;
+  /** Damage at 100% Ability Strength, max rank. Null when the ability deals none. */
+  baseDamage: number | null;
   radius: number | null;
+  /**
+   * Armour strip at 100% Ability Strength: a fraction of the total, or a flat number of points.
+   * Ability Strength scales both, and it is the weapon that benefits, not the ability.
+   */
+  armorStrip?: { mode: 'percent' | 'flat'; value: number } | null;
 }
 
 export interface IncarnonOption {

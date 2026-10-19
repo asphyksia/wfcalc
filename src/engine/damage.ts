@@ -184,7 +184,9 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
     timeToKill,
     factionMultiplier,
     dot,
-    totalDps: build.sustainedDps + dotDps,
+    // Against this target: the same rate the time-to-kill uses, so the two never contradict
+    // each other. `build.sustainedDps` alone is the weapon's own rate and ignores armour.
+    totalDps: healthDps,
     bestType,
     warnings,
   };

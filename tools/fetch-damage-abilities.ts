@@ -19,6 +19,19 @@ const OUT_DIR = join(ROOT, 'data/raw/abilities-damage');
 const OUT_JSON = join(ROOT, 'data/raw/damage-abilities.json');
 
 /** Frames whose damage abilities are worth modelling, and the pages that document them. */
+/**
+ * Armour strip, curated from each ability's own wiki page: the percentage of armour removed at
+ * 100% Ability Strength, or the flat number of points drained. Ability Strength scales both.
+ * Avalanche: "permanently reducing their total armor by 60%", full strip at 167%.
+ * Terrify: 60% at max rank. Seeking Shuriken: 70%, full at 143%. Polarize: 400 points.
+ */
+const ARMOR_STRIP: Record<string, { mode: 'percent' | 'flat'; value: number }> = {
+  'Avalanche': { mode: 'percent', value: 60 },
+  'Terrify': { mode: 'percent', value: 60 },
+  'Seeking Shuriken': { mode: 'percent', value: 70 },
+  'Polarize': { mode: 'flat', value: 400 },
+};
+
 const ABILITIES: Array<{ frame: string; page: string; ability: string }> = [
   { frame: 'Rhino', page: 'Rhino_Stomp', ability: 'Rhino Stomp' },
   { frame: 'Excalibur', page: 'Slash_Dash', ability: 'Slash Dash' },
@@ -50,6 +63,10 @@ const ABILITIES: Array<{ frame: string; page: string; ability: string }> = [
   { frame: 'Lavos', page: 'Ophidian_Bite', ability: 'Ophidian Bite' },
   { frame: 'Dante', page: 'Dark_Verse', ability: 'Dark Verse' },
   { frame: 'Kullervo', page: 'Wrathful_Advance', ability: 'Wrathful Advance' },
+  // Abilities kept for their armour strip rather than their damage.
+  { frame: 'Nekros', page: 'Terrify', ability: 'Terrify' },
+  { frame: 'Ash', page: 'Seeking_Shuriken', ability: 'Seeking Shuriken' },
+  { frame: 'Mag', page: 'Polarize', ability: 'Polarize' },
 ];
 
 const force = process.argv.includes('--force');
@@ -99,7 +116,7 @@ function maxDamage(strengthRaw: string): number | null {
 
 async function main(): Promise<void> {
   await mkdir(OUT_DIR, { recursive: true });
-  const out: Array<{ frame: string; ability: string; damageType: string | null; baseDamage: number | null; radius: number | null; page: string }> = [];
+  const out: Array<{ frame: string; ability: string; damageType: string | null; baseDamage: number | null; radius: number | null; page: string; armorStrip: { mode: 'percent' | 'flat'; value: number } | null }> = [];
   let failures = 0;
 
   for (const entry of ABILITIES) {
@@ -125,17 +142,18 @@ async function main(): Promise<void> {
       await writeFile(file, wikitext);
     }
 
+    const armorStrip = ARMOR_STRIP[entry.ability] ?? null;
     const strengthRaw = templateParam(wikitext, 'strength');
-    if (!strengthRaw) {
+    if (!strengthRaw && !armorStrip) {
       console.error(`SKIP  ${entry.ability}: no strength line`);
       failures++;
       continue;
     }
-    const baseDamage = maxDamage(strengthRaw);
-    const damageType = damageTypeOf(wikitext, strengthRaw);
+    const baseDamage = strengthRaw ? maxDamage(strengthRaw) : null;
+    const damageType = strengthRaw ? damageTypeOf(wikitext, strengthRaw) : null;
     // A "strength" of 1 or 1.25 is a multiplier or a percentage, not damage; the infobox mixes
     // quantities. Only entries that name a damage type and carry a plausible amount are kept.
-    if (!damageType || baseDamage === null || baseDamage < 10) {
+    if (!armorStrip && (!damageType || baseDamage === null || baseDamage < 10)) {
       console.error(`SKIP  ${entry.ability}: strength is not a damage amount (${baseDamage})`);
       failures++;
       continue;
@@ -144,9 +162,9 @@ async function main(): Promise<void> {
     const rangeNumbers = stripTemplates(rangeRaw).match(/\d+(?:[.,]\d+)?/g);
     const radius = rangeNumbers?.length ? Number(rangeNumbers[rangeNumbers.length - 1].replace(',', '.')) : null;
 
-    out.push({ frame: entry.frame, ability: entry.ability, damageType, baseDamage, radius, page: entry.page });
+    out.push({ frame: entry.frame, ability: entry.ability, damageType, baseDamage, radius, page: entry.page, armorStrip });
     console.log(
-      `${entry.frame.padEnd(11)} ${entry.ability.padEnd(20)} ${String(baseDamage).padStart(6)} ${String(damageType ?? '?').padEnd(12)} r=${radius ?? '-'}`,
+      `${entry.frame.padEnd(11)} ${entry.ability.padEnd(20)} ${String(baseDamage).padStart(6)} ${String(damageType ?? '?').padEnd(12)} r=${String(radius ?? '-').padEnd(5)} ${armorStrip ? `strip ${armorStrip.value}${armorStrip.mode === 'percent' ? '%' : 'pts'}` : ''}`,
     );
   }
 

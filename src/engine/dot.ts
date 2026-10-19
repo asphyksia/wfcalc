@@ -85,6 +85,10 @@ export interface DotContext {
   viralStacks?: number;
   /** Corrosive stacks: 26% armour reduction, then 6% more each, capped at 80%. */
   corrosiveStacks?: number;
+  /** Fraction of armour stripped by an ability, 0..1 (Avalanche, Terrify, Seeking Shuriken). */
+  armorStrip?: number;
+  /** Armour points removed by an ability (Polarize drains a flat amount). */
+  armorStripFlat?: number;
 }
 
 /** Damage-to-health multiplier from Viral stacks (wiki: 100%, then +25% up to 325%). */
@@ -103,7 +107,12 @@ export function corrosiveArmorMultiplier(stacks: number): number {
 
 /** Effective armour after Corrosive procs. */
 export function effectiveArmor(armor: number, context: DotContext): number {
-  return Math.max(0, armor * corrosiveArmorMultiplier(context.corrosiveStacks ?? 0));
+  // Flat drains come off first (Polarize takes armour points), then the percentage strips
+  // and corrosive procs multiply what is left. Order changes the result on purpose: a flat
+  // drain of 400 against 500 armour leaves 100, which a 60% strip then halves.
+  const afterFlat = Math.max(0, armor - (context.armorStripFlat ?? 0));
+  const fraction = Math.max(0, Math.min(1, context.armorStrip ?? 0));
+  return Math.max(0, afterFlat * (1 - fraction) * corrosiveArmorMultiplier(context.corrosiveStacks ?? 0));
 }
 
 /**

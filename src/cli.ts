@@ -110,6 +110,30 @@ function parseConditions(args: Args): Record<string, number> {
   return conditions;
 }
 
+/**
+ * Armour strip on the target, either stated ("--armor-strip 60", percent) or taken from an
+ * ability the player will cast ("--strip-from Avalanche --strength 200"). This is the seam
+ * between the ability and the weapon: what a strip is worth shows up as weapon damage.
+ */
+function armorStripDebuff(snapshot: Snapshot, args: Args): { armorStrip?: number; armorStripFlat?: number } {
+  const direct = flag(args, 'armor-strip');
+  if (direct !== undefined) {
+    const percent = Number(direct);
+    if (!Number.isFinite(percent)) throw new Error(`--armor-strip expects a percentage, got "${direct}"`);
+    return { armorStrip: Math.max(0, Math.min(1, percent / 100)) };
+  }
+  const ability = flag(args, 'strip-from');
+  if (!ability) return {};
+  const cast = abilityCast(snapshot, ability, {
+    strength: flag(args, 'strength') ? Number(flag(args, 'strength')) : 100,
+  });
+  if (!cast.armorStrip) throw new Error(`${cast.ability} does not strip armour`);
+  return {
+    ...(cast.armorStrip.fraction !== null ? { armorStrip: cast.armorStrip.fraction } : {}),
+    ...(cast.armorStrip.points !== null ? { armorStripFlat: cast.armorStrip.points } : {}),
+  };
+}
+
 function buildFromArgs(snapshot: Snapshot, args: Args, mods: string[]): Build {
   const weaponQuery = args.positional[0];
   const { item: weapon, suggestions } = findWeapon(snapshot, weaponQuery);
@@ -145,6 +169,7 @@ function buildFromArgs(snapshot: Snapshot, args: Args, mods: string[]): Build {
     debuffs: {
       viralStacks: flag(args, 'viral') ? Number(flag(args, 'viral')) : undefined,
       corrosiveStacks: flag(args, 'corrosive') ? Number(flag(args, 'corrosive')) : undefined,
+      ...armorStripDebuff(snapshot, args),
     },
     mode: flag(args, 'mode'),
     conditions: parseConditions(args),
@@ -507,7 +532,10 @@ function main(): void {
         break;
       }
       for (const ability of list.sort((a, b) => a.frame.localeCompare(b.frame) || a.ability.localeCompare(b.ability))) {
-        console.log(`${ability.frame.padEnd(11)} ${ability.ability.padEnd(22)} ${String(ability.baseDamage).padStart(6)} ${ability.damageType.padEnd(12)} r=${ability.radius ?? '-'}m`);
+        const strip = ability.armorStrip
+          ? `strip ${ability.armorStrip.value}${ability.armorStrip.mode === 'percent' ? '%' : 'pts'}`
+          : '';
+        console.log(`${ability.frame.padEnd(11)} ${ability.ability.padEnd(22)} ${String(ability.baseDamage ?? '-').padStart(6)} ${String(ability.damageType ?? '-').padEnd(12)} r=${String(ability.radius ?? '-').padEnd(5)} ${strip}`);
       }
       console.log(`\n${list.length} damage ability(ies)`);
       break;
@@ -524,7 +552,7 @@ function main(): void {
         emitJson(result);
         break;
       }
-      console.log(`${result.frame} — ${result.ability} (${result.damageType})`);
+      console.log(`${result.frame} — ${result.ability} (${result.damageType ?? 'no damage'})`);
       console.log(`  ${num(result.baseDamage, 0)} at 100% strength -> ${num(result.scaledDamage, 0)} at ${result.strength}%`);
       if (result.target) {
         console.log(`  vs ${result.target.enemy} level ${result.target.level}: ${num(result.target.perCast, 0)} per cast`);
@@ -579,6 +607,8 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
          --element-bonus heat:60    (Kuva/Tenet elemental bonus)
          --covenant-damage 4000    (damage prevented for Harrow's Covenant)
          --viral 10  --corrosive 10  (status debuffs on the target)
+         --armor-strip 60            (percent of the target's armour removed)
+         --strip-from "Avalanche"    (take the strip from an ability, at --strength)
          --armor-model armor-scaling|multiply|both   (open question, see docs/formulas.md)
          --combo-hits 220  --heavy   (melee combo multiplier / heavy attack)
          --aoe-distance 4            (AoE falloff distance in metres)

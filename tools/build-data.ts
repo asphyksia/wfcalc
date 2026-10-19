@@ -663,7 +663,10 @@ function baseWeaponName(name: string): string | null {
  */
 function buildDamageAbilities(): Record<string, DamageAbilityData> {
   const out: Record<string, DamageAbilityData> = {};
-  let entries: Array<{ frame: string; ability: string; damageType: string | null; baseDamage: number | null; radius: number | null }>;
+  let entries: Array<{
+    frame: string; ability: string; damageType: string | null; baseDamage: number | null;
+    radius: number | null; armorStrip?: { mode: 'percent' | 'flat'; value: number } | null;
+  }>;
   try {
     entries = readJson('damage-abilities.json');
   } catch {
@@ -671,13 +674,15 @@ function buildDamageAbilities(): Record<string, DamageAbilityData> {
     return out;
   }
   for (const entry of entries) {
-    if (!entry.damageType || !entry.baseDamage) continue;
+    // An ability with neither damage nor armour strip is not worth carrying.
+    if ((!entry.damageType || !entry.baseDamage) && !entry.armorStrip) continue;
     out[entry.ability] = {
       frame: entry.frame,
       ability: entry.ability,
-      damageType: entry.damageType as DamageType,
-      baseDamage: entry.baseDamage,
+      damageType: (entry.damageType as DamageType) ?? null,
+      baseDamage: entry.baseDamage ?? null,
       radius: entry.radius,
+      armorStrip: entry.armorStrip ?? null,
     };
   }
   console.log(`damage abilities: ${Object.keys(out).length}`);
