@@ -226,6 +226,13 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   const conditions = build.conditions ?? {};
   let stats = resolvedMode.stats;
   const mode = resolvedMode.mode;
+  // The Incarnon form replaces the weapon's stats outright, and mods apply on top of it, which
+  // is what the game does. Applying perks to the base profile was an approximation.
+  const incarnonLines: string[] = [];
+  if (build.incarnon?.length && weapon.incarnonForm) {
+    stats = { ...weapon.incarnonForm };
+    incarnonLines.push('Incarnon form profile');
+  }
 
   // Kuva/Tenet elemental bonus: a player-chosen element worth 25-60% of base damage,
   // baked in before anything else so it combines like innate damage.
@@ -342,7 +349,6 @@ export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   }
 
   // Incarnon evolutions: only weapons with a tree in the dataset have options.
-  const incarnonLines: string[] = [];
   if (build.incarnon?.length) {
     const options = snapshot.incarnons[weapon.name] ?? [];
     if (!options.length) collected.warnings.push(`no Incarnon data for ${weapon.name}`);

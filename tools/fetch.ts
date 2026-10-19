@@ -45,6 +45,11 @@ const wikiPages: Array<[page: string, file: string]> = [
   ['Damage_Type_Modifier', 'wiki-damage-type-modifier.wiki'],
   ['Enemy_Level_Scaling', 'wiki-enemy-level-scaling.wiki'],
   ['Riven_Mods', 'wiki-riven-mods.wiki'],
+  // The wiki's weapon database. Its primary/secondary/melee subpages carry the Incarnon form
+  // as an attack of its own ("Incarnon Form"), which WFCD does not export at all.
+  ['Module:Weapons/data/primary', 'module-weapons-primary.lua'],
+  ['Module:Weapons/data/secondary', 'module-weapons-secondary.lua'],
+  ['Module:Weapons/data/melee', 'module-weapons-melee.lua'],
 ];
 
 /** Wiki categories: the wiki is the only source that says which mods are Exilus-only. */

@@ -369,19 +369,31 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
     [],
   );
 
+  /**
+   * Tries every combination of perks and keeps the best. A greedy tier-by-tier walk is not
+   * enough: the perks interact (the Incarnon profile alone can score worse than the base
+   * weapon, and only the full set overtakes it). Trees are small — the largest is 18
+   * combinations — so exhausting them is both affordable and exact.
+   */
   const chooseIncarnon = (): void => {
+    const combinations: string[][] = [[]];
     for (const tier of incarnonTiers) {
-      const others = incarnonSelection.filter((entry) => !entry.startsWith(`${tier.tier}:`));
-      let best = others;
-      let bestScore = evaluateOrder(currentMods, true);
-      for (const option of tier.options) {
-        if (evaluated >= budget) break;
-        incarnonSelection = [...others, option.selection];
-        const score = evaluateOrder(currentMods, true);
-        if (score > bestScore + 1e-9) { bestScore = score; best = incarnonSelection; }
+      const grown: string[][] = [];
+      for (const prefix of combinations) {
+        for (const option of tier.options) grown.push([...prefix, option.selection]);
       }
-      incarnonSelection = best;
+      combinations.length = 0;
+      combinations.push(...grown);
     }
+    let best = incarnonSelection;
+    let bestScore = -Infinity;
+    for (const combination of combinations) {
+      if (evaluated >= budget) break;
+      incarnonSelection = combination;
+      const score = evaluateOrder(currentMods, true);
+      if (score > bestScore + 1e-9) { bestScore = score; best = combination; }
+    }
+    incarnonSelection = best;
   };
 
   let currentMods = [...mustInclude];

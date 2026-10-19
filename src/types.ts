@@ -136,6 +136,11 @@ export interface WeaponData {
   modClasses: string[];
   /** Firing trigger from the game data: Auto, Semi, Charge, Held... */
   trigger?: string;
+  /**
+   * The Incarnon form's own stats, when the weapon has one. WFCD does not export it; it comes
+   * from the wiki's weapon database. Mods apply on top of these, as in the game.
+   */
+  incarnonForm?: WeaponStats;
   /** Flavour text from the game data, shown under the weapon name. */
   description?: string;
   /** The arsenal stat block: what the game shows as the weapon's damage. */

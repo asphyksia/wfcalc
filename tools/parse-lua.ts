@@ -124,6 +124,9 @@ class Parser {
       if (word[0] === 'true') return true;
       if (word[0] === 'false') return false;
       if (word[0] === 'nil') return null;
+      // Lua's numeric constants appear in the wiki's weapon tables.
+      if (word[0] === 'math.huge') return Number.POSITIVE_INFINITY;
+      if (word[0] === 'math.pi') return Math.PI;
       if (word[0] === 'local' || word[0] === 'return') {
         this.skipTrivia();
         // `local Name = ...` / `return ...`

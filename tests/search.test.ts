@@ -8,6 +8,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadSnapshot } from '../src/data.ts';
 import { search } from '../src/engine/search.ts';
+import { resolveBuild } from '../src/engine/build.ts';
+import { hitEnemy } from '../src/engine/damage.ts';
+import { scaleEnemy } from '../src/engine/enemy.ts';
 
 const snapshot = loadSnapshot();
 
@@ -98,29 +101,56 @@ test('the dps objective counts status damage, not just direct hits', () => {
 });
 
 test('Incarnon evolutions are chosen only when asked for', () => {
-  // The Incarnon form is an endgame unlock and only its perks are modelled, so the search
-  // leaves it alone unless the caller asks.
+  // The Incarnon form is an endgame unlock, so the search leaves it alone unless asked.
   const byDefault = search(snapshot, { weapon: 'Torid', objective: 'dps', enemy: 'Bombard', level: 150, limit: 1 });
   assert.deepEqual(byDefault.builds[0].incarnon, []);
   assert.ok(byDefault.notes.some((note) => /Incarnon evolutions are not assumed/.test(note)));
 
   const withChoice = search(snapshot, { weapon: 'Torid', objective: 'dps', enemy: 'Bombard', level: 150, limit: 1, chooseIncarnon: true });
   const build = withChoice.builds[0];
-  assert.equal(build.incarnon.length, 3, 'every Torid tier with parsed perks should be picked');
-  assert.equal(build.incarnonNames.length, 3);
+  assert.ok(build.incarnon.length > 0, 'asking for evolutions should pick some');
+  assert.ok(build.totalDps > byDefault.builds[0].totalDps,
+    `choosing evolutions should help: ${build.totalDps} vs ${byDefault.builds[0].totalDps}`);
 
-  // The same search told not to use evolutions must come out behind.
-  const without = byDefault;
-  assert.ok(build.totalDps > without.builds[0].totalDps,
-    `choosing evolutions should help: ${build.totalDps} vs ${without.builds[0].totalDps}`);
-
-  // Brute force over all 18 Torid combinations picked exactly this set, so the greedy per-tier
-  // choice is optimal for this weapon.
-  assert.deepEqual(build.incarnon, ['EVO2:0', 'EVO3:2', 'EVO4:0']);
+  // The chosen set must be the best of every combination of the same mods, not merely better
+  // than nothing: brute force all of them through the engine and compare.
+  const mods = build.mods.map((mod) => ({ name: mod.name }));
+  const tiers = [...new Set(snapshot.incarnons['Torid'].map((option) => option.tier))];
+  const choices = tiers.map((tier) => {
+    const all = snapshot.incarnons['Torid'].filter((option) => option.tier === tier);
+    return all.map((option) => `${tier}:${all.indexOf(option)}`);
+  });
+  const scoreOf = (selection: string[]): number => {
+    const resolved = resolveBuild(snapshot, { weapon: 'Torid', mods, incarnon: selection });
+    return hitEnemy(snapshot, resolved, scaleEnemy(snapshot, snapshot.enemies['Bombard'], 150), {}).totalDps;
+  };
+  let bestScore = -1;
+  const walk = (index: number, selection: string[]): void => {
+    if (index === choices.length) { bestScore = Math.max(bestScore, scoreOf(selection)); return; }
+    for (const option of choices[index]) walk(index + 1, [...selection, option]);
+  };
+  walk(0, []);
+  assert.ok(build.totalDps >= bestScore - 1e-6,
+    `search found ${build.totalDps}, brute force found ${bestScore}`);
 });
 
 test('a weapon without Incarnon data is unaffected', () => {
   const result = search(snapshot, { weapon: 'Kuva Hek', enemy: 'Bombard', level: 150, limit: 1, chooseIncarnon: true });
   assert.deepEqual(result.builds[0].incarnon, []);
   assert.deepEqual(result.builds[0].incarnonNames, []);
+});
+
+test('the Incarnon form replaces the weapon profile, not just its perks', () => {
+  // WFCD does not export the transformed weapon; the wiki does. Without it a Torid Incarnon
+  // was a 140 Toxin grenade at 1.5/s with 15% crit instead of a 51 Toxin beam at 8/s with 29%.
+  const form = snapshot.weapons['Torid'].incarnonForm;
+  assert.ok(form, 'Torid should carry an Incarnon profile');
+  assert.equal(form!.toxin, 51);
+  assert.ok(Math.abs(form!.critChance - 0.29) < 1e-6);
+  assert.ok(Math.abs(form!.statusChance - 0.39) < 1e-6);
+  assert.equal(form!.fireRate, 8);
+
+  // Most Genesis weapons should have one, so a missing profile is a data bug, not a norm.
+  const withForm = Object.values(snapshot.weapons).filter((weapon) => weapon.incarnonForm).length;
+  assert.ok(withForm > 60, `only ${withForm} weapons carry an Incarnon profile`);
 });

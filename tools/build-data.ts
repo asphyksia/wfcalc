@@ -245,8 +245,11 @@ function statsFromDamage(damage: Loose | undefined, base: WeaponStats, damagePer
   for (const t of DAMAGE_TYPES) stats[t] = 0;
   if (damage) {
     for (const [key, value] of Object.entries(damage)) {
-      if (key === 'total' || typeof value !== 'number') continue;
-      if (key in stats) stats[key as DamageType] = value;
+      // WFCD writes lower-case keys, the wiki's weapon database writes "Toxin"; both are the
+      // same axis.
+      const axis = key.toLowerCase();
+      if (axis === 'total' || typeof value !== 'number') continue;
+      if (axis in stats) stats[axis as DamageType] = value;
     }
   }
   // `damagePerShot` is the same data as a fixed-order array; use it only as a fallback.
@@ -315,9 +318,70 @@ function buildModes(weapon: Loose, base: WeaponStats): WeaponMode[] {
   return modes;
 }
 
+/**
+ * The Incarnon form's own stats, read from the wiki's weapon database.
+ *
+ * WFCD does not export the transformed weapon at all, so without this the calculator applied
+ * the evolution perks on top of the base weapon's numbers, which is not what the game does:
+ * a Torid Incarnon fires a 51 Toxin beam with 29% crit at 8/s, not a 100 Toxin grenade at 1.5/s.
+ * The wiki lists it as one more attack, named "Incarnon Form".
+ */
+function readIncarnonForms(): Record<string, { damage: Loose; critChance: number; critMultiplier: number; statusChance: number; fireRate: number; multishot: number; magazineSize: number }> {
+  const out: Record<string, { damage: Loose; critChance: number; critMultiplier: number; statusChance: number; fireRate: number; multishot: number; magazineSize: number }> = {};
+  const files = ['module-weapons-primary.lua', 'module-weapons-secondary.lua', 'module-weapons-melee.lua'];
+  for (const file of files) {
+    let root: Loose;
+    try {
+      const module = parseLuaModule(readFileSync(join(RAW, file), 'utf8')) as Loose;
+      root = (module.Weapons ?? module) as Loose;
+    } catch (error) {
+      console.warn(`incarnon forms: cannot read ${file}: ${(error as Error).message}`);
+      continue;
+    }
+    for (const [name, entry] of Object.entries<Loose>(root)) {
+      // The wiki writes Attacks as a keyed table, not a list.
+      const attacks: Loose[] = Array.isArray(entry?.Attacks)
+        ? entry.Attacks
+        : Object.values<Loose>(entry?.Attacks ?? {});
+      const form = attacks.find((attack: Loose) => /incarnon form/i.test(String(attack?.AttackName ?? '')));
+      if (!form) continue;
+      out[name] = {
+        damage: (form.Damage ?? {}) as Loose,
+        critChance: Number(form.CritChance ?? 0),
+        critMultiplier: Number(form.CritMultiplier ?? 1),
+        statusChance: Number(form.StatusChance ?? 0),
+        fireRate: Number(form.FireRate ?? 0),
+        multishot: Number(form.Multishot ?? 1),
+        magazineSize: Number.isFinite(Number(form.AmmoCost)) ? Number(form.AmmoCost) : 0,
+      };
+    }
+  }
+  console.log(`incarnon forms: ${Object.keys(out).length} weapon(s) with a transformed profile`);
+  return out;
+}
+
+/** Turns a raw Incarnon form into full stats, on top of the weapon's own damage-type keys. */
+function incarnonFormStats(
+  raw: { damage: Loose; critChance: number; critMultiplier: number; statusChance: number; fireRate: number; multishot: number; magazineSize: number },
+  base: WeaponStats,
+): WeaponStats {
+  const stats = statsFromDamage(raw.damage, base);
+  stats.critChance = raw.critChance;
+  stats.critMultiplier = raw.critMultiplier;
+  stats.statusChance = raw.statusChance;
+  stats.fireRate = raw.fireRate || base.fireRate;
+  stats.multishot = raw.multishot;
+  if (raw.magazineSize) stats.magazineSize = raw.magazineSize;
+  return stats;
+}
+
 function buildWeapons(): Record<string, WeaponData> {
   const out: Record<string, WeaponData> = {};
   const overrides = loadWeaponOverrides();
+  // Built from a neutral base: the form replaces the weapon's damage and crit wholesale.
+  // Raw form stats per weapon name; they are turned into full WeaponStats once the weapon's
+  // own stats are known, because statsFromDamage only fills keys the base already has.
+  const incarnonForms = readIncarnonForms();
   for (const [file, category] of CATEGORY_FILES) {
     for (const weapon of readJson(file)) {
       const name = String(weapon.name ?? '').trim();
@@ -365,6 +429,7 @@ function buildWeapons(): Record<string, WeaponData> {
         stats,
         modes,
         hasRivenSlot: category !== 'sentinel',
+        ...(incarnonForms[name] ? { incarnonForm: incarnonFormStats(incarnonForms[name], stats) } : {}),
       };
     }
   }

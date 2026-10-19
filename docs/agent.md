@@ -108,13 +108,13 @@ State these when they matter instead of guessing:
 - **The Exilus and stance slots are not searched.** An Exilus mod is never worth a standard slot.
 - **Melee assumes a 12x combo** (220 hits), because Blood Rush and Weeping Wounds are worth
   nothing at 1x. Pass `--combo-hits 0` to score raw swings instead; the assumption is reported.
-- **The Incarnon form is never assumed.** It is an endgame unlock, and only the evolution
-  perks' parsed stats are modelled, not the transformed weapon's own profile, so assuming it
-  would be assuming too much. Ask for it with `--incarnon auto`, which lets the search pick the
-  evolutions per tier (greedily, which brute force confirms is optimal on a Torid: all 18
-  combinations checked). Perks with no parsed stats are invisible to the optimiser. Force a
-  choice with `--incarnon "EVO2:0,EVO4:1"`; read the tree with `wfcalc incarnon <weapon> --json`.
-  On a Torid against a level 150 Bombard, `--incarnon auto` is worth 16.1k → 25.3k dps.
+- **The Incarnon form is never assumed.** It is an endgame unlock, so the search reports that
+  the weapon has one and leaves it alone unless asked. `--incarnon auto` lets the search pick:
+  it replaces the weapon's profile with the transformed one (the wiki's weapon database carries
+  it; WFCD does not) and tries every combination of perks, which is exact because the largest
+  tree has 18. On a Torid against a level 150 Bombard that is 13.7k → 71.7k dps.
+  Perks with no parsed stats are invisible to the optimiser; read the tree with
+  `wfcalc incarnon <weapon> --json` and force a choice with `--incarnon "EVO2:0,EVO4:1"`.
 - **Rivens must be spelled out**: `--riven damage,multishot,-zoom --riven-roll 1.05`.
 - **Conditional mods default to inactive.** Galvanized stacks, on-kill effects and "while
   aiming" need `--stacks onKill=5` or similar; otherwise the build is scored lower than it plays.
