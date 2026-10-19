@@ -21,6 +21,7 @@
 import { loadSnapshot, findEnemy, findMod, findWeapon, modsForWeapon } from './data.ts';
 import { resolveBuild, type Build, type BuildMod } from './engine/build.ts';
 import { search } from './engine/search.ts';
+import { abilityCast } from './engine/ability.ts';
 import { scaleEnemy } from './engine/enemy.ts';
 import { hitEnemy } from './engine/damage.ts';
 import { BUFFS, availableBuffs } from './engine/buffs.ts';
@@ -496,6 +497,43 @@ function main(): void {
       for (const note of result.notes) console.log(`· ${note}`);
       break;
     }
+    case 'abilities': {
+      const query = (args.positional[0] ?? '').toLowerCase();
+      const list = Object.values(snapshot.damageAbilities ?? {}).filter(
+        (ability) => !query || ability.ability.toLowerCase().includes(query) || ability.frame.toLowerCase().includes(query),
+      );
+      if (wantsJson(args)) {
+        emitJson(list);
+        break;
+      }
+      for (const ability of list.sort((a, b) => a.frame.localeCompare(b.frame) || a.ability.localeCompare(b.ability))) {
+        console.log(`${ability.frame.padEnd(11)} ${ability.ability.padEnd(22)} ${String(ability.baseDamage).padStart(6)} ${ability.damageType.padEnd(12)} r=${ability.radius ?? '-'}m`);
+      }
+      console.log(`\n${list.length} damage ability(ies)`);
+      break;
+    }
+    case 'ability': {
+      const name = args.positional[0] ?? '';
+      const result = abilityCast(snapshot, name, {
+        strength: flag(args, 'strength') ? Number(flag(args, 'strength')) : 100,
+        enemy: flag(args, 'enemy'),
+        level: flag(args, 'level') ? Number(flag(args, 'level')) : 30,
+        armorModel: flag(args, 'armor-model') as never,
+      });
+      if (wantsJson(args)) {
+        emitJson(result);
+        break;
+      }
+      console.log(`${result.frame} — ${result.ability} (${result.damageType})`);
+      console.log(`  ${num(result.baseDamage, 0)} at 100% strength -> ${num(result.scaledDamage, 0)} at ${result.strength}%`);
+      if (result.target) {
+        console.log(`  vs ${result.target.enemy} level ${result.target.level}: ${num(result.target.perCast, 0)} per cast`);
+        console.log(`  health modifier x${result.target.healthMultiplier.toFixed(2)}, armour removes ${(result.target.armorReduction * 100).toFixed(1)}%`);
+        if (result.target.castsToKill !== null) console.log(`  casts to remove its health: ${result.target.castsToKill}`);
+      }
+      for (const note of result.notes) console.log(`· ${note}`);
+      break;
+    }
     case 'calc': {
       report(snapshot, args, flagAll(args, 'mod').map(parseModArg), 'build');
       break;
@@ -529,6 +567,8 @@ function main(): void {
   wfcalc enemies [query]                search enemies
   wfcalc calc <weapon> [options]        damage report
   wfcalc search <weapon> [options]      find the best build for a target
+  wfcalc abilities [query]              abilities that deal damage
+  wfcalc ability <name> [options]       damage per cast of one ability
   wfcalc compare <weapon> --vs a,b      compare setups
   wfcalc serve                          web UI + JSON API (see docs/api.md)
 
@@ -544,6 +584,10 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
          --aoe-distance 4            (AoE falloff distance in metres)
          --enemy NAME  --level N  --faction NAME  --mode "Name"
          --stacks onKill=5  --status-types N  --headshot  --json
+
+Ability options:
+         --strength N          Ability Strength (100 = unmodded)
+         --enemy NAME --level N  apply the target's modifiers and armour
 
 Search options:
          --objective ttk|dps   (default ttk: kill the target fastest)

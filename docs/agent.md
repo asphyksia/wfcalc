@@ -26,7 +26,8 @@ account, no rate limit. `wfcalc` is on `PATH`.
 | `calc <weapon> --mod ...` | Damage of a build you already have |
 | `compare <weapon> --vs A,B` | Same weapon under several mod sets |
 | `mods <weapon> [query]` | Which mods fit, with effects and conditions |
-| `weapons [query]`, `enemies [query]`, `arcanes`, `buffs`, `rivens`, `incarnon <weapon>` | The pieces to build with |
+| `ability <name>` | Damage a single cast of a damage ability deals |
+| `weapons [query]`, `enemies [query]`, `arcanes`, `buffs`, `abilities`, `rivens`, `incarnon <weapon>` | The pieces to build with |
 
 `search` is the only command that *chooses*. The rest evaluate or enumerate.
 
@@ -91,6 +92,20 @@ Read `sustainedDps`, `timeToKill`, and `unsupportedMods` / `inactiveConditions`.
 lists conditional effects that are switched off: if a build relies on them, say which
 condition has to be true.
 
+## Recipe: what does a warframe ability actually do
+
+```sh
+wfcalc ability "Rhino Stomp" --strength 200 --enemy Bombard --level 150 --json
+```
+
+Returns the base damage at 100% Ability Strength, the damage at the strength you passed, and
+against the target: the health-type modifier, the fraction armour removes, damage per cast and
+casts to kill. Ability damage is **flat**: it never crits, ignores the weapon and its mods, and
+against a level 150 Bombard most of it is lost to armour (Rhino Stomp: 160 of 1,600).
+
+`wfcalc abilities --json` lists the 19 abilities with parsed numbers. That is a curated list,
+not every ability in the game: the wiki has no machine-readable index of damage abilities.
+
 ## Recipe: with a warframe
 
 ```sh
@@ -121,6 +136,9 @@ State these when they matter instead of guessing:
   This matters most for search results: say which conditions your answer assumes.
 - **One target, average damage.** No spread, no multi-target, no enemy AI. Time to kill is a
   model of sustained fire including reloads, not a stopwatch.
+- **Ability damage is raw damage only.** No headshots, no area falloff, no repeated ticks over
+  time, no armour stripping, and shields are left out of the casts-to-kill figure. An ability
+  that ticks (Inferno, Miasma) will look weaker than it plays; say so.
 - **A meta is not a calculation.** If a mod is not in the snapshot, the tool cannot know it.
 
 ## Failure modes

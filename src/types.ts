@@ -293,6 +293,16 @@ export interface AbilityData {
 }
 
 /** One choice inside an Incarnon evolution tier. */
+/** An ability that deals damage on its own, from the wiki's infobox. */
+export interface DamageAbilityData {
+  frame: string;
+  ability: string;
+  damageType: DamageType;
+  /** Damage at 100% Ability Strength, max rank. */
+  baseDamage: number;
+  radius: number | null;
+}
+
 export interface IncarnonOption {
   tier: string;
   name: string;
@@ -339,6 +349,8 @@ export interface Snapshot {
   rivenStats: Record<string, Record<string, number>>;
   /** Incarnon evolution trees by weapon name. */
   incarnons: Record<string, IncarnonOption[]>;
+  /** Damage-dealing abilities, keyed by ability name. Optional: older snapshots lack it. */
+  damageAbilities?: Record<string, DamageAbilityData>;
   /** Set Mod bonuses, keyed by set name. */
   setBonuses: Record<string, SetBonus>;
   enemies: Record<string, EnemyData>;

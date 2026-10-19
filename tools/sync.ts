@@ -191,6 +191,7 @@ async function main(): Promise<void> {
   console.log('\n1/5 fetching sources…');
   run('fetch.ts');
   run('fetch-abilities.ts');
+  run('fetch-damage-abilities.ts');
   run('fetch-incarnon.ts');
   run('fetch-sets.ts');
   run('fetch-overframe-db.ts');

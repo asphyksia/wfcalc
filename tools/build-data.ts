@@ -21,6 +21,7 @@ import {
   DAMAGE_TYPES,
   type AbilityData,
   type ArcaneData,
+  type DamageAbilityData,
   type DamageType,
   type Effect,
   type EnemyData,
@@ -655,6 +656,34 @@ function baseWeaponName(name: string): string | null {
   return base !== name ? base.trim() : null;
 }
 
+/**
+ * Damage-dealing abilities, from the curated list in tools/fetch-damage-abilities.ts. Only the
+ * frame, the ability, its damage type, its max-rank base damage and its radius are kept: how
+ * each ability behaves beyond that is prose, not data.
+ */
+function buildDamageAbilities(): Record<string, DamageAbilityData> {
+  const out: Record<string, DamageAbilityData> = {};
+  let entries: Array<{ frame: string; ability: string; damageType: string | null; baseDamage: number | null; radius: number | null }>;
+  try {
+    entries = readJson('damage-abilities.json');
+  } catch {
+    console.warn('damage abilities: data/raw/damage-abilities.json missing, run tools/fetch-damage-abilities.ts');
+    return out;
+  }
+  for (const entry of entries) {
+    if (!entry.damageType || !entry.baseDamage) continue;
+    out[entry.ability] = {
+      frame: entry.frame,
+      ability: entry.ability,
+      damageType: entry.damageType as DamageType,
+      baseDamage: entry.baseDamage,
+      radius: entry.radius,
+    };
+  }
+  console.log(`damage abilities: ${Object.keys(out).length}`);
+  return out;
+}
+
 function buildIncarnons(weapons: Record<string, WeaponData>): Record<string, any[]> {
   const raw: Record<string, any[]> = { ...readJsonFile('incarnon-stats.json') };
   let inherited = 0;
@@ -741,6 +770,7 @@ function main(): void {
     abilities: buildAbilities(),
     rivenStats: buildRivenStats(),
     incarnons: buildIncarnons(weapons),
+    damageAbilities: buildDamageAbilities(),
     setBonuses: buildSetBonuses(),
     enemies: buildEnemies(healthTypes),
     modifiers,
