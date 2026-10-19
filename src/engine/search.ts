@@ -436,6 +436,32 @@ function searchOnce(snapshot: Snapshot, request: SearchRequest): SearchResult {
   // Element order is free to change without touching capacity.
   current = bestElementOrder(current, (order) => evaluateOrder(order, true));
 
+  // Accuracy is not priced by the damage model, so Heavy Caliber can tie with Serration and win
+  // on iteration order. When two choices score the same, prefer the one without an unmodelled
+  // accuracy penalty; a real DPS loss is never traded for this.
+  const hasAccuracyPenalty = (name: string): boolean =>
+    (snapshot.mods[name]?.effects ?? []).some((effect) => effect.target === 'accuracy' && effect.value < 0);
+  const burden = (names: string[]): number => names.filter(hasAccuracyPenalty).length;
+  for (let index = 0; index < current.length; index++) {
+    if (!hasAccuracyPenalty(current[index])) continue;
+    const baseline = evaluateOrder(current, true);
+    let bestNames = current;
+    let bestBurden = burden(current);
+    for (const { mod: candidate } of candidates) {
+      if (current.includes(candidate.name)) continue;
+      const trial = [...current];
+      trial[index] = candidate.name;
+      if (!fits(trial).ok) continue;
+      const score = evaluateOrder(trial, true);
+      const trialBurden = burden(trial);
+      if (trialBurden < bestBurden && score >= baseline - 1e-9) {
+        bestNames = trial;
+        bestBurden = trialBurden;
+      }
+    }
+    current = bestNames;
+  }
+
   const buildFrom = (names: string[]): SearchBuild => {
     if (!scoreCache.get(keyOf(names))) evaluateOrder(names);
     const scored = scoreCache.get(keyOf(names))!;
@@ -545,6 +571,10 @@ function searchOnce(snapshot: Snapshot, request: SearchRequest): SearchResult {
   }
   if (weapon.category === 'melee') {
     notes.push('Melee stance is not searched, so its extra capacity is not counted.');
+  }
+  const burdened = [...new Set(builds.flatMap((build) => build.mods.map((mod) => mod.name)).filter(hasAccuracyPenalty))];
+  if (burdened.length) {
+    notes.push(`Unmodelled accuracy penalty: ${burdened.join(', ')}; the search prefers an equal alternative when one fits.`);
   }
   if (builds.some((build) => build.partialMods.length)) {
     const names = [...new Set(builds.flatMap((build) => build.partialMods))];

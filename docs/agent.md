@@ -88,7 +88,9 @@ on base armour, so its effect scales with the enemy's level. The effective armou
 it is returned as `armor`, so show it.
 
 `conditionalMods` names the mods whose value depends on a condition; say which condition has to
-be true (`--stacks onKill=12`, `--aiming`, ...) instead of presenting their upside as free.
+be true (`--stacks onKill=12`, `--aiming`, ...) instead of presenting their upside as free. When
+two mods score the same, the search prefers the one without an unmodelled accuracy penalty
+(Serration over Heavy Caliber) and never trades real DPS for it.
 
 A returned build is **legal by construction**: at most eight mods, within capacity, within the
 Forma budget, no two mods of the same family, no Exilus mod in a standard slot, no trigger-locked

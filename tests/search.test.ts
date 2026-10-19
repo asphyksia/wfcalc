@@ -166,3 +166,13 @@ test('search names the mods whose value is conditional', () => {
     `expected Galvanized Chamber in ${build.conditionalMods.join(', ')}`);
   assert.ok(build.conditionalMods.every((name) => snapshot.mods[name].effects.some((effect) => effect.condition)));
 });
+
+test('equal-damage ties prefer the mod without an unmodelled accuracy penalty', () => {
+  const result = search(snapshot, {
+    weapon: 'Haalvu', enemy: 'Bombard', level: 150, objective: 'dps', limit: 1,
+    base: { conditions: { onKill: 12, statusTypes: 2 }, arcanes: [{ name: 'Primary Merciless', rank: 5 }] },
+  });
+  const names = result.builds[0].mods.map((mod) => mod.name);
+  assert.ok(!names.includes('Heavy Caliber'), `Heavy Caliber should lose the tie: ${names.join(', ')}`);
+  assert.ok(names.includes('Serration'), `Serration should take its place: ${names.join(', ')}`);
+});
