@@ -18,7 +18,7 @@ Last updated: 2026-10-19.
 | Coverage | 98% of weapon-relevant mods fully modelled (587/596); 9 unknown lines |
 | Search speed | ~55 ms and ~550-780 builds evaluated per search; `--budget` never binds. Speed is **not** the current bottleneck |
 
-Run these four before starting anything and confirm they are still green:
+Run these five before starting anything and confirm they are still green. Calibration needs a local battery: run `npm run calibrate:refresh` first on a fresh clone.
 
 ```sh
 npm test
@@ -115,7 +115,7 @@ Rules that have prevented repeated mistakes:
 | A14 | **Pinned calibration (D2)**: `tools/calibrate.ts` reads a local battery (`data/calibration-builds.json`, 35 public builds with weapon, mods, arcanes and the oracle block) instead of sampling a new set on every run. `calibrate:refresh` fetches and rewrites it; only builds whose weapon and mods resolve are kept, and the list API's page bug is deduplicated. The battery is **gitignored and not shipped**, so CI skips calibration and the tests skip when it is absent. | Two consecutive local runs produce the same report hash; 35/35; a fresh clone runs tests without it |
 | A13 | **Shields in ability `castsToKill` (C3)**: a cast now removes shields first, with the shield type's damage modifiers and no armour; Toxin bypasses them. `castsToKill` sums Overguard, shield and health casts, and the target exposes `shield`, `shieldPerCast` and `bypassesShield`. | Avalanche at 200% vs a level 150 Corpus Tech: 22,668 shields at 3,000/cast = 8 casts, plus 50 for health = 58 (was 50); the test recomputes the phases independently |
 | A12 | **Ability statuses (C1)**: Inferno's guaranteed Heat, Miasma's Viral (one stack, doubling health damage) and Shuriken's guaranteed Bleed are resolved against the target and folded into `perCast`/`castsToKill`. Targets expose `statusPerCast`, `statusProcs` and `viralStacks`; `--viral N` seeds existing stacks. | Miasma 150/s x 6 = 900 → 315 per cast after its own Viral and Bombard armour (was 157); Shuriken's Bleed is 1,577.1 True per proc; Inferno's Heat proc is 469 on a Bombard. Tests pin all three |
-| A11 | **Damage attenuation (B2, caps)**: `--attenuation archon` applies MDPT 460,000, MDPS 935,000, 20% flat DR and 50% status DR; Eidolons get 200%/100% of max health automatically; `--mdpt/--mdps/--flat-dr/--status-dr` cover a known custom boss. Caps apply per instance and per second before the phase model; TTK is conservative because the exponential smoothing is not modelled. | Synthetic 1M hit on a 1M dummy: 1s → 2.72s under Archon; Eidolon 5M hit on 1M health: 0.2s → 1s; tests pin both and the CLI/API fields |
+| A11 | **Damage attenuation (B2, caps)**: `--attenuation archon` applies MDPT 460,000, MDPS 935,000, 20% flat DR and 50% status DR; Eidolons get 200%/100% of max health automatically; `--mdpt/--mdps/--flat-dr/--status-dr` cover a known custom boss. Caps apply per instance and per second before the phase model; TTK is conservative because the exponential smoothing is not modelled. | Synthetic 1M hit on a 1M dummy: 1s → 3.97s under Archon with the later per-hit formula (2.72s with the earlier hard cap); Eidolon 5M hit on 1M health: 0.2s → 1s |
 | A10 | **Overguard (B1)**: Eximus targets get the wiki's level-scaled Overguard (base 12, q = level - 1, curves blended 45-50) or an explicit `--overguard N`; it is a separate layer before shields/health, neutral to all types except Void (+50%), no armour, for weapons **and** ability casts. | Bombard 150 Eximus: 281,865 Overguard; Soma Prime + Serration 776s → 1,229s; Avalanche at 200% needs 94 casts to break it plus 180 for health = 274; tests pin the formula, the Void multiplier, the TTK and the ability casts |
 | A9 | **Search efficacy (F1/F2/F5/F6)**: `search --arcane auto` tries every arcane whose slot fits and keeps the best (an explicit arcane still wins; a conditional arcane only wins if its condition is active); `calc` reports `capacityUsed/capacity`, `formaNeeded`, `fits` and the equipped arcane in text, brief and JSON; `--mod "A,B"` is the same as repeated `--mod`; Psychic Bolts is now a strip ability (80% at 100% strength, capped at 125%). | Haalvu auto: no arcane without stacks, Primary Merciless with `onKill=12`; calc Haalvu + Serration/Chamber = 15/60, 0F; Psychic Bolts at 125% = 100% strip; tests pin all four |
 | A8 | **The text report showed the wrong armour**: with `--armor-strip 100` it printed the enemy's own pool (2,700) while the damage used 0. Found while pricing a Haalvu build for Nyx. Now prints `armor 0 (base 2,700)`. | Test pins the stripped line; brief/JSON were already correct |
@@ -145,7 +145,8 @@ Known loose ends from A1:
 D1–D3 are done: 98% of weapon-relevant mods, a pinned offline battery and melee/secondary coverage.
 In-game captures beyond Soma Prime remain a nice-to-have, not a gap.
 
-Remaining: **B2c**, deliberately not implemented because its inputs are not published:
+The only remaining modelling item is **B2c**, deliberately not implemented because its inputs
+are not published:
 
 - the wiki gives the exponential decay constant (λ = 2/3) but not the equation that uses it, so
   the per-second cap is applied as a hard rate and the warning says TTK is conservative;
@@ -153,12 +154,23 @@ Remaining: **B2c**, deliberately not implemented because its inputs are not publ
   ratios, so `--mdpt/--mdps` is the supported way to use a known value;
 - Eidolon joints/invulnerability phases and Lich ranks are fight mechanics, not arsenal data.
 
-Closing B2c would mean inventing numbers; the plan's method forbids that. Revisit only if a
-source appears., with **B2c** documented as blocked by unpublished inputs. B1
-(Overguard), B2's per-hit formula, C1's curated ability statuses and damage split, C2's Incarnon
-second hits, ability targets and Torid chain, C3's shield phase, D1–D3 (coverage, pinned
-calibration, melee/secondary), the search friction F1–F6 and the agent contract are done. Overguard's remaining gaps are deliberate: status DoT and Magnetic's
+Closing B2c would mean inventing numbers; revisit only if a source appears.
+
+Everything else is done: B1 (Overguard), B2's per-hit formula, C1's ability statuses and damage
+split, C2's Incarnon second hits, ability targets, Torid chain and AoE groups, C3's shield phase,
+D1–D3 (coverage, local pinned calibration, melee/secondary), the search friction F1–F7 and the
+agent contract. Overguard's remaining gaps are deliberate: status DoT and Magnetic's
 amplification are not credited to it.
+
+### G. After the beta (not modelling debt)
+
+- **Card artwork policy**: `/card/` and `/img/` still fetch wiki/WFCD art at runtime. Decide
+  whether to keep the cache, use placeholders or ship original art (frames are already CSS-only).
+- **In-game captures** for a melee combo and a secondary alt-fire; the external battery covers
+  the arsenal stats, but a direct reading is the strongest check.
+- **Beta feedback triage**: wrong numbers first, then friction; the issue template asks for the
+  command, version and output.
+- **B2c** only if a published equation or Lich/Sister table appears.
 
 ### E. Out of scope, decided
 
