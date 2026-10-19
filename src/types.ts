@@ -136,6 +136,10 @@ export interface WeaponData {
   modClasses: string[];
   /** Firing trigger from the game data: Auto, Semi, Charge, Held... */
   trigger?: string;
+  /** WFCD artwork filename, so a snapshot-only install still shows the weapon. */
+  image?: string | null;
+  /** Melee stance polarity, which decides the stance slot's capacity bonus. */
+  stancePolarity?: string | null;
   /**
    * The Incarnon form's own stats, when the weapon has one. WFCD does not export it; it comes
    * from the wiki's weapon database. Mods apply on top of these, as in the game.
@@ -243,6 +247,8 @@ export interface ModData {
   effects: Effect[];
   /** Wiki filename of the full in-game card (frame, name, stat), e.g. "SerrationMod.png". */
   cardImage: string | null;
+  /** WFCD artwork filename, served by /img when the export is not present locally. */
+  image?: string | null;
   /** True when some lines could not be mapped and are not known utility. */
   partial: boolean;
   /** Lines that are real effects this model cannot use (movement, healing, slide attacks). */

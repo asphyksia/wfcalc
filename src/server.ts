@@ -55,7 +55,7 @@ const IMAGE_BY_MOD = (() => {
   }
   return map;
 })();
-const imageNameOf = (modName: string): string | null => IMAGE_BY_MOD.get(modName) ?? null;
+const imageNameOf = (modName: string): string | null => snapshot.mods[modName]?.image ?? IMAGE_BY_MOD.get(modName) ?? null;
 
 /** Weapon artwork and melee stance polarity, from the same export. */
 const WEAPON_IMAGE = new Map<string, string>();
@@ -229,8 +229,8 @@ const server = createServer(async (req, res) => {
           // Needed by the client to work out mod capacity and polarity matches.
           polarities: w.polarities, exilusPolarity: w.exilusPolarity, modClasses: w.modClasses,
           trigger: w.trigger ?? null,
-          stancePolarity: WEAPON_STANCE.get(w.name) ?? null,
-          image: WEAPON_IMAGE.get(w.name) ?? null,
+          stancePolarity: w.stancePolarity ?? WEAPON_STANCE.get(w.name) ?? null,
+          image: w.image ?? WEAPON_IMAGE.get(w.name) ?? null,
           description: w.description ?? '',
         }))
         .sort((a, b) => a.name.localeCompare(b.name));

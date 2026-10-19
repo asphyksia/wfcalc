@@ -10,6 +10,21 @@ wiki) and the game's own data export, so the numbers answer the question
 Runs on Node ≥ 23 with **no runtime dependencies** — the TypeScript sources are
 executed directly through Node's type stripping.
 
+## Install
+
+Node ≥ 23 and nothing else (no runtime dependencies). The snapshot ships with the repo, so
+a clone works without downloading the game data:
+
+```sh
+git clone https://github.com/asphyksia/wfcalc.git
+cd wfcalc
+./bin/wfcalc calc "Torid" --mod Serration --enemy Bombard --level 150
+./bin/wfcalc serve            # UI at http://127.0.0.1:7777
+```
+
+`npm run update` refreshes the data from WFCD and the wiki (~12 MB); `npm run sync` only does
+it when an upstream changed. `npm install` is only needed for `npm run check` (TypeScript).
+
 ## Quick start
 
 ```sh
