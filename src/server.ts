@@ -115,7 +115,10 @@ function calculate(body: any) {
   if (body.enemy) {
     const { item: enemy, suggestions: enemySuggestions } = findEnemy(snapshot, body.enemy);
     if (!enemy) return { error: `enemy not found: ${body.enemy}`, suggestions: enemySuggestions };
-    const scaled = scaleEnemy(snapshot, enemy, Number(body.level ?? 100));
+    const scaled = scaleEnemy(snapshot, enemy, Number(body.level ?? 100), {
+      eximus: Boolean(body.eximus),
+      overguard: body.overguard !== undefined ? Number(body.overguard) : undefined,
+    });
     const hit = hitEnemy(snapshot, resolved, scaled);
     target = { name: enemy.name, faction: enemy.faction, pools: scaled.pools, ...hit };
   }
@@ -302,6 +305,8 @@ const server = createServer(async (req, res) => {
         budget: body.budget !== undefined ? Number(body.budget) : undefined,
         chooseIncarnon,
         chooseArcane,
+        eximus: Boolean(body.eximus),
+        overguard: body.overguard !== undefined ? Number(body.overguard) : undefined,
         base: chooseIncarnon ? { ...base, incarnon: undefined } : base,
       });
       return json(res, 200, result);
@@ -328,11 +333,15 @@ const server = createServer(async (req, res) => {
       const strength = url.searchParams.get('strength');
       const level = url.searchParams.get('level');
       try {
+        const overguard = url.searchParams.get('overguard');
+        const eximus = url.searchParams.get('eximus');
         const result = abilityCast(snapshot, name, {
           strength: strength ? Number(strength) : undefined,
           enemy: url.searchParams.get('enemy') ?? undefined,
           level: level ? Number(level) : undefined,
           armorModel: (url.searchParams.get('armorModel') ?? undefined) as never,
+          eximus: eximus === '1' || eximus === 'true',
+          overguard: overguard ? Number(overguard) : undefined,
         });
         return json(res, 200, result);
       } catch (error) {

@@ -43,6 +43,9 @@ export interface EnemyHit {
   damagePerShotShield: number;
   /** Damage per trigger pull against health. */
   damagePerShotHealth: number;
+  /** Overguard the target had, and our direct damage rate against it. */
+  overguard: number;
+  overguardDps: number;
   /** Trigger pulls needed to remove shields, then health. */
   shotsToKill: number;
   /** Seconds to kill, accounting for reloads. */
@@ -90,6 +93,7 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
   const breakdown: TypeBreakdown[] = [];
   let perProjectileShield = 0;
   let perProjectileHealth = 0;
+  let perProjectileOverguard = 0;
 
   for (const type of DAMAGE_TYPES) {
     const raw = build.damage.perProjectile[type] ?? 0;
@@ -108,6 +112,10 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
     const armorFloor = armor ? 1 : 0;
     // Viral amplifies all damage dealt to health, direct hits included.
     const toHealth = Math.max(raw * (1 + healthMod) * (1 - dr) * viral * armorModifierOnDamage, armorFloor);
+
+    // Overguard is neutral to every damage type except Void (+50%), ignores armour and is
+    // not bypassed by Toxin. Magnetic's status amplification is not modelled (see warnings).
+    perProjectileOverguard += raw * (1 + healthModifier(snapshot, type, 'Overguard'));
 
     const shieldMod = shieldType ? healthModifier(snapshot, type, shieldType) : 0;
     const bypassesShield = type === 'toxin' && scaled.enemy.toxinBypassesShields;
@@ -134,6 +142,7 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
   const shots = build.multishot;
   const damagePerShotShield = perProjectileShield * critMultiplier * shots * factionMultiplier;
   const damagePerShotHealth = perProjectileHealth * critMultiplier * shots * factionMultiplier;
+  const damagePerShotOverguard = perProjectileOverguard * critMultiplier * shots * factionMultiplier;
 
   // Sequential kill, as rates rather than shots so status damage counts:
   // shields first (only shield-capable damage), then health (direct + DoT).
@@ -148,25 +157,43 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
 
   const shieldDps = damagePerShotShield * pullsPerSecond;
   const healthDps = damagePerShotHealth * pullsPerSecond + dotDps;
+  const overguardDps = damagePerShotOverguard * pullsPerSecond;
+  const totalPool = scaled.overguard + scaled.shield + scaled.health;
 
-  if (shieldDps <= 0 && healthDps <= 0) {
+  if (overguardDps <= 0 && shieldDps <= 0 && healthDps <= 0) {
     shotsToKill = Infinity;
   } else {
     let seconds = 0;
-    if (remainingShield > 0 && shieldDps > 0) {
+    // Overguard is its own layer, first, and ignores armour. Status DoT is not applied to it
+    // (the model only credits direct damage while it is up); the warning says so.
+    if (scaled.overguard > 0) {
+      if (overguardDps > 0) seconds += scaled.overguard / overguardDps;
+      else seconds = Infinity;
+    }
+    if (Number.isFinite(seconds) && remainingShield > 0 && shieldDps > 0) {
       const shieldSeconds = remainingShield / shieldDps;
       seconds += shieldSeconds;
       // Shield-bypassing damage (Toxin) already chews health during the shield phase.
       const bypassDps = bypassProjectile * critMultiplier * build.multishot * pullsPerSecond;
       remainingHealth = Math.max(0, remainingHealth - shieldSeconds * bypassDps);
-    } else if (remainingShield > 0) {
+    } else if (Number.isFinite(seconds) && remainingShield > 0) {
       remainingShield = 0; // only shield-bypassing damage: shields never break, health still drops
     }
-    if (remainingHealth > 0) seconds += healthDps > 0 ? remainingHealth / healthDps : Infinity;
+    if (Number.isFinite(seconds) && remainingHealth > 0) {
+      seconds += healthDps > 0 ? remainingHealth / healthDps : Infinity;
+    }
     shotsToKill = Number.isFinite(seconds) ? seconds * pullsPerSecond : Infinity;
   }
 
   const timeToKill = Number.isFinite(shotsToKill) && pullsPerSecond > 0 ? shotsToKill / pullsPerSecond : null;
+
+  // Against this target: the rate that actually removes its pools, Overguard and shields
+  // included. With no Overguard or shields this is the old health rate, so the documented
+  // health/totalDps == timeToKill relation still holds for a plain Bombard.
+  const totalDps = timeToKill !== null && timeToKill > 0 ? totalPool / timeToKill : healthDps + overguardDps;
+  if (scaled.overguard > 0) {
+    warnings.push('Overguard: direct damage only, status DoT not applied; Magnetic amplification not modelled');
+  }
 
   const bestType = breakdown.reduce<{ type: DamageType; multiplier: number } | null>(
     (best, entry) => (!best || entry.healthMultiplier > best.multiplier ? { type: entry.type, multiplier: entry.healthMultiplier } : best),
@@ -183,13 +210,13 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
     breakdown,
     damagePerShotShield,
     damagePerShotHealth,
+    overguard: scaled.overguard,
+    overguardDps,
     shotsToKill,
     timeToKill,
     factionMultiplier,
     dot,
-    // Against this target: the same rate the time-to-kill uses, so the two never contradict
-    // each other. `build.sustainedDps` alone is the weapon's own rate and ignores armour.
-    totalDps: healthDps,
+    totalDps,
     bestType,
     warnings,
   };

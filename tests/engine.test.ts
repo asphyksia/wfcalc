@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { falloffFactor, resolveBuild, type Build } from '../src/engine/build.ts';
-import { armorDamageReduction, scaleEnemy } from '../src/engine/enemy.ts';
+import { armorDamageReduction, overguardForLevel, scaleEnemy } from '../src/engine/enemy.ts';
 import { hitEnemy } from '../src/engine/damage.ts';
 import { parseModEffects } from '../src/mods/parse.ts';
 import { buffEffects, buffById, abilityStrengthFromMods } from '../src/engine/buffs.ts';
@@ -99,6 +99,7 @@ function snapshot(
       puncture: { 'Alloy Armor': 15 },
       slash: { 'Cloned Flesh': 25 },
       heat: { 'Cloned Flesh': 25 },
+      void: { Overguard: 50 },
     },
     healthTypes: { 'Alloy Armor': 'armor', 'Cloned Flesh': 'health' },
     incarnons: {},
@@ -853,4 +854,20 @@ test('Condition Overload scales with the status types on the target', () => {
   }).damage.projectileTotal;
   close(at(1), 100 * 1.8);
   close(at(3), 100 * 3.4);
+});
+
+
+test('Eximus Overguard is a separate layer, neutral except Void', () => {
+  // wiki (Enemy Level Scaling): base 12, q = level - 1, two curves blended between 45 and 50.
+  close(overguardForLevel(150), 281865, 1e-9);
+  const snap = snapshot([weapon({ void: 100, heat: 100, critChance: 0, statusChance: 0, fireRate: 1, magazineSize: 1, reloadTime: 0 })], []);
+  const target = scaleEnemy(snap, dummy, 1, { overguard: 1000 });
+  const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: [] });
+  const hit = hitEnemy(snap, resolved, target);
+  // 100 Void x 1.5 + 100 Heat x 1.0 = 250 direct damage to Overguard; no armour, no crit.
+  close(hit.overguard, 1000);
+  close(hit.overguardDps, 250);
+  // 1000 / 250 = 4 s of Overguard, then 1e6 health at 200/s.
+  close(hit.timeToKill!, 4 + 1_000_000 / 200);
+  assert.ok(hit.warnings.some((line) => /Overguard/.test(line)));
 });

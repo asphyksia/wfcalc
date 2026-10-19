@@ -49,6 +49,10 @@ export interface SearchRequest {
   chooseIncarnon?: boolean;
   /** Try every weapon arcane whose slot fits and keep the best result. */
   chooseArcane?: boolean;
+  /** Target is an Eximus: add its level-scaled Overguard. */
+  eximus?: boolean;
+  /** Explicit Overguard amount (used as-is) instead of the Eximus formula. */
+  overguard?: number;
   /** Everything else that affects the result: buffs, frame, arcanes, riven, debuffs. */
   base?: Partial<Build>;
   /** How many builds to return. */
@@ -94,6 +98,8 @@ export interface SearchResult {
   capacity: number;
   evaluated: number;
   elapsedMs: number;
+  /** Target Overguard, 0 unless the request asked for an Eximus/custom amount. */
+  overguard: number;
   builds: SearchBuild[];
   assumptions: string[];
   notes: string[];
@@ -232,7 +238,7 @@ function searchOnce(snapshot: Snapshot, request: SearchRequest): SearchResult {
   const enemyName = request.enemy ?? 'Bombard';
   const enemy = snapshot.enemies[enemyName];
   if (!enemy) throw new Error(`enemy not found: ${enemyName}`);
-  const scaled = scaleEnemy(snapshot, enemy, level);
+  const scaled = scaleEnemy(snapshot, enemy, level, { eximus: request.eximus, overguard: request.overguard });
 
   let evaluated = 0;
   const scoreCache = new Map<string, { score: number; resolved: ReturnType<typeof resolveBuild>; hit: ReturnType<typeof hitEnemy> }>();
@@ -505,6 +511,7 @@ function searchOnce(snapshot: Snapshot, request: SearchRequest): SearchResult {
   if (base.arcanes?.length) {
     assumptions.push(`Arcane: ${base.arcanes.map((entry) => (typeof entry === 'string' ? entry : `${entry.name}${entry.rank !== undefined ? ` R${entry.rank}` : ''}`)).join(', ')}`);
   }
+  if (scaled.overguard > 0) assumptions.push(`Target Overguard: ${Math.round(scaled.overguard)}`);
   if (base.buffs?.length) assumptions.push(`Buffs: ${base.buffs.join(', ')}`);
   if (base.frame) assumptions.push(`Warframe: ${base.frame}`);
   // Ability Strength decides how much a Roar or Eclipse is worth, so it is stated, not implied.
@@ -540,6 +547,7 @@ function searchOnce(snapshot: Snapshot, request: SearchRequest): SearchResult {
     capacity,
     evaluated,
     elapsedMs: Math.round(performance.now() - started),
+    overguard: scaled.overguard,
     builds: builds.slice(0, limit),
     assumptions,
     notes,

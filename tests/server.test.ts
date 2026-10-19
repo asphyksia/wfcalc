@@ -76,6 +76,10 @@ test('POST /api/calc resolves the armour-strip fields the same way the CLI does'
     assert.match(String(invalid.error), /0 to 4/);
 
     // A build the player sent must come back with its fit and its arcane, not just damage.
+    const eximus = await calc({ eximus: true });
+    assert.equal(eximus.target.overguard, 281865);
+    assert.ok(eximus.target.timeToKill > plain.target.timeToKill);
+
     const fitted = await calc({ mods: [{ name: 'Serration' }], arcanes: [{ name: 'Primary Merciless' }] });
     assert.equal(fitted.capacity, 60);
     assert.ok(fitted.capacityUsed > 0);

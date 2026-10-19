@@ -24,6 +24,7 @@ const GOLDEN = {
   somaStrippedTtk: 'ttk 160.76s',
   avalancheCast: '3,000 at 200%',
   ceramicIncarnonHit: 1190,
+  eximusOverguard: '281,865',
 };
 
 interface Run {
@@ -148,6 +149,18 @@ const cases: Case[] = [
       const payload = JSON.parse(result.stderr) as { error: { code: string } };
       check(payload.error.code === 'weapon_not_found', `unexpected code ${payload.error.code}`);
       check(!/file:|\bat .*\.ts/.test(result.stderr), 'no stack trace for an expected failure');
+    },
+  },
+  {
+    name: 'Eximus Overguard',
+    question: 'Does the answer include an Eximus overguard layer?',
+    run: () => {
+      const result = run(['calc', 'Soma Prime', '--mod', 'Serration', '--eximus', '--enemy', 'Bombard', '--level', '150', '--brief']);
+      check(result.status === 0, `exit ${result.status}: ${result.stderr}`);
+      contains(result.stdout, `overguard ${GOLDEN.eximusOverguard}`);
+      const bare = run(['calc', 'Soma Prime', '--mod', 'Serration', '--enemy', 'Bombard', '--level', '150', '--brief']);
+      const ttk = (line: string) => Number(/ttk ([\d,.]+)s/.exec(line)![1].replace(/,/g, ''));
+      check(ttk(result.stdout) > ttk(bare.stdout), `Overguard must cost time: ${result.stdout} vs ${bare.stdout}`);
     },
   },
   {

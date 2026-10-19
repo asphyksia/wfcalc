@@ -74,6 +74,10 @@ function buildDamageTypes(): { modifiers: Record<string, Record<string, number>>
       (modifiers[key] ??= {})[name] = -pct;
     }
   }
+  // The Overguard entry keeps its only vulnerability on the damage type ("Void: Positives =
+  // Overguard"), not in its own Positives list, so the health matrix above misses it. The wiki
+  // (Overguard) states a 50% Void vulnerability and neutrality to everything else.
+  if (healthTypes['Overguard']) (modifiers.void ??= {})['Overguard'] = 50;
   // Modifiers not mentioned are 0; keep the table sparse and default to 0 at runtime.
   return { modifiers, healthTypes };
 }

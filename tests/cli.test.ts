@@ -189,3 +189,24 @@ test('--arcane auto picks an arcane only when its condition is active', () => {
   ]) as { builds: Array<{ arcanes: Array<{ name: string }> }> };
   assert.deepEqual(without.builds[0].arcanes, []);
 });
+
+test('--eximus adds level-scaled Overguard to the target', () => {
+  const plain = run(['calc', 'Soma Prime', '--mod', 'Serration', '--enemy', 'Bombard', '--level', '150', '--json']) as { timeToKill: number | null; overguard: number };
+  const eximus = run(['calc', 'Soma Prime', '--mod', 'Serration', '--eximus', '--enemy', 'Bombard', '--level', '150', '--json']) as {
+    timeToKill: number | null; overguard: number; overguardDps: number;
+  };
+  assert.equal(plain.overguard, 0);
+  assert.equal(eximus.overguard, 281865);
+  assert.ok(eximus.overguardDps > 0);
+  assert.ok((eximus.timeToKill ?? 0) > (plain.timeToKill ?? 0));
+});
+
+test('an ability cast has to break Overguard before health', () => {
+  const result = run(['ability', 'Avalanche', '--strength', '200', '--enemy', 'Bombard', '--level', '150', '--eximus', '--json']) as {
+    target: { overguard: number; overguardPerCast: number; castsToKill: number | null };
+  };
+  assert.equal(result.target.overguard, 281865);
+  assert.equal(result.target.overguardPerCast, 3000); // Cold is neutral to Overguard
+  // ceil(281865/3000) + ceil(118480/perCast) is 94 + 180.
+  assert.equal(result.target.castsToKill, 274);
+});

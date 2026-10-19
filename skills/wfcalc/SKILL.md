@@ -63,6 +63,7 @@ wfcalc calc "Soma Prime" --mod Serration --cp 2 --armor-strip 30 --enemy Bombard
 # abilities: damage and strip
 wfcalc abilities                                        # names, damage, strip
 wfcalc ability Miasma --strength 200 --enemy Bombard --level 150 --brief
+wfcalc calc "Soma Prime" --mod Serration --eximus --enemy Bombard --level 150 --brief
 wfcalc ability Avalanche --strength 200 --brief          # 100% armour strip
 
 # pieces
@@ -76,8 +77,8 @@ wfcalc batch builds.jsonl --brief=answer
 
 Useful flags: `--objective ttk|dps`, `--capacity 30|60`, `--forma N`, `--must "A,B"`,
 `--exclude "A,B"`, `--arcane auto`, `--viral N`, `--corrosive N`, `--headshot`,
-`--stacks onKill=5`, `--frame Rhino --frame-mods Intensify --buff roar`,
-`--riven damage,multishot,-zoom`. `--mod "A,B"` and repeated `--mod` are equivalent.
+`--eximus` / `--overguard N`, `--stacks onKill=5`,
+`--frame Rhino --frame-mods Intensify --buff roar`, `--riven damage,multishot,-zoom`. `--mod "A,B"` and repeated `--mod` are equivalent.
 Every command accepts `--json` (compact JSON) and `--brief` where it makes sense.
 
 `calc` now reports the **capacity/Forma** of the exact mod list and the **arcane** it assumed;
@@ -115,9 +116,10 @@ part of the build: do not omit it from the answer.
   additive (Terrify 60% + one Corrosive Projection leaves 22% of the armour).
 - Do not quote a single hit for a ticking ability: use its total per cast (Miasma 900,
   Inferno ~26k at 200%). Shields are left out of `castsToKill`, so it is a floor against Corpus.
-- Do not claim endgame certainty. Not modelled: **Overguard**, damage attenuation (Liches,
-  Sisters, Archons, Eidolons), ability status application, multi-target/AoE, stance modifiers,
-  companions/Archwing/Necramech. Melee and secondary builds have no external calibration yet.
+- Do not claim endgame certainty. Not modelled: damage attenuation (Liches, Sisters, Archons,
+  Eidolons), status DoT/Magnetic amplification on **Overguard**, ability status application,
+  multi-target/AoE, stance modifiers, companions/Archwing/Necramech. Melee and secondary builds
+  have no external calibration yet. Eximus Overguard itself is modelled with `--eximus`.
 - Do not present a search result as a measurement; it is the best build under the model.
 - Do not forget the arcane: `calc`/`search` echo it now, and it can be a 3x multiplier.
 

@@ -387,8 +387,9 @@ Usable now for comparing ranged weapon builds, mods, rivens, Incarnon and abilit
 concrete enemy. Calibration against 50 sampled Overframe builds matches on all seven arsenal
 stats. It does **not** model:
 
-- **Overguard**: no enemy in the snapshot has an overguard pool, so Steel Path survivability
-  claims are incomplete.
+- **Overguard** is modelled for Eximus (`--eximus`) and for a known amount (`--overguard N`):
+  base 12, wiki level scaling, Void +50%, no armour. Only direct damage is credited while it is
+  up (status DoT and Magnetic's status amplification are not modelled).
 - **Damage attenuation** (Liches, Sisters, Archons, Eidolons): damage per hit is capped in the
   game and not here.
 - Shields in an ability's `castsToKill`, multi-target/AoE for abilities, and the second hit of

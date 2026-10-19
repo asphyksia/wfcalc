@@ -71,6 +71,8 @@ Flags:
 | `--incarnon auto` | Also choose the Incarnon evolutions |
 | `--frame Rhino --frame-mods Intensify --buff roar` | Warframe buffs applied to the weapon |
 | `--viral 10 --corrosive 0 --headshot` | Target debuffs and headshots |
+| `--eximus` | Target is an Eximus: add its level-scaled Overguard (base 12) |
+| `--overguard N` | Explicit Overguard amount instead of the Eximus formula |
 | `--armor-strip 60` | Percent of the target's armour already removed |
 | `--strip-from "Avalanche" --strength 200` | Take the strip from an ability you will cast |
 | `--cp 2` | Corrosive Projection auras in the squad, 18% each |
@@ -170,7 +172,10 @@ State these when they matter instead of guessing:
   model of sustained fire including reloads, not a stopwatch.
 - **Ability damage counts its own ticks but not the statuses it applies** (Inferno's guaranteed
   Heat, Miasma's Viral), and shields are left out of `castsToKill`. Treat it as a floor.
-- **No Overguard** in the snapshot: Steel Path survivability claims are incomplete.
+- **Overguard** is modelled for Eximus (`--eximus`) and custom amounts (`--overguard N`):
+  a separate layer before shields/health, neutral except Void (+50%), no armour. Only direct
+  damage is credited while it is up; status DoT and Magnetic's status amplification are not
+  modelled. Ability `castsToKill` includes the casts needed to break it.
 - **No damage attenuation** (Liches, Sisters, Archons, Eidolons): the model will say a sniper
   melts them when the game caps damage per hit.
 - **Armour strip covers five abilities** (Avalanche, Terrify, Seeking Shuriken and Psychic Bolts

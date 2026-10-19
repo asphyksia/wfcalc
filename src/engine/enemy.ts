@@ -70,12 +70,42 @@ export interface ScaledEnemy {
   health: number;
   shield: number;
   armor: number;
+  /** Overguard at this level: 0 unless the caller asked for an Eximus or a custom amount. */
+  overguard: number;
   /** Armor after damage-type and status effects, per incoming damage type. */
   pools: ScaledPool[];
 }
 
+export interface ScaleOptions {
+  /** An Eximus unit: base Overguard 12, scaled by level. */
+  eximus?: boolean;
+  /** Explicit Overguard amount, used as-is (bosses, Deep Archimedea, a known value). */
+  overguard?: number;
+}
+
+/**
+ * Eximus Overguard at a level.
+ *
+ * wiki: Overguard is independent of the enemy's health/shield scaling and the same for every
+ * Eximus type. Its base is 12 and it scales with q = level - 1 on two curves, blended with
+ * smoothstep between 45 and 50 (not the 70/80 used by health). At level 150 that is ~282k.
+ */
+export function overguardForLevel(level: number, base = 12): number {
+  const q = f32(Math.max(0, level - 1));
+  const f1 = f32(1 + f32(0.0015 * f32(Math.pow(q, 4))));
+  const f2 = f32(1 + f32(260 * f32(Math.pow(q, 0.9))));
+  const t = f32(Math.min(1, Math.max(0, f32(f32(q - 45) / f32(50 - 45)))));
+  const s = f32(f32(t * t) * f32(3 - f32(2 * t)));
+  return base * f32(f1 + f32(f32(f2 - f1) * s));
+}
+
 /** Scales an enemy's pools to the requested level. */
-export function scaleEnemy(snapshot: Snapshot, enemy: EnemyData, level: number): ScaledEnemy {
+export function scaleEnemy(
+  snapshot: Snapshot,
+  enemy: EnemyData,
+  level: number,
+  options: ScaleOptions = {},
+): ScaledEnemy {
   const faction = (enemy.faction ?? 'neutral').toLowerCase();
   const q = Math.max(0, level - enemy.baseLevel);
 
@@ -88,12 +118,18 @@ export function scaleEnemy(snapshot: Snapshot, enemy: EnemyData, level: number):
   const armorFromLevel = enemy.armor * curveMultiplier(ARMOR_CURVE, q);
   const armor = armorFromLevel > 0 ? Math.min(2700, Math.max(200, armorFromLevel)) : 0;
 
+  const overguard = options.overguard !== undefined
+    ? Math.max(0, options.overguard)
+    : options.eximus
+      ? overguardForLevel(level)
+      : 0;
+
   const pools: ScaledPool[] = enemy.pools.map((pool) => ({
     ...pool,
     current: pool.amount * (pool.category === 'shield' ? shield / Math.max(1, enemy.shield) : health / Math.max(1, enemy.health)),
   }));
 
-  return { enemy, level, health, shield, armor, pools };
+  return { enemy, level, health, shield, armor, overguard, pools };
   void snapshot;
 }
 

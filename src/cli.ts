@@ -210,6 +210,17 @@ function resolveEnemy(snapshot: Snapshot, args: Args) {
   return { enemy: item, level };
 }
 
+/** `--eximus` / `--overguard N`: the target's extra layer. */
+function targetScale(args: Args): { eximus?: boolean; overguard?: number } {
+  const raw = flag(args, 'overguard');
+  if (raw === undefined) return args.flags.has('eximus') ? { eximus: true } : {};
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new CliError('--overguard expects a non-negative number', 'invalid_argument');
+  }
+  return { overguard: value };
+}
+
 /** The one-line calculation summary, shared by `calc`/`compare` and `batch`. */
 function calcBriefLine(
   label: string,
@@ -223,7 +234,9 @@ function calcBriefLine(
 ): string {
   const head = `${label ? `${label}: ` : ''}${resolved.weapon.name} vs ${enemyName} ${level}`;
   const ttk = hit.timeToKill === null ? 'cannot kill' : `ttk ${num(hit.timeToKill, 2)}s (${num(hit.shotsToKill, 1)} shots)`;
-  if (mode === 'answer') return `${head} · ${num(hit.totalDps)} dps · ${ttk}`;
+  if (mode === 'answer') {
+    return `${head} · ${num(hit.totalDps)} dps · ${ttk}${hit.overguard > 0 ? ` · overguard ${num(hit.overguard)}` : ''}`;
+  }
   const parts = [
     head,
     `burst ${num(resolved.burstDps)}`,
@@ -231,6 +244,7 @@ function calcBriefLine(
     `total ${num(hit.totalDps)} dps with status`,
     ttk,
     `armour ${num(hit.armor)}`,
+    ...(hit.overguard > 0 ? [`overguard ${num(hit.overguard)}`] : []),
     ...(fit && fit.mods.length ? [`${fit.capacityUsed}/${fit.capacity} cap${fit.fits ? '' : ' OVER'}`, `${fit.formaNeeded}F`] : []),
     ...(arcanes?.length ? [`arcane ${arcanes.map((arcane) => arcane.name).join(' + ')}`] : []),
   ];
@@ -247,6 +261,7 @@ function abilityBriefLine(result: ReturnType<typeof abilityCast>, mode: 'full' |
     : '';
   const target = result.target
     ? `vs ${result.target.enemy} ${result.target.level}: ${num(result.target.perCast)}/cast · ${result.target.castsToKill === null ? 'cannot kill' : `${num(result.target.castsToKill)} casts`}`
+      + (result.target.overguard > 0 ? ` · overguard ${num(result.target.overguard)}` : '')
     : '';
   return [
     `${result.frame} ${result.ability}${result.damageType ? ` (${result.damageType})` : ''}`,
@@ -263,7 +278,7 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
   build.mods = mods;
   const resolved = resolveBuild(snapshot, build);
   const { enemy, level } = resolveEnemy(snapshot, args);
-  const scaled = scaleEnemy(snapshot, enemy, level);
+  const scaled = scaleEnemy(snapshot, enemy, level, targetScale(args));
   const hit = hitEnemy(snapshot, resolved, scaled, {
     armorModel: (flag(args, 'armor-model') as never) ?? undefined,
   });
@@ -307,6 +322,8 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
           // Armour actually applied, after every strip: the enemy's own value would make a
           // stripped target look untouched.
           armor: hit.armor,
+          overguard: hit.overguard,
+          overguardDps: hit.overguardDps,
           dot: hit.dot,
           totalDps: hit.totalDps,
           arcanes: (build.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
@@ -352,6 +369,7 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
   }
   console.log(
     `  target       hp ${num(scaled.health)}  shields ${num(scaled.shield)}  armor ${num(hit.armor)}` +
+      (hit.overguard > 0 ? `  overguard ${num(hit.overguard)}` : '') +
       (hit.armor !== scaled.armor ? ` (base ${num(scaled.armor)})` : '') +
       `   -> ${num(hit.shotsToKill)} shots${hit.timeToKill !== null ? `, ${num(hit.timeToKill, 2)}s` : ''}`,
   );
@@ -618,6 +636,7 @@ function main(): void {
         budget: flag(args, 'budget') ? Number(flag(args, 'budget')) : undefined,
         chooseIncarnon: commaList('incarnon').includes('auto'),
         chooseArcane: commaList('arcane').some((name) => name.toLowerCase() === 'auto'),
+        ...targetScale(args),
         base: commaList('incarnon').includes('auto') ? { ...base, incarnon: undefined } : base,
       });
       if (wantsJson(args)) {
@@ -627,12 +646,13 @@ function main(): void {
       const brief = briefMode(args);
       if (brief !== 'off') {
         if (brief === 'full') {
-          console.log(`${result.weapon} vs ${result.enemy} ${result.level} · ${result.builds.length} of ${result.evaluated} builds`);
+          console.log(`${result.weapon} vs ${result.enemy} ${result.level}${result.overguard > 0 ? ` (overguard ${num(result.overguard)})` : ''} · ${result.builds.length} of ${result.evaluated} builds`);
         }
         result.builds.forEach((build, index) => {
           const ttk = build.timeToKill === null ? 'cannot kill' : `${num(build.timeToKill, 2)}s`;
           const facts = [
             `${num(build.totalDps)} dps`,
+            ...(result.overguard > 0 ? [`overguard ${num(result.overguard)}`] : []),
             ...(build.arcanes.length ? [`arcane ${build.arcanes.map((arcane) => arcane.name).join(' + ')}`] : []),
             ...(build.incarnonNames.length ? [`incarnon ${build.incarnonNames.join(' + ')}`] : []),
             ...(build.partialMods.length ? ['lower bound'] : []),
@@ -684,6 +704,7 @@ function main(): void {
           enemy: flag(args, 'enemy'),
           level: flag(args, 'level') ? Number(flag(args, 'level')) : 30,
           armorModel: flag(args, 'armor-model') as never,
+          ...targetScale(args),
         });
       } catch (error) {
         const message = (error as Error).message;
@@ -711,7 +732,10 @@ function main(): void {
       if (result.target) {
         console.log(`  vs ${result.target.enemy} level ${result.target.level}: ${num(result.target.perCast, 0)} per cast`);
         console.log(`  health modifier x${result.target.healthMultiplier.toFixed(2)}, armour removes ${(result.target.armorReduction * 100).toFixed(1)}%`);
-        if (result.target.castsToKill !== null) console.log(`  casts to remove its health: ${result.target.castsToKill}`);
+        if (result.target.overguard > 0) {
+          console.log(`  overguard    ${num(result.target.overguard)} (${num(result.target.overguardPerCast)}/cast)`);
+        }
+        if (result.target.castsToKill !== null) console.log(`  casts to kill: ${result.target.castsToKill}`);
       }
       for (const note of result.notes) console.log(`· ${note}`);
       break;
@@ -784,6 +808,8 @@ function main(): void {
                 enemy: record.enemy,
                 level: record.level,
                 armorModel: record.armorModel as never,
+                eximus: Boolean(record.eximus),
+                overguard: record.overguard !== undefined ? Number(record.overguard) : undefined,
               });
             } catch (error) {
               const message = (error as Error).message;
@@ -808,7 +834,10 @@ function main(): void {
           const { item: enemy, suggestions } = findEnemy(snapshot, enemyName);
           if (!enemy) throw new CliError(`enemy not found: ${enemyName}`, 'enemy_not_found', suggestions);
           const level = record.level === undefined ? 100 : Number(record.level);
-          const hit = hitEnemy(snapshot, resolved, scaleEnemy(snapshot, enemy, level), {
+          const hit = hitEnemy(snapshot, resolved, scaleEnemy(snapshot, enemy, level, {
+            eximus: Boolean(record.eximus),
+            overguard: record.overguard !== undefined ? Number(record.overguard) : undefined,
+          }), {
             armorModel: record.armorModel as never,
           });
           const fit = capacityOf(snapshot, resolved.weapon, build.mods, record.capacity === undefined ? 60 : Number(record.capacity));
@@ -822,7 +851,8 @@ function main(): void {
               totalDps: round(hit.totalDps, 1), timeToKill: round(hit.timeToKill, 2),
               shotsToKill: round(hit.shotsToKill, 1),
               arcanes: (build.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
-              armor: round(hit.armor, 1), capacityUsed: fit.capacityUsed, capacity: fit.capacity,
+              armor: round(hit.armor, 1), overguard: round(hit.overguard, 1),
+              capacityUsed: fit.capacityUsed, capacity: fit.capacity,
               formaNeeded: fit.formaNeeded, fits: fit.fits,
               warnings: resolved.warnings, unsupportedMods: resolved.unsupportedMods,
             }));
@@ -874,6 +904,8 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>] (search: auto)  --buff ro
          --aoe-distance 4            (AoE falloff distance in metres)
          --capacity 30|60            (Orokin Catalyst: 60, default)
          --enemy NAME  --level N  --faction NAME  --mode "Name"
+         --eximus                     target is an Eximus (adds level-scaled Overguard)
+         --overguard N                explicit Overguard amount
          --stacks onKill=5  --status-types N  --headshot
          --brief one line per result        --brief=answer answer only
          --json machine-readable output      --debug stack trace on failure

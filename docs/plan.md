@@ -10,7 +10,7 @@ Last updated: 2026-10-19.
 
 | | |
 |---|---|
-| Tests | **111 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 10/10 |
+| Tests | **114 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 11/11 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration vs Overframe | **50/50** (`node tools/calibrate.ts`), ranged builds only |
 | Types | `npm run check` clean |
@@ -95,6 +95,7 @@ Rules that have prevented repeated mistakes:
 | A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, `--brief=answer` for repeated calls, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
 | A6 | **`wfcalc batch`**: JSONL of calc/ability records priced in one process, one line per record, `--json` as compact rounded JSONL. Bad records do not abort the batch; exit 1. The JSON->Build mapping moved to `src/request.ts`, shared with the server. | `tests/cli.test.ts`; `tools/agent-eval.ts` case "batch" |
 | A7 | **Agent eval**: `npm run eval` pins ten real questions (best build, strip, melee Incarnon, CO, ability, errors, partial mods, batch) and fails if an answer or the brief size regresses. Runs in CI. | `tools/agent-eval.ts`, 10/10 |
+| A10 | **Overguard (B1)**: Eximus targets get the wiki's level-scaled Overguard (base 12, q = level - 1, curves blended 45-50) or an explicit `--overguard N`; it is a separate layer before shields/health, neutral to all types except Void (+50%), no armour, for weapons **and** ability casts. | Bombard 150 Eximus: 281,865 Overguard; Soma Prime + Serration 776s → 1,229s; Avalanche at 200% needs 94 casts to break it plus 180 for health = 274; tests pin the formula, the Void multiplier, the TTK and the ability casts |
 | A9 | **Search efficacy (F1/F2/F5/F6)**: `search --arcane auto` tries every arcane whose slot fits and keeps the best (an explicit arcane still wins; a conditional arcane only wins if its condition is active); `calc` reports `capacityUsed/capacity`, `formaNeeded`, `fits` and the equipped arcane in text, brief and JSON; `--mod "A,B"` is the same as repeated `--mod`; Psychic Bolts is now a strip ability (80% at 100% strength, capped at 125%). | Haalvu auto: no arcane without stacks, Primary Merciless with `onKill=12`; calc Haalvu + Serration/Chamber = 15/60, 0F; Psychic Bolts at 125% = 100% strip; tests pin all four |
 | A8 | **The text report showed the wrong armour**: with `--armor-strip 100` it printed the enemy's own pool (2,700) while the damage used 0. Found while pricing a Haalvu build for Nyx. Now prints `armor 0 (base 2,700)`. | Test pins the stripped line; brief/JSON were already correct |
 
@@ -112,7 +113,6 @@ Known loose ends from A1:
 
 | # | Gap | Why it matters |
 |---|---|---|
-| B1 | **Overguard** | No enemy in the snapshot has an overguard pool. It is half of what kills in Steel Path |
 | B2 | **Damage attenuation** | Liches, Sisters, Archons, Eidolons. Today the engine says a Rubico melts them |
 
 ### C. Pending modelling, by value
@@ -131,8 +131,10 @@ Known loose ends from A1:
 | D2 | **Calibration is not pinned**: the 50 builds are sampled from Overframe on every run, so the bar moves by itself | `tools/calibrate.ts` |
 | D3 | **No melee or secondary calibration**: the golden readings are all Soma Prime | `tests/ingame.test.ts` |
 
-Suggested order: **B1/B2 → C1 → D2/D1**, then F3/F4/F7. The cheap search wins (F1/F2/F5/F6)
-are done.
+Suggested order: **B2 → C1 → D2/D1**, then F3/F4/F7. B1 (Overguard), the cheap search wins
+(F1/F2/F5/F6) and the agent contract are done. Overguard's remaining gaps are deliberate:
+status DoT and Magnetic's amplification are not credited to it, and shields are still ignored
+in ability `castsToKill` (C3).
 
 ### E. Out of scope, decided
 
@@ -167,7 +169,7 @@ small output change.
 ```
 src/engine/build.ts     resolves weapon + mods + buffs -> modified stats
 src/engine/damage.ts    damage by type, armour, TTK, DoT, totalDps against the target
-src/engine/enemy.ts     level scaling, armour reduction, armour model
+src/engine/enemy.ts     level scaling (health, shield, armour, Overguard), armour model
 src/engine/dot.ts       status ticks, effectiveArmor (the strip lives here)
 src/engine/buffs.ts     19 warframe buffs applied to the weapon
 src/engine/ability.ts   ability damage, own ticks, strip
@@ -200,7 +202,7 @@ Useful commands: `wfcalc abilities`, `wfcalc ability <name> --strength N --enemy
 ```sh
 cd wfcalc
 git log --oneline | head -5      # the top commit
-npm test                          # 111 tests
+npm test                          # 114 tests
 npm run eval                      # 10 pinned agent cases
 node tools/validate.ts            # 0 violations
 node tools/calibrate.ts           # 50/50

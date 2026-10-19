@@ -77,8 +77,10 @@ modifier, armour reduction and a minimum of 1 per damage type.
 }
 ```
 
-Parameters: `name` (required), `strength` (percent, default 100), `enemy`, `level` and
-`armorModel` (`armor-scaling` | `multiply` | `both`). An unknown name is a 404 with
+Parameters: `name` (required), `strength` (percent, default 100), `enemy`, `level`,
+`armorModel` (`armor-scaling` | `multiply` | `both`), `eximus` (`1`/`true`) and `overguard`
+(an explicit amount). `target.castsToKill` includes the casts needed to break Overguard;
+`target.overguard` and `target.overguardPerCast` are reported separately. An unknown name is a 404 with
 `{ "error": "..." }`.
 
 ## `POST /api/search`
@@ -99,6 +101,8 @@ Finds the best eight-slot build for a target. Same options as the CLI's `wfcalc 
   "budget": 12000,
   "chooseIncarnon": false,
   "chooseArcane": false,
+  "eximus": false,
+  "overguard": null,
   "base": { "arcanes": [{ "name": "Primary Merciless" }], "conditions": { "onKill": 12 } }
 }
 ```
@@ -109,6 +113,8 @@ Finds the best eight-slot build for a target. Same options as the CLI's `wfcalc 
 - `chooseIncarnon` lets the search pick evolution perks; it is off by default.
 - `chooseArcane` (or `"arcane": "auto"`) tries every arcane whose slot fits and keeps the best
   build. An explicit arcane in `base.arcanes` wins over `auto`.
+- `eximus` adds the wiki's level-scaled Overguard to the target; `overguard` sets an explicit
+  amount instead. The search scores the time to remove it plus shields and health.
 - `base` fixes everything the search does not choose (arcanes, buffs, frame, riven, debuffs,
   the armour strip, conditions, mode, combo). The top level is accepted as well, so the
   `/api/calc` body shape works when `base` is omitted.
@@ -118,7 +124,7 @@ Response (abridged):
 ```json
 {
   "weapon": "Soma Prime", "objective": "dps", "enemy": "Bombard", "level": 150,
-  "capacity": 60, "evaluated": 787, "elapsedMs": 56,
+  "capacity": 60, "evaluated": 787, "elapsedMs": 56, "overguard": 0,
   "builds": [{
     "mods": [{ "name": "Split Chamber", "rank": 5, "drain": 5, "polarity": "madurai" }],
     "capacityUsed": 60, "capacity": 60, "formaNeeded": 2,
@@ -154,6 +160,8 @@ Response (abridged):
   "shatteringImpactHits": 20,
   "elementBonus": { "type": "heat", "value": 0.6 },
   "heavyAttack": false,
+  "eximus": false,
+  "overguard": null,
   "mods": [{ "name": "Serration" }, { "name": "Vital Sense", "rank": 3 }],
   "enemy": "Bombard",
   "level": 150,
@@ -173,6 +181,7 @@ Response (abridged):
   `"form"` uses the transformed profile with no perks.
 - `elementBonus` is the Kuva/Tenet bonus (`value` as a fraction or a percentage).
 - `conditions.covenantDamage` feeds Harrow's Covenant (damage prevented).
+- `eximus` adds the level-scaled Eximus Overguard; `overguard` sets an explicit amount instead.
 - `aoeDistance` (metres) applies the weapon's own AoE falloff; omitted means blast centre.
 - `comboHits` drives the melee combo multiplier; `heavyAttack` applies it to damage.
 - `frame` is optional: it validates Helminth availability of the requested buffs.
@@ -201,6 +210,8 @@ Response (abridged):
   "capacityUsed": 59, "capacity": 60, "formaNeeded": 3, "fits": true,
   "arcanes": [{ "name": "Primary Merciless", "rank": 5 }],
   "elements": [{ "type": "blast", "share": 0.935 }],
+  "overguard": 0, "overguardDps": 0, "capacityUsed": 59, "capacity": 60,
+  "formaNeeded": 3, "fits": true, "arcanes": [],
   "target": {
     "name": "Bombard", "level": 150, "health": 118480.2, "armor": 2700,
     "breakdown": [{ "type": "blast", "raw": 7117.37, "healthMultiplier": 0.1,

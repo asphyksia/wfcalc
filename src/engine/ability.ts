@@ -19,6 +19,10 @@ export interface AbilityCastOptions {
   enemy?: string;
   level?: number;
   armorModel?: ArmorModel;
+  /** Target is an Eximus: add its level-scaled Overguard. */
+  eximus?: boolean;
+  /** Explicit Overguard amount instead of the Eximus formula. */
+  overguard?: number;
 }
 
 export interface AbilityCast {
@@ -53,9 +57,12 @@ export interface AbilityCast {
     healthMultiplier: number;
     /** Fraction of damage removed by armour. */
     armorReduction: number;
-    /** Damage a single cast deals to this target. */
+    /** Damage a single cast deals to this target's health. */
     perCast: number;
-    /** Casts needed to remove its health, ignoring shields. */
+    /** Overguard the target has, and the direct damage of one cast against it. */
+    overguard: number;
+    overguardPerCast: number;
+    /** Casts needed to break Overguard and then remove health; shields are ignored. */
     castsToKill: number | null;
   } | null;
   notes: string[];
@@ -119,7 +126,10 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     const enemy = snapshot.enemies[options.enemy];
     if (!enemy) throw new Error(`enemy not found: ${options.enemy}`);
     const level = options.level ?? 30;
-    const scaled: ScaledEnemy = scaleEnemy(snapshot, enemy, level);
+    const scaled: ScaledEnemy = scaleEnemy(snapshot, enemy, level, {
+      eximus: options.eximus,
+      overguard: options.overguard,
+    });
     const armorModel = options.armorModel ?? 'armor-scaling';
     // A pool's `amount` is its level-1 value: the scaled totals live on the enemy itself.
     const armor = scaled.pools.find((pool) => pool.category === 'armor');
@@ -152,6 +162,20 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
     const perCast = main.dealt + (extra?.dealt ?? 0);
     const healthMod = main.healthMod;
     const dr = main.dr;
+    // Overguard is neutral except Void (+50%), ignores armour, and is a separate layer first.
+    const againstOverguard = (type: DamageType, amount: number): number =>
+      amount * (1 + healthModifier(snapshot, type, 'Overguard'));
+    const overguardPerCast = againstOverguard(entry.damageType, mainTotal)
+      + (ticks?.damageType ? againstOverguard(ticks.damageType as DamageType, ticks.perSecond * ticks.seconds) : 0);
+    const overguardCasts = scaled.overguard > 0 && overguardPerCast > 0
+      ? Math.ceil(scaled.overguard / overguardPerCast)
+      : 0;
+    const healthCasts = perCast > 0 && healthPool > 0 ? Math.ceil(healthPool / perCast) : 0;
+    const castsToKill = scaled.overguard > 0 && overguardPerCast <= 0
+      ? null
+      : overguardCasts + healthCasts > 0
+        ? overguardCasts + healthCasts
+        : null;
 
     target = {
       enemy: enemy.name,
@@ -159,12 +183,17 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       healthMultiplier: 1 + healthMod,
       armorReduction: dr,
       perCast,
-      castsToKill: perCast > 0 && healthPool > 0 ? Math.ceil(healthPool / perCast) : null,
+      overguard: scaled.overguard,
+      overguardPerCast,
+      castsToKill,
     };
     if (armor) {
       notes.push(`Target armour ${Math.round(armorAmount)} reduces this type by ${(dr * 100).toFixed(1)}%.`);
     }
     notes.push('Shields are ignored here: ability damage does not always bypass them, but the pool varies by ability.');
+    if (scaled.overguard > 0) {
+      notes.push(`Overguard ${Math.round(scaled.overguard)} is a separate layer: status DoT and Magnetic amplification are not modelled.`);
+    }
   }
 
   return {
