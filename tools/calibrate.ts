@@ -41,7 +41,6 @@ const flag = (name: string): string | undefined => {
 const verbose = args.includes('--verbose');
 const refresh = args.includes('--refresh');
 
-const db = loadOverframeDb();
 const exceptions = loadOracleExceptions();
 const snapshot = loadSnapshot();
 
@@ -150,6 +149,7 @@ const pinnedInput = (entry: PinnedBuild): ResolvedBuildInput => ({
  * Only builds whose mods and weapon resolve in the snapshot are kept.
  */
 async function refreshFixture(count: number): Promise<CalibrationFixture> {
+  const db = loadOverframeDb();
   // Overframe builds can carry mods or a weapon the snapshot does not know; collect extra so
   // the pinned battery still reaches `count` after filtering.
   const wanted = Math.max(count * 4, count + 50);
@@ -195,7 +195,7 @@ if (one) {
   const pinned = existingFixture?.builds.find((entry) => entry.id === Number(one));
   const build = pinned ?? await getBuild(one);
   const oracle = pinned?.oracle ?? oracleOf(build);
-  const input = pinned ? pinnedInput(pinned) : resolveBuildInput(build, db, snapshot);
+  const input = pinned ? pinnedInput(pinned) : resolveBuildInput(build, loadOverframeDb(), snapshot);
   if (!oracle || !input) {
     console.log('could not resolve this build (missing oracle, weapon or mods)');
     process.exit(1);
