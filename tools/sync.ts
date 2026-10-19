@@ -73,7 +73,7 @@ const WIKI_PAGES = [
 async function wfcdHead(): Promise<{ sha: string; date: string }> {
   const response = await fetch(
     'https://api.github.com/repos/WFCD/warframe-items/commits?path=data/json&per_page=1',
-    { headers: { 'user-agent': 'wfcalc-sync', accept: 'application/vnd.github+json' } },
+    { headers: { 'user-agent': 'wfcalc-sync', accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(20_000) },
   );
   if (!response.ok) throw new Error(`GitHub API ${response.status}`);
   const commits: any = await response.json();
@@ -119,7 +119,7 @@ async function changedWikiPages(): Promise<{
         if (category) {
           // A category is a query, not a page: no Last-Modified, no 304. Hash its sorted member
           // list instead, which costs a few KB and stays stable while the category does.
-          const response = await fetch(url, { headers });
+          const response = await fetch(url, { headers, signal: AbortSignal.timeout(20_000) });
           if (!response.ok) {
             changed.push(label);
             return;
@@ -134,7 +134,7 @@ async function changedWikiPages(): Promise<{
         }
         const known = state.lastModified?.[url];
         if (known && !force) headers['if-modified-since'] = known;
-        const response = await fetch(url, { headers });
+        const response = await fetch(url, { headers, signal: AbortSignal.timeout(20_000) });
         if (response.status === 304) return;
         if (!response.ok) {
           changed.push(label);

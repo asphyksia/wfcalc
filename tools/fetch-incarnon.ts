@@ -142,6 +142,7 @@ async function main(): Promise<void> {
       for (const page of pages) {
         const response = await fetch(`https://wiki.warframe.com/w/${page}?action=raw`, {
           headers: { 'user-agent': 'wfcalc/0.1 (offline damage calculator)' },
+          signal: AbortSignal.timeout(60_000),
         });
         if (!response.ok) continue;
         const text = await response.text();

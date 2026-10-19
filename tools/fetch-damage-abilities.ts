@@ -177,7 +177,10 @@ async function main(): Promise<void> {
       if (force) throw new Error('force');
     } catch {
       const url = `https://wiki.warframe.com/w/${encodeURIComponent(entry.page).replace(/%2F/g, '/')}?action=raw`;
-      const response = await fetch(url, { headers: { 'user-agent': 'wfcalc/0.1 (offline damage calculator)' } });
+      const response = await fetch(url, {
+        headers: { 'user-agent': 'wfcalc/0.1 (offline damage calculator)' },
+        signal: AbortSignal.timeout(60_000),
+      });
       if (!response.ok) {
         console.error(`FAIL  ${entry.ability}: ${response.status}`);
         failures++;

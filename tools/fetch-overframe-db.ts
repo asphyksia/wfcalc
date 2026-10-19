@@ -27,7 +27,10 @@ const OUT = join(RAW, 'overframe-db.json');
 const UA = 'Mozilla/5.0 (X11; Linux x86_64) wfcalc/0.1';
 
 async function get(url: string, allowNotFound = false): Promise<string> {
-  const response = await fetch(url, { headers: { 'user-agent': UA } });
+  const response = await fetch(url, {
+    headers: { 'user-agent': UA },
+    signal: AbortSignal.timeout(60_000),
+  });
   // `overframe.gg/static/manifest.json` deliberately 404s but serves the app shell, which is
   // where the current webpack runtime URL lives.
   if (!response.ok && !(allowNotFound && response.status === 404)) {

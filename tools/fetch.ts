@@ -38,6 +38,8 @@ async function fetchTo(url: string, out: string, validate?: (text: string) => vo
   }
   const res = await fetch(url, {
     headers: { 'user-agent': 'wfcalc/0.1 (personal offline damage calculator)' },
+    // A stalled upstream must fail and be retryable, not hang the whole update forever.
+    signal: AbortSignal.timeout(60_000),
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`);
   const text = await res.text();
@@ -66,7 +68,10 @@ async function fetchCategory(category: string, out: string): Promise<void> {
     url.searchParams.set('cmlimit', '500');
     url.searchParams.set('format', 'json');
     if (cont) url.searchParams.set('cmcontinue', cont);
-    const res = await fetch(url, { headers: { 'user-agent': 'wfcalc/0.1 (personal offline damage calculator)' } });
+    const res = await fetch(url, {
+      headers: { 'user-agent': 'wfcalc/0.1 (personal offline damage calculator)' },
+      signal: AbortSignal.timeout(60_000),
+    });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`);
     const body = (await res.json()) as { query?: { categorymembers?: Array<{ title: string }> }; continue?: { cmcontinue?: string } };
     for (const member of body.query?.categorymembers ?? []) titles.push(member.title);
