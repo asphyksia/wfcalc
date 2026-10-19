@@ -143,8 +143,16 @@ Known loose ends from A1:
 D1–D3 are done: 98% of weapon-relevant mods, a pinned offline battery and melee/secondary coverage.
 In-game captures beyond Soma Prime remain a nice-to-have, not a gap.
 
-Remaining: **B2c**, blocked by unpublished inputs (per-second smoothing equation, Lich/Sister
-values, boss phases)., with **B2c** documented as blocked by unpublished inputs. B1
+Remaining: **B2c**, deliberately not implemented because its inputs are not published:
+
+- the wiki gives the exponential decay constant (λ = 2/3) but not the equation that uses it, so
+  the per-second cap is applied as a hard rate and the warning says TTK is conservative;
+- `Adversary System` says Lich/Sister caps are proportional to max health but publishes no
+  ratios, so `--mdpt/--mdps` is the supported way to use a known value;
+- Eidolon joints/invulnerability phases and Lich ranks are fight mechanics, not arsenal data.
+
+Closing B2c would mean inventing numbers; the plan's method forbids that. Revisit only if a
+source appears., with **B2c** documented as blocked by unpublished inputs. B1
 (Overguard), B2's per-hit formula, C1's curated ability statuses and damage split, C2's Incarnon
 second hits, ability targets and Torid chain, C3's shield phase, D1–D3 (coverage, pinned
 calibration, melee/secondary), the search friction F1–F6 and the agent contract are done. Overguard's remaining gaps are deliberate: status DoT and Magnetic's
