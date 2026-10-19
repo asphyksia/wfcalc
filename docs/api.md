@@ -46,6 +46,74 @@ damage result is a lower bound.
 
 Weapon arcanes whose slot fits the weapon, with max rank and description.
 
+## `GET /api/ability?name=Miasma&strength=200&enemy=Bombard&level=150`
+
+One damage-dealing ability, resolved through the same target maths weapons use: health-type
+modifier, armour reduction and a minimum of 1 per damage type.
+
+```json
+{
+  "frame": "Saryn", "ability": "Miasma", "damageType": "viral",
+  "baseDamage": 150, "strength": 200, "scaledDamage": 300,
+  "perSecond": true, "durationSeconds": 6, "totalDamage": 1800,
+  "armorStrip": null,
+  "target": { "enemy": "Bombard", "level": 150, "healthMultiplier": 1.75,
+              "armorReduction": 0.9, "perCast": 315, "castsToKill": 377 },
+  "notes": ["Ability damage is flat: it does not crit, use multi..."]
+}
+```
+
+Parameters: `name` (required), `strength` (percent, default 100), `enemy`, `level` and
+`armorModel` (`armor-scaling` | `multiply` | `both`). An unknown name is a 404 with
+`{ "error": "..." }`.
+
+## `POST /api/search`
+
+Finds the best eight-slot build for a target. Same options as the CLI's `wfcalc search`.
+
+```json
+{
+  "weapon": "Soma Prime",
+  "objective": "dps",
+  "enemy": "Bombard",
+  "level": 150,
+  "capacity": 60,
+  "maxForma": 2,
+  "mustInclude": ["Serration"],
+  "exclude": ["Heavy Caliber"],
+  "limit": 3,
+  "budget": 12000,
+  "chooseIncarnon": false,
+  "base": { "arcanes": [{ "name": "Primary Merciless" }], "conditions": { "onKill": 12 } }
+}
+```
+
+- `objective`: `ttk` (default) minimises time to kill; `dps` maximises damage on the target.
+- `mustInclude` / `exclude` are mod names; a comma-separated string is also accepted.
+- `maxForma: null` means "as many as needed" (that is the default when omitted).
+- `chooseIncarnon` lets the search pick evolution perks; it is off by default.
+- `base` fixes everything the search does not choose (arcanes, buffs, frame, riven, debuffs,
+  conditions, mode, combo). The top level is accepted as well, so the `/api/calc` body shape
+  works when `base` is omitted.
+
+Response (abridged):
+
+```json
+{
+  "weapon": "Soma Prime", "objective": "dps", "enemy": "Bombard", "level": 150,
+  "capacity": 60, "evaluated": 787, "elapsedMs": 56,
+  "builds": [{
+    "mods": [{ "name": "Split Chamber", "rank": 5, "drain": 5, "polarity": "madurai" }],
+    "capacityUsed": 60, "capacity": 60, "formaNeeded": 2,
+    "burstDps": 20000, "sustainedDps": 15000, "totalDps": 17000,
+    "timeToKill": 6.9, "shotsToKill": 12,
+    "incarnon": ["EVO2:0"], "incarnonNames": ["EVO2 Final Fusillade"]
+  }],
+  "assumptions": ["Melee combo assumed at 12x (220 hits)"],
+  "notes": []
+}
+```
+
 ## `POST /api/calc`
 
 ```json
@@ -79,7 +147,8 @@ Weapon arcanes whose slot fits the weapon, with max rank and description.
 - `arcanes`: weapon arcanes; the slot must match the weapon category.
 - `buffs`: registry ids from `GET /api/buffs`; `abilityStrength` is a percentage (100 = unmodded).
 - `riven` is resolved against the weapon's own disposition; `roll` (0.9-1.1) and `rank` (0-8) are optional.
-- `incarnon` picks evolution tiers (`"EVO2:0"` = first option of tier EVO2; see `GET /api/incarnons`).
+- `incarnon` picks evolution tiers (`"EVO2:0"` = first option of tier EVO2; see `GET /api/incarnons`);
+  `"form"` uses the transformed profile with no perks.
 - `elementBonus` is the Kuva/Tenet bonus (`value` as a fraction or a percentage).
 - `conditions.covenantDamage` feeds Harrow's Covenant (damage prevented).
 - `aoeDistance` (metres) applies the weapon's own AoE falloff; omitted means blast centre.

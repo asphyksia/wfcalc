@@ -43,8 +43,8 @@ export interface SearchRequest {
   mustInclude?: string[];
   /**
    * Let the search choose the Incarnon evolutions. Off by default: the Incarnon form is an
-   * endgame unlock, and only the perk stats are modelled, not the transformed weapon's own
-   * profile, so assuming it would be assuming too much.
+   * endgame unlock (built through the Circuit, with a transformation to manage), so assuming
+   * it would be assuming too much about the player's account.
    */
   chooseIncarnon?: boolean;
   /** Everything else that affects the result: buffs, frame, arcanes, riven, debuffs. */

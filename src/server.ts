@@ -18,6 +18,8 @@ import { resolveBuild, type Build } from './engine/build.ts';
 import { scaleEnemy } from './engine/enemy.ts';
 import { hitEnemy, statusProcs } from './engine/damage.ts';
 import { availableBuffs } from './engine/buffs.ts';
+import { search } from './engine/search.ts';
+import { abilityCast } from './engine/ability.ts';
 
 const WEB_ROOT = new URL('./web/', import.meta.url).pathname;
 /** Mod artwork cache: fetched once from the WFCD export repo, then served locally. */
@@ -92,14 +94,10 @@ async function readBody(req: IncomingMessage): Promise<any> {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
-/** Runs a build and returns everything the UI needs to render a report. */
-function calculate(body: any) {
-  const weaponQuery: string = body.weapon ?? '';
-  const { item: weapon, suggestions } = findWeapon(snapshot, weaponQuery);
-  if (!weapon) return { error: `weapon not found: ${weaponQuery}`, suggestions };
-
-  const build: Build = {
-    weapon: weapon.name,
+/** The build fields shared by `/api/calc` and `/api/search`, in the API's JSON shape. */
+function buildFromBody(body: any, weaponName: string): Build {
+  return {
+    weapon: weaponName,
     mods: Array.isArray(body.mods) ? body.mods : [],
     arcanes: Array.isArray(body.arcanes) ? body.arcanes : [],
     buffs: Array.isArray(body.buffs) ? body.buffs : [],
@@ -120,6 +118,15 @@ function calculate(body: any) {
     conditions: body.conditions ?? {},
     headshot: Boolean(body.headshot),
   };
+}
+
+/** Runs a build and returns everything the UI needs to render a report. */
+function calculate(body: any) {
+  const weaponQuery: string = body.weapon ?? '';
+  const { item: weapon, suggestions } = findWeapon(snapshot, weaponQuery);
+  if (!weapon) return { error: `weapon not found: ${weaponQuery}`, suggestions };
+
+  const build = buildFromBody(body, weapon.name);
   const resolved = resolveBuild(snapshot, build);
 
   let target = null;
@@ -276,6 +283,51 @@ const server = createServer(async (req, res) => {
         .map((arcane) => ({ name: arcane.name, slot: arcane.slot, maxRank: arcane.maxRank, description: arcane.description }))
         .sort((a, b) => a.name.localeCompare(b.name));
       return json(res, 200, list);
+    }
+    if (url.pathname === '/api/search' && req.method === 'POST') {
+      const body = await readBody(req);
+      const query: string = body.weapon ?? '';
+      const { item: weapon, suggestions } = findWeapon(snapshot, query);
+      if (!weapon) return json(res, 404, { error: `weapon not found: ${query}`, suggestions });
+      const asList = (value: unknown): string[] =>
+        Array.isArray(value) ? value.map(String) : typeof value === 'string' ? value.split(',').map((v) => v.trim()).filter(Boolean) : [];
+      // The search picks the mods; everything else about the build can still be fixed, either
+      // under `base` or at the top level (the shape /api/calc accepts).
+      const baseSource = body.base && typeof body.base === 'object' ? body.base : body;
+      const base = { ...buildFromBody(baseSource, weapon.name), mods: [] };
+      const chooseIncarnon = Boolean(body.chooseIncarnon) || body.incarnon === 'auto';
+      const result = search(snapshot, {
+        weapon: weapon.name,
+        objective: body.objective === 'dps' ? 'dps' : 'ttk',
+        enemy: body.enemy ?? 'Bombard',
+        level: body.level !== undefined ? Number(body.level) : 150,
+        capacity: body.capacity !== undefined ? Number(body.capacity) : 60,
+        maxForma: body.maxForma === null ? null : body.maxForma !== undefined ? Number(body.maxForma) : undefined,
+        exclude: asList(body.exclude),
+        mustInclude: asList(body.mustInclude ?? body.must),
+        limit: body.limit !== undefined ? Number(body.limit) : 3,
+        budget: body.budget !== undefined ? Number(body.budget) : undefined,
+        chooseIncarnon,
+        base: chooseIncarnon ? { ...base, incarnon: undefined } : base,
+      });
+      return json(res, 200, result);
+    }
+    if (url.pathname === '/api/ability') {
+      const name = url.searchParams.get('name') ?? '';
+      if (!name) return json(res, 400, { error: 'name is required, e.g. /api/ability?name=Miasma' });
+      const strength = url.searchParams.get('strength');
+      const level = url.searchParams.get('level');
+      try {
+        const result = abilityCast(snapshot, name, {
+          strength: strength ? Number(strength) : undefined,
+          enemy: url.searchParams.get('enemy') ?? undefined,
+          level: level ? Number(level) : undefined,
+          armorModel: (url.searchParams.get('armorModel') ?? undefined) as never,
+        });
+        return json(res, 200, result);
+      } catch (error) {
+        return json(res, 404, { error: String((error as Error).message) });
+      }
     }
     if (url.pathname === '/api/calc' && req.method === 'POST') {
       const body = await readBody(req);

@@ -1,0 +1,93 @@
+/**
+ * JSON API tests.
+ *
+ * `wfcalc serve` is the interface an agent is most likely to drive, so the endpoints that
+ * mirror the CLI's `search` and `ability` commands must exist and answer on their own.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { join } from 'node:path';
+
+const ROOT = new URL('..', import.meta.url).pathname;
+const PORT = 7913;
+
+async function withServer(run: (base: string) => Promise<void>): Promise<void> {
+  const child = spawn(process.execPath, [join(ROOT, 'src/server.ts'), '--port', String(PORT)], {
+    cwd: ROOT,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('server did not start')), 15_000);
+      child.stdout.on('data', (chunk) => {
+        if (/wfcalc web UI/.test(String(chunk))) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+      child.on('error', reject);
+    });
+    await run(`http://127.0.0.1:${PORT}`);
+  } finally {
+    child.kill();
+  }
+}
+
+test('GET /api/ability answers a cast on a target', async () => {
+  await withServer(async (base) => {
+    const response = await fetch(`${base}/api/ability?name=Miasma&enemy=Bombard&level=150&strength=200`);
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as any;
+    assert.equal(body.ability, 'Miasma');
+    assert.equal(body.strength, 200);
+    // 150 Viral per second at 100% strength, doubled at 200%.
+    assert.equal(body.scaledDamage, 300);
+    assert.equal(body.target.enemy, 'Bombard');
+    assert.ok(body.target.castsToKill > 0);
+
+    const missing = await fetch(`${base}/api/ability?name=NotAnAbility`);
+    assert.equal(missing.status, 404);
+  });
+});
+
+test('POST /api/search returns a build and accepts the /api/calc shape', async () => {
+  await withServer(async (base) => {
+    const response = await fetch(`${base}/api/search`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        weapon: 'Soma Prime',
+        objective: 'dps',
+        enemy: 'Bombard',
+        level: 150,
+        limit: 1,
+        base: { arcanes: [{ name: 'Primary Merciless' }], conditions: { onKill: 12 } },
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as any;
+    assert.equal(body.weapon, 'Soma Prime');
+    assert.equal(body.objective, 'dps');
+    assert.equal(body.builds.length, 1);
+    assert.equal(body.builds[0].mods.length, 8);
+    assert.ok(body.builds[0].totalDps > 0);
+
+    // The arcane in `base` reaches the result instead of being dropped by the search.
+    const plain = await fetch(`${base}/api/search`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ weapon: 'Soma Prime', objective: 'dps', enemy: 'Bombard', level: 150, limit: 1 }),
+    });
+    const withoutBase = (await plain.json()) as any;
+    assert.ok(body.builds[0].totalDps > withoutBase.builds[0].totalDps,
+      `Primary Merciless at 12 stacks should help: ${body.builds[0].totalDps} vs ${withoutBase.builds[0].totalDps}`);
+
+    const unknown = await fetch(`${base}/api/search`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ weapon: 'NotAWeapon' }),
+    });
+    assert.equal(unknown.status, 404);
+  });
+});
