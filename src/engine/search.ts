@@ -47,6 +47,8 @@ export interface SearchRequest {
    * it would be assuming too much about the player's account.
    */
   chooseIncarnon?: boolean;
+  /** Try every weapon arcane whose slot fits and keep the best result. */
+  chooseArcane?: boolean;
   /** Everything else that affects the result: buffs, frame, arcanes, riven, debuffs. */
   base?: Partial<Build>;
   /** How many builds to return. */
@@ -74,6 +76,8 @@ export interface SearchBuild {
   statusChance: number;
   multishot: number;
   warnings: string[];
+  /** Weapon arcanes this build assumes (empty when none). */
+  arcanes: Array<{ name: string; rank?: number }>;
   /** Incarnon evolutions this build assumes, as "EVO2:0" selections. */
   incarnon: string[];
   /** Evolution names, for showing to the player. */
@@ -107,7 +111,7 @@ function slotPolarity(weapon: WeaponData, index: number): string | null {
  * polarity matches. Slots the weapon already polarised half one mod each for free; every other
  * match costs one Forma, and they are spent where they save the most drain.
  */
-function fitMods(
+export function fitMods(
   mods: Array<{ mod: ModData; rank: number }>,
   weapon: WeaponData,
   capacity: number,
@@ -185,7 +189,7 @@ function bestElementOrder(
   return best;
 }
 
-export function search(snapshot: Snapshot, request: SearchRequest): SearchResult {
+function searchOnce(snapshot: Snapshot, request: SearchRequest): SearchResult {
   const started = performance.now();
   const weapon = snapshot.weapons[request.weapon];
   if (!weapon) throw new Error(`weapon not found: ${request.weapon}`);
@@ -436,6 +440,7 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
       statusChance: scored.resolved.statusChance,
       multishot: scored.resolved.multishot,
       warnings: scored.resolved.warnings,
+      arcanes: (base.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
       incarnon: [...incarnonSelection],
       incarnonNames: [...incarnonSelection].map((selection) => {
         const [tier, index] = selection.split(':');
@@ -497,6 +502,9 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
     assumptions.push(`Conditions: ${Object.entries(base.conditions).map(([k, v]) => `${k}=${v}`).join(', ')}`);
   }
   if (assumedCombo) assumptions.push('Melee combo assumed at 12x (220 hits)');
+  if (base.arcanes?.length) {
+    assumptions.push(`Arcane: ${base.arcanes.map((entry) => (typeof entry === 'string' ? entry : `${entry.name}${entry.rank !== undefined ? ` R${entry.rank}` : ''}`)).join(', ')}`);
+  }
   if (base.buffs?.length) assumptions.push(`Buffs: ${base.buffs.join(', ')}`);
   if (base.frame) assumptions.push(`Warframe: ${base.frame}`);
   // Ability Strength decides how much a Roar or Eclipse is worth, so it is stated, not implied.
@@ -536,4 +544,62 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
     assumptions,
     notes,
   };
+}
+
+
+/**
+ * Search with or without an automatic arcane choice.
+ *
+ * An arcane is a 2-3x multiplier that the mod optimiser cannot see, so `--arcane auto` runs the
+ * same search once per arcane whose slot fits and keeps the best answer. ~20 arcanes at ~55 ms
+ * each is about a second, which is cheap for a decision this large.
+ */
+export function search(snapshot: Snapshot, request: SearchRequest): SearchResult {
+  if (!request.chooseArcane) return searchOnce(snapshot, request);
+  const weapon = snapshot.weapons[request.weapon];
+  if (!weapon) throw new Error(`weapon not found: ${request.weapon}`);
+  // An explicit arcane is a decision, not a suggestion: respect it.
+  if (request.base?.arcanes?.length) return searchOnce(snapshot, { ...request, chooseArcane: false });
+
+  const slots: Record<string, string[]> = {
+    primary: ['primary', 'bow', 'shotgun'],
+    secondary: ['secondary'],
+    melee: ['melee'],
+    archgun: ['primary'],
+    archmelee: ['melee'],
+  };
+  const allowed = slots[weapon.category] ?? [];
+  const relevant = new Set([
+    'baseDamage', 'multishot', 'critChance', 'critDamage', 'statusChance', 'fireRate',
+    'element', 'directDamage', 'factionDamage', 'headshotMultiplier', 'reloadSpeed',
+    'statusDamage', 'weakPointOverride',
+  ]);
+  const candidates = Object.values(snapshot.arcanes).filter(
+    (arcane) => arcane.slot && allowed.includes(arcane.slot)
+      && arcane.effects.some((effect) => relevant.has(String(effect.target))),
+  );
+  if (!candidates.length) return searchOnce(snapshot, { ...request, chooseArcane: false });
+
+  const scoreOf = (result: SearchResult): number => {
+    const top = result.builds[0];
+    if (!top) return -Infinity;
+    return request.objective === 'dps'
+      ? top.totalDps
+      : (top.timeToKill === null ? -Infinity : -top.timeToKill);
+  };
+  // A baseline with no arcane first: an arcane whose conditions are not active must not win a
+  // tie just because it was iterated first (Fractalized Reset with no --stacks onAbilityCast).
+  const baseline = searchOnce(snapshot, { ...request, chooseArcane: false });
+  let best: { result: SearchResult; score: number } = { result: baseline, score: scoreOf(baseline) };
+
+  for (const arcane of candidates) {
+    const result = searchOnce(snapshot, {
+      ...request,
+      chooseArcane: false,
+      base: { ...(request.base ?? {}), arcanes: [{ name: arcane.name, rank: arcane.maxRank }] },
+    });
+    const score = scoreOf(result);
+    if (score > best.score + 1e-9) best = { result, score };
+  }
+  return best.result;
 }

@@ -24,6 +24,7 @@ import { readFileSync } from 'node:fs';
 import { loadSnapshot, findEnemy, findMod, findWeapon, modsForWeapon } from './data.ts';
 import { resolveBuild, type Build, type BuildMod } from './engine/build.ts';
 import { search } from './engine/search.ts';
+import { capacityOf } from './engine/capacity.ts';
 import { abilityCast } from './engine/ability.ts';
 import { resolveStrip, type StripDebuff } from './engine/strip.ts';
 import { buildFromJson } from './request.ts';
@@ -58,6 +59,15 @@ function parseArgs(argv: string[]): Args {
 
 const flag = (args: Args, name: string): string | undefined => args.flags.get(name)?.at(-1);
 const flagAll = (args: Args, name: string): string[] => args.flags.get(name) ?? [];
+
+/** `--mod "Serration, Split Chamber"` and repeated `--mod` are the same thing. No mod name in
+ *  the snapshot contains a comma, so splitting cannot break a name. */
+const modsFromArgs = (args: Args): BuildMod[] =>
+  flagAll(args, 'mod')
+    .flatMap((entry) => entry.split(','))
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map(parseModArg);
 
 const pct = (value: number): string => `${(value * 100).toFixed(1)}%`;
 const num = (value: number, digits = 1): string => value.toLocaleString('en-US', { maximumFractionDigits: digits, minimumFractionDigits: 0 });
@@ -146,7 +156,11 @@ function buildFromArgs(snapshot: Snapshot, args: Args, mods: string[]): Build {
   return {
     weapon: weapon.name,
     mods,
-    arcanes: flagAll(args, 'arcane').map(parseModArg),
+    arcanes: flagAll(args, 'arcane')
+      .flatMap((entry) => entry.split(','))
+      .map((name) => name.trim())
+      .filter((name) => name && name.toLowerCase() !== 'auto')
+      .map(parseModArg),
     buffs,
     abilityStrength: flag(args, 'strength') ? Number(flag(args, 'strength')) : undefined,
     frame: flag(args, 'frame'),
@@ -204,6 +218,8 @@ function calcBriefLine(
   enemyName: string,
   level: number,
   mode: 'full' | 'answer',
+  fit?: ReturnType<typeof capacityOf>,
+  arcanes?: Array<{ name: string; rank?: number }>,
 ): string {
   const head = `${label ? `${label}: ` : ''}${resolved.weapon.name} vs ${enemyName} ${level}`;
   const ttk = hit.timeToKill === null ? 'cannot kill' : `ttk ${num(hit.timeToKill, 2)}s (${num(hit.shotsToKill, 1)} shots)`;
@@ -215,6 +231,8 @@ function calcBriefLine(
     `total ${num(hit.totalDps)} dps with status`,
     ttk,
     `armour ${num(hit.armor)}`,
+    ...(fit && fit.mods.length ? [`${fit.capacityUsed}/${fit.capacity} cap${fit.fits ? '' : ' OVER'}`, `${fit.formaNeeded}F`] : []),
+    ...(arcanes?.length ? [`arcane ${arcanes.map((arcane) => arcane.name).join(' + ')}`] : []),
   ];
   const warnings = resolved.warnings.length + resolved.unsupportedMods.length;
   if (warnings) parts.push(`${warnings} warning(s)`);
@@ -249,12 +267,17 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
   const hit = hitEnemy(snapshot, resolved, scaled, {
     armorModel: (flag(args, 'armor-model') as never) ?? undefined,
   });
+  const capacityLimit = flag(args, 'capacity') ? Number(flag(args, 'capacity')) : 60;
+  const fit = capacityOf(snapshot, resolved.weapon, build.mods, capacityLimit);
 
   // One line, for an agent that runs dozens of these: the numbers that answer the question
   // without the per-type and per-status breakdown it did not ask for.
   const brief = briefMode(args);
   if (brief !== 'off') {
-    console.log(calcBriefLine(label === 'build' ? '' : label, resolved, hit, enemy.name, level, brief));
+    console.log(calcBriefLine(
+      label === 'build' ? '' : label, resolved, hit, enemy.name, level, brief, fit,
+      (build.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
+    ));
     return;
   }
 
@@ -286,12 +309,17 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
           armor: hit.armor,
           dot: hit.dot,
           totalDps: hit.totalDps,
+          arcanes: (build.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
           activeBuffs: resolved.activeBuffs,
           abilityStrength: resolved.abilityStrength,
           riven: resolved.rivenLines,
           incarnon: resolved.incarnonLines,
           comboMultiplier: resolved.comboMultiplier,
           critVariance: resolved.critVariance,
+          capacityUsed: fit.capacityUsed,
+          capacity: fit.capacity,
+          formaNeeded: fit.formaNeeded,
+          fits: fit.fits,
           warnings: resolved.warnings,
           unsupportedMods: resolved.unsupportedMods,
           inactiveConditions: resolved.inactiveConditions,
@@ -319,12 +347,18 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
     `  dps          burst ${num(resolved.burstDps)}   sustained ${num(resolved.sustainedDps)}` +
       `   avg hit ${num(resolved.averageShotDamage)}`,
   );
+  if (fit.mods.length) {
+    console.log(`  capacity     ${fit.capacityUsed}/${fit.capacity}${fit.fits ? '' : ' over'}${fit.formaNeeded ? `   ${fit.formaNeeded} forma` : ''}`);
+  }
   console.log(
     `  target       hp ${num(scaled.health)}  shields ${num(scaled.shield)}  armor ${num(hit.armor)}` +
       (hit.armor !== scaled.armor ? ` (base ${num(scaled.armor)})` : '') +
       `   -> ${num(hit.shotsToKill)} shots${hit.timeToKill !== null ? `, ${num(hit.timeToKill, 2)}s` : ''}`,
   );
   if (hit.factionMultiplier !== 1) console.log(`  faction      x${hit.factionMultiplier.toFixed(2)} vs ${enemy.faction ?? 'unknown'}`);
+  if (build.arcanes?.length) {
+    console.log(`  arcane       ${build.arcanes.map((entry) => (typeof entry === 'string' ? entry : `${entry.name}${entry.rank !== undefined ? ` R${entry.rank}` : ''}`)).join(', ')}`);
+  }
   if (resolved.activeBuffs.length) console.log(`  buffs        ${resolved.activeBuffs.join(', ')} @ ${num(resolved.abilityStrength)}% strength`);
   if (resolved.rivenLines.length) console.log(`  riven        ${resolved.rivenLines.join(', ')}`);
   if (resolved.incarnonLines.length) console.log(`  incarnon     ${resolved.incarnonLines.join(' / ')}`);
@@ -583,6 +617,7 @@ function main(): void {
         limit: flag(args, 'top') ? Number(flag(args, 'top')) : 3,
         budget: flag(args, 'budget') ? Number(flag(args, 'budget')) : undefined,
         chooseIncarnon: commaList('incarnon').includes('auto'),
+        chooseArcane: commaList('arcane').some((name) => name.toLowerCase() === 'auto'),
         base: commaList('incarnon').includes('auto') ? { ...base, incarnon: undefined } : base,
       });
       if (wantsJson(args)) {
@@ -598,6 +633,7 @@ function main(): void {
           const ttk = build.timeToKill === null ? 'cannot kill' : `${num(build.timeToKill, 2)}s`;
           const facts = [
             `${num(build.totalDps)} dps`,
+            ...(build.arcanes.length ? [`arcane ${build.arcanes.map((arcane) => arcane.name).join(' + ')}`] : []),
             ...(build.incarnonNames.length ? [`incarnon ${build.incarnonNames.join(' + ')}`] : []),
             ...(build.partialMods.length ? ['lower bound'] : []),
           ];
@@ -612,6 +648,7 @@ function main(): void {
       result.builds.forEach((build, index) => {
         const ttk = build.timeToKill === null ? 'cannot kill' : `${build.timeToKill.toFixed(2)}s (${Math.ceil(build.shotsToKill ?? 0)} shots)`;
         console.log(`${index + 1}. ${build.timeToKill === null ? '' : `${ttk}  `}${num(build.totalDps, 0)} dps on target (${num(build.sustainedDps, 0)} direct)  crit ${pct(build.critChance)}x${num(build.critMultiplier, 1)}  status ${pct(build.statusChance)}  multishot ${num(build.multishot, 2)}`);
+        if (build.arcanes.length) console.log(`   Arcane: ${build.arcanes.map((arcane) => arcane.name).join(', ')}`);
         if (build.incarnonNames.length) console.log(`   Incarnon: ${build.incarnonNames.join(' | ')}`);
         console.log(`   capacity ${build.capacityUsed}/${build.capacity}${build.formaNeeded ? ` — ${build.formaNeeded} forma` : ''}${build.partialMods.length ? ` — lower bound: ${build.partialMods.join(', ')}` : ''}`);
         console.log(`   ${build.mods.map((mod) => `${mod.name}${mod.rank < 99 ? ` R${mod.rank}` : ''}`).join(', ')}\n`);
@@ -680,12 +717,12 @@ function main(): void {
       break;
     }
     case 'calc': {
-      report(snapshot, args, flagAll(args, 'mod').map(parseModArg), 'build');
+      report(snapshot, args, modsFromArgs(args), 'build');
       break;
     }
     case 'compare': {
       const setups = flagAll(args, 'vs');
-      const base = flagAll(args, 'mod').map(parseModArg);
+      const base = modsFromArgs(args);
       if (setups.length === 0) {
         // Default comparison: no mods, then each single element mod.
         report(snapshot, args, base, 'current build');
@@ -774,6 +811,7 @@ function main(): void {
           const hit = hitEnemy(snapshot, resolved, scaleEnemy(snapshot, enemy, level), {
             armorModel: record.armorModel as never,
           });
+          const fit = capacityOf(snapshot, resolved.weapon, build.mods, record.capacity === undefined ? 60 : Number(record.capacity));
           if (jsonOut) {
             // Rounded on purpose: a batch line is for comparing, and full float noise costs
             // tokens without adding information.
@@ -783,10 +821,16 @@ function main(): void {
               burstDps: round(resolved.burstDps, 1), sustainedDps: round(resolved.sustainedDps, 1),
               totalDps: round(hit.totalDps, 1), timeToKill: round(hit.timeToKill, 2),
               shotsToKill: round(hit.shotsToKill, 1),
-              armor: round(hit.armor, 1), warnings: resolved.warnings, unsupportedMods: resolved.unsupportedMods,
+              arcanes: (build.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
+              armor: round(hit.armor, 1), capacityUsed: fit.capacityUsed, capacity: fit.capacity,
+              formaNeeded: fit.formaNeeded, fits: fit.fits,
+              warnings: resolved.warnings, unsupportedMods: resolved.unsupportedMods,
             }));
           } else {
-            console.log(`${label}: ${calcBriefLine('', resolved, hit, enemy.name, level, mode)}`);
+            console.log(`${label}: ${calcBriefLine(
+              '', resolved, hit, enemy.name, level, mode, fit,
+              (build.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
+            )}`);
           }
         } catch (error) {
           emitError(label, error);
@@ -813,7 +857,7 @@ function main(): void {
   wfcalc batch <file|->                 JSONL of calculations, one line each (default stdin)
   wfcalc serve                          web UI + JSON API (see docs/api.md)
 
-Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
+Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>] (search: auto)  --buff roar,eclipse
          --frame Rhino  --frame-mods "Intensify,Blind Rage"  --frame-arcane "Molt Augmented"
          --strength 284  --riven damage,multishot
          --incarnon "EVO2:0,EVO4:1"  --riven-roll 1.05
@@ -828,6 +872,7 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
          --armor-model armor-scaling|multiply|both   (open question, see docs/formulas.md)
          --combo-hits 220  --heavy   (melee combo multiplier / heavy attack)
          --aoe-distance 4            (AoE falloff distance in metres)
+         --capacity 30|60            (Orokin Catalyst: 60, default)
          --enemy NAME  --level N  --faction NAME  --mode "Name"
          --stacks onKill=5  --status-types N  --headshot
          --brief one line per result        --brief=answer answer only

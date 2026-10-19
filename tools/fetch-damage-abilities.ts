@@ -30,6 +30,9 @@ const ARMOR_STRIP: Record<string, { mode: 'percent' | 'flat'; value: number }> =
   'Terrify': { mode: 'percent', value: 60 },
   'Seeking Shuriken': { mode: 'percent', value: 70 },
   'Polarize': { mode: 'flat', value: 400 },
+  // Nyx: 80% at max rank and 100% strength, capped at the whole armour at 125% strength.
+  // "Defense strip is capped at 100% at 125% Ability Strength" (wiki).
+  'Psychic Bolts': { mode: 'percent', value: 80 },
 };
 
 const ABILITIES: Array<{ frame: string; page: string; ability: string }> = [
@@ -67,6 +70,7 @@ const ABILITIES: Array<{ frame: string; page: string; ability: string }> = [
   { frame: 'Nekros', page: 'Terrify', ability: 'Terrify' },
   { frame: 'Ash', page: 'Seeking_Shuriken', ability: 'Seeking Shuriken' },
   { frame: 'Mag', page: 'Polarize', ability: 'Polarize' },
+  { frame: 'Nyx', page: 'Psychic_Bolts', ability: 'Psychic Bolts' },
 ];
 
 const force = process.argv.includes('--force');
@@ -202,8 +206,10 @@ async function main(): Promise<void> {
       failures++;
       continue;
     }
-    const baseDamage = strengthRaw ? maxDamage(strengthRaw) : null;
     const damageType = strengthRaw ? damageTypeOf(wikitext, strengthRaw) : null;
+    // No damage type means no damage: the strength line of a strip-only ability (Terrify,
+    // Psychic Bolts) carries the strip percentage, not an amount of damage.
+    const baseDamage = strengthRaw && damageType ? maxDamage(strengthRaw) : null;
     const durationSeconds = strengthRaw ? durationOf(wikitext) : null;
     // Damage that ticks: either the main value is "per second" (Miasma) or the infobox carries
     // a second, ticking segment next to the direct hit (Inferno's ring of fire).

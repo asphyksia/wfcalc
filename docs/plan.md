@@ -10,11 +10,11 @@ Last updated: 2026-10-19.
 
 | | |
 |---|---|
-| Tests | **108 pass, 0 fail** (`npm test`, ~6 s); `npm run eval` 10/10 |
+| Tests | **111 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 10/10 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration vs Overframe | **50/50** (`node tools/calibrate.ts`), ranged builds only |
 | Types | `npm run check` clean |
-| Snapshot | 622 weapons, 1550 mods, 479 enemies, 22 damage abilities, 19 buffs, 74 weapons with an Incarnon form (5 melee) |
+| Snapshot | 622 weapons, 1550 mods, 479 enemies, 23 damage/strip abilities, 19 buffs, 74 weapons with an Incarnon form (5 melee) |
 | Search speed | ~55 ms and ~550-780 builds evaluated per search; `--budget` never binds. Speed is **not** the current bottleneck |
 
 Run these four before starting anything and confirm they are still green:
@@ -95,6 +95,7 @@ Rules that have prevented repeated mistakes:
 | A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, `--brief=answer` for repeated calls, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
 | A6 | **`wfcalc batch`**: JSONL of calc/ability records priced in one process, one line per record, `--json` as compact rounded JSONL. Bad records do not abort the batch; exit 1. The JSON->Build mapping moved to `src/request.ts`, shared with the server. | `tests/cli.test.ts`; `tools/agent-eval.ts` case "batch" |
 | A7 | **Agent eval**: `npm run eval` pins ten real questions (best build, strip, melee Incarnon, CO, ability, errors, partial mods, batch) and fails if an answer or the brief size regresses. Runs in CI. | `tools/agent-eval.ts`, 10/10 |
+| A9 | **Search efficacy (F1/F2/F5/F6)**: `search --arcane auto` tries every arcane whose slot fits and keeps the best (an explicit arcane still wins; a conditional arcane only wins if its condition is active); `calc` reports `capacityUsed/capacity`, `formaNeeded`, `fits` and the equipped arcane in text, brief and JSON; `--mod "A,B"` is the same as repeated `--mod`; Psychic Bolts is now a strip ability (80% at 100% strength, capped at 125%). | Haalvu auto: no arcane without stacks, Primary Merciless with `onKill=12`; calc Haalvu + Serration/Chamber = 15/60, 0F; Psychic Bolts at 125% = 100% strip; tests pin all four |
 | A8 | **The text report showed the wrong armour**: with `--armor-strip 100` it printed the enemy's own pool (2,700) while the damage used 0. Found while pricing a Haalvu build for Nyx. Now prints `armor 0 (base 2,700)`. | Test pins the stripped line; brief/JSON were already correct |
 
 Known loose ends from A1:
@@ -130,8 +131,8 @@ Known loose ends from A1:
 | D2 | **Calibration is not pinned**: the 50 builds are sampled from Overframe on every run, so the bar moves by itself | `tools/calibrate.ts` |
 | D3 | **No melee or secondary calibration**: the golden readings are all Soma Prime | `tests/ingame.test.ts` |
 
-Suggested order: **B1/B2 → C1 → D2/D1**, with F1/F2 as the cheap detour that most improves the
-answers the search already gives.
+Suggested order: **B1/B2 → C1 → D2/D1**, then F3/F4/F7. The cheap search wins (F1/F2/F5/F6)
+are done.
 
 ### E. Out of scope, decided
 
@@ -153,9 +154,10 @@ CPU; it is what the search does and does not consider, and what the answer fails
 | F6 | **Nyx's Psychic Bolts is not a strip ability in the data.** The curated strip list has Avalanche, Terrify, Seeking Shuriken and Polarize only. | The user had to pass `--armor-strip 100`; `--strip-from "Psychic Bolts"` fails. Add the known 100% strips (Psychic Bolts, Fusion Strike...) to the curated list. |
 | F7 | **`--status-types` is a global manual assumption.** Galvanized Aptitude's damage scales with it; the build itself applies Viral + Tau (2), but the caller must know and pass it. | A self-consistent search could infer the status types from the build's own damage profile (and known external procs) instead of a flag. Careful: this is circular with the optimiser, so measure before changing. |
 
-Quick wins before B1: **F1 and F2** (they change the recommended build and the verdict on an
-existing one, with no new physics). F5 and F6 are small data/CLI fixes. F4 and F7 need a model
-decision.
+F1, F2, F5 and F6 are **done** (A9). Remaining: **F3** (name the conditional mods in a search
+result), **F4** (tie-break around unmodelled drawbacks such as Heavy Caliber's accuracy) and
+**F7** (infer status types instead of a global flag). F4 and F7 need a model decision; F3 is a
+small output change.
 
 
 ---
@@ -198,7 +200,7 @@ Useful commands: `wfcalc abilities`, `wfcalc ability <name> --strength N --enemy
 ```sh
 cd wfcalc
 git log --oneline | head -5      # the top commit
-npm test                          # 108 tests
+npm test                          # 111 tests
 npm run eval                      # 10 pinned agent cases
 node tools/validate.ts            # 0 violations
 node tools/calibrate.ts           # 50/50

@@ -50,6 +50,7 @@ Do **not** add an MCP layer or parse JSON just to re-print it.
 wfcalc search "Soma Prime" --enemy Bombard --level 150 --top 1 --brief
 wfcalc search "Kuva Bramma" --objective dps --forma 0 --exclude "Primed Firestorm" --brief
 wfcalc search "Torid" --incarnon auto --enemy Bombard --level 150 --brief
+wfcalc search "Haalvu" --arcane auto --stacks onKill=12 --enemy Bombard --level 150 --brief
 
 # judge an existing build
 wfcalc calc "Soma Prime" --mod Serration --mod "Split Chamber" --enemy Bombard --level 150 --brief
@@ -74,9 +75,14 @@ wfcalc batch builds.jsonl --brief=answer
 ```
 
 Useful flags: `--objective ttk|dps`, `--capacity 30|60`, `--forma N`, `--must "A,B"`,
-`--exclude "A,B"`, `--viral N`, `--corrosive N`, `--headshot`, `--stacks onKill=5`,
-`--frame Rhino --frame-mods Intensify --buff roar`, `--riven damage,multishot,-zoom`.
+`--exclude "A,B"`, `--arcane auto`, `--viral N`, `--corrosive N`, `--headshot`,
+`--stacks onKill=5`, `--frame Rhino --frame-mods Intensify --buff roar`,
+`--riven damage,multishot,-zoom`. `--mod "A,B"` and repeated `--mod` are equivalent.
 Every command accepts `--json` (compact JSON) and `--brief` where it makes sense.
+
+`calc` now reports the **capacity/Forma** of the exact mod list and the **arcane** it assumed;
+`search --arcane auto` tries the arcanes whose slot fits and reports the winner. The arcane is
+part of the build: do not omit it from the answer.
 
 ## Reading the numbers
 
@@ -91,7 +97,7 @@ Every command accepts `--json` (compact JSON) and `--brief` where it makes sense
 ## What must travel with the answer
 
 - **Target** (enemy + level) and objective.
-- **Capacity and Forma** (`formaNeeded` in search).
+- **Capacity and Forma** (`59/60 cap · 3F` in `calc` and `search`), and the **arcane** if any.
 - **Assumptions**: max ranks, Catalyst, combo (melee assumes 12x / 220 hits), active conditions,
   Ability Strength. `--brief` prints them after the builds.
 - **`partial` mods / warnings**: those numbers are a **lower bound**. Say so.
@@ -113,6 +119,7 @@ Every command accepts `--json` (compact JSON) and `--brief` where it makes sense
   Sisters, Archons, Eidolons), ability status application, multi-target/AoE, stance modifiers,
   companions/Archwing/Necramech. Melee and secondary builds have no external calibration yet.
 - Do not present a search result as a measurement; it is the best build under the model.
+- Do not forget the arcane: `calc`/`search` echo it now, and it can be a 3x multiplier.
 
 ## Errors
 

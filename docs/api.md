@@ -98,6 +98,7 @@ Finds the best eight-slot build for a target. Same options as the CLI's `wfcalc 
   "limit": 3,
   "budget": 12000,
   "chooseIncarnon": false,
+  "chooseArcane": false,
   "base": { "arcanes": [{ "name": "Primary Merciless" }], "conditions": { "onKill": 12 } }
 }
 ```
@@ -106,6 +107,8 @@ Finds the best eight-slot build for a target. Same options as the CLI's `wfcalc 
 - `mustInclude` / `exclude` are mod names; a comma-separated string is also accepted.
 - `maxForma: null` means "as many as needed" (that is the default when omitted).
 - `chooseIncarnon` lets the search pick evolution perks; it is off by default.
+- `chooseArcane` (or `"arcane": "auto"`) tries every arcane whose slot fits and keeps the best
+  build. An explicit arcane in `base.arcanes` wins over `auto`.
 - `base` fixes everything the search does not choose (arcanes, buffs, frame, riven, debuffs,
   the armour strip, conditions, mode, combo). The top level is accepted as well, so the
   `/api/calc` body shape works when `base` is omitted.
@@ -121,6 +124,7 @@ Response (abridged):
     "capacityUsed": 60, "capacity": 60, "formaNeeded": 2,
     "burstDps": 20000, "sustainedDps": 15000, "totalDps": 17000,
     "timeToKill": 6.9, "shotsToKill": 12,
+    "arcanes": [{ "name": "Primary Merciless", "rank": 5 }],
     "incarnon": ["EVO2:0"], "incarnonNames": ["EVO2 Final Fusillade"]
   }],
   "assumptions": ["Melee combo assumed at 12x (220 hits)"],
@@ -194,6 +198,8 @@ Response (abridged):
   "critChance": 0.35, "critMultiplier": 4.62, "statusChance": 0.21,
   "multishot": 1.9, "fireRate": 0.667,
   "burstDps": 21860.8, "sustainedDps": 15614.8,
+  "capacityUsed": 59, "capacity": 60, "formaNeeded": 3, "fits": true,
+  "arcanes": [{ "name": "Primary Merciless", "rank": 5 }],
   "elements": [{ "type": "blast", "share": 0.935 }],
   "target": {
     "name": "Bombard", "level": 150, "health": 118480.2, "armor": 2700,

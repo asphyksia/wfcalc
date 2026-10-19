@@ -21,6 +21,7 @@ import { availableBuffs } from './engine/buffs.ts';
 import { search } from './engine/search.ts';
 import { abilityCast } from './engine/ability.ts';
 import { buildFromJson } from './request.ts';
+import { capacityOf } from './engine/capacity.ts';
 
 const WEB_ROOT = new URL('./web/', import.meta.url).pathname;
 /** Mod artwork cache: fetched once from the WFCD export repo, then served locally. */
@@ -108,6 +109,7 @@ function calculate(body: any) {
     return { error: String((error as Error).message) };
   }
   const resolved = resolveBuild(snapshot, build);
+  const capacity = capacityOf(snapshot, weapon, build.mods, body.capacity !== undefined ? Number(body.capacity) : 60);
 
   let target = null;
   if (body.enemy) {
@@ -174,6 +176,11 @@ function calculate(body: any) {
     comboMultiplier: resolved.comboMultiplier,
     critVariance: resolved.critVariance,
     sustainedDps: resolved.sustainedDps,
+    arcanes: (build.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
+    capacityUsed: capacity.capacityUsed,
+    capacity: capacity.capacity,
+    formaNeeded: capacity.formaNeeded,
+    fits: capacity.fits,
     elements: resolved.elements,
     procs: statusProcs(resolved),
     contributions,
@@ -281,6 +288,7 @@ const server = createServer(async (req, res) => {
         return json(res, 400, { error: String((error as Error).message) });
       }
       const chooseIncarnon = Boolean(body.chooseIncarnon) || body.incarnon === 'auto';
+      const chooseArcane = Boolean(body.chooseArcane) || body.arcane === 'auto';
       const result = search(snapshot, {
         weapon: weapon.name,
         objective: body.objective === 'dps' ? 'dps' : 'ttk',
@@ -293,6 +301,7 @@ const server = createServer(async (req, res) => {
         limit: body.limit !== undefined ? Number(body.limit) : 3,
         budget: body.budget !== undefined ? Number(body.budget) : undefined,
         chooseIncarnon,
+        chooseArcane,
         base: chooseIncarnon ? { ...base, incarnon: undefined } : base,
       });
       return json(res, 200, result);

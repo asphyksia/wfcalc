@@ -26,7 +26,9 @@ export function buildFromJson(snapshot: Snapshot, body: any, weaponName: string)
   return {
     weapon: weaponName,
     mods: Array.isArray(body.mods) ? body.mods : [],
-    arcanes: Array.isArray(body.arcanes) ? body.arcanes : [],
+    // "auto" is a search instruction, not an arcane name: the server strips it before the
+    // search chooses the arcane itself.
+    arcanes: Array.isArray(body.arcanes) ? body.arcanes.filter((entry: unknown) => String(entry).toLowerCase() !== 'auto') : [],
     buffs: list(body.buffs),
     abilityStrength: strength ? Number(strength) : undefined,
     frameMods: Array.isArray(body.frameMods) ? body.frameMods : [],

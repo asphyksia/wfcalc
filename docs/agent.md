@@ -67,6 +67,7 @@ Flags:
 | `--must "Serration,Split Chamber"` | Mods that must stay in the build |
 | `--exclude "Primed X,Galvanized Y"` | Mods the player does not own |
 | `--top N` | How many alternatives to return (default 3) |
+| `--arcane auto` | Try the arcanes whose slot fits and keep the best build |
 | `--incarnon auto` | Also choose the Incarnon evolutions |
 | `--frame Rhino --frame-mods Intensify --buff roar` | Warframe buffs applied to the weapon |
 | `--viral 10 --corrosive 0 --headshot` | Target debuffs and headshots |
@@ -95,7 +96,9 @@ status procs. Scoring direct damage alone makes Weeping Wounds, slash and heat b
 wfcalc calc "Soma Prime" --mod Serration --mod "Split Chamber" ... --enemy Bombard --level 150 --brief
 ```
 
-Read the brief line: burst, sustained, `total ... with status`, TTK and effective armour.
+Read the brief line: burst, sustained, `total ... with status`, TTK, effective armour, capacity/
+Forma and the equipped arcane. The full report adds an `arcane` and a `capacity` line, and the
+JSON carries `arcanes`, `capacityUsed`, `capacity`, `formaNeeded` and `fits`.
 Drop `--brief` when the player asks "why" — the text report shows the element split, status
 ticks and per-type damage. With `--json`, read `sustainedDps`, `totalDps`, `timeToKill`,
 `unsupportedMods` and `inactiveConditions`.
@@ -117,7 +120,7 @@ armour (60% at 100%). Feed that to a weapon with `--strip-from`: a Soma Prime ag
 150 Bombard goes from 271s to kill to 41s. Prefer `--strip-from` over `--armor-strip` whenever
 the player told you which frame they run.
 
-`wfcalc abilities` lists the 22 damage abilities with parsed numbers. That is a curated list,
+`wfcalc abilities` lists the 23 damage/strip abilities with parsed numbers. That is a curated list,
 not every ability in the game: the wiki has no machine-readable index of damage abilities.
 
 ## Recipe: many calculations in one process
@@ -127,8 +130,9 @@ cat builds.jsonl | wfcalc batch --brief=answer
 ```
 
 Each line is a calculation record with the same fields as `POST /api/calc` (`weapon`, `mods`,
-`arcanes`, `incarnon`, strip fields, `enemy`, `level`...), plus `label` and optionally
-`ability`/`strength` for a cast instead of a weapon. Default output is the brief line per
+`arcanes`, `incarnon`, strip fields, `enemy`, `level`, `conditions`...), plus `label` and
+optionally `ability`/`strength` for a cast instead of a weapon. Stackable conditions go in
+`"conditions": {"onKill": 12}`, not as a top-level `stacks` field. Default output is the brief line per
 record; `--json` gives compact JSONL with rounded values (`burstDps`, `sustainedDps`,
 `totalDps`, `timeToKill`, `shotsToKill`, `armor`, `warnings`) or the ability fields. The exit
 code is 1 if any record failed, but every record is still processed and reported.
@@ -169,9 +173,10 @@ State these when they matter instead of guessing:
 - **No Overguard** in the snapshot: Steel Path survivability claims are incomplete.
 - **No damage attenuation** (Liches, Sisters, Archons, Eidolons): the model will say a sniper
   melts them when the game caps damage per hit.
-- **Armour strip covers four abilities** (Avalanche, Terrify, Seeking Shuriken as a percentage;
-  Polarize as a flat drain), Corrosive Projection and Shattering Impact. Anything else that
-  strips must be passed with `--armor-strip`.
+- **Armour strip covers five abilities** (Avalanche, Terrify, Seeking Shuriken and Psychic Bolts
+  as a percentage; Polarize as a flat drain), Corrosive Projection and Shattering Impact.
+  Anything else that strips must be passed with `--armor-strip`. Psychic Bolts is 80% at 100%
+  Ability Strength and caps at 125%; Nyx players often say "my 2 strips everything".
 - **A meta is not a calculation.** If a mod is not in the snapshot, the tool cannot know it.
 
 ## Failure modes and exit codes

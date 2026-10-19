@@ -150,3 +150,42 @@ test('the text report shows the effective armour after a strip', () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /armor 0 \(base 2,700\)/, result.stdout);
 });
+
+test('a comma list in --mod is the same as repeated flags', () => {
+  const comma = run(['calc', 'Haalvu', '--mod', 'Serration,Galvanized Chamber', '--enemy', 'Bombard', '--level', '150', '--json']) as { projectileTotal: number };
+  const separate = run(['calc', 'Haalvu', '--mod', 'Serration', '--mod', 'Galvanized Chamber', '--enemy', 'Bombard', '--level', '150', '--json']) as { projectileTotal: number };
+  assert.equal(comma.projectileTotal, separate.projectileTotal);
+});
+
+test('calc reports capacity, Forma and the equipped arcane', () => {
+  const result = run([
+    'calc', 'Haalvu', '--mod', 'Serration,Galvanized Chamber', '--arcane', 'Primary Merciless',
+    '--enemy', 'Bombard', '--level', '150', '--json',
+  ]) as {
+    capacityUsed: number; capacity: number; formaNeeded: number; fits: boolean;
+    arcanes: Array<{ name: string }>;
+  };
+  // Haalvu has two Madurai slots: Serration and Galvanized Chamber are halved for free.
+  assert.equal(result.capacityUsed, 15);
+  assert.equal(result.capacity, 60);
+  assert.equal(result.formaNeeded, 0);
+  assert.equal(result.fits, true);
+  assert.deepEqual(result.arcanes.map((arcane) => arcane.name), ['Primary Merciless']);
+});
+
+test('--arcane auto picks an arcane only when its condition is active', () => {
+  const withStacks = run([
+    'search', 'Haalvu', '--enemy', 'Bombard', '--level', '150', '--armor-strip', '100',
+    '--stacks', 'onKill=12', '--status-types', '2', '--arcane', 'auto',
+    '--objective', 'dps', '--top', '1', '--json',
+  ]) as { builds: Array<{ arcanes: Array<{ name: string }> }> };
+  assert.equal(withStacks.builds[0].arcanes[0]?.name, 'Primary Merciless');
+
+  // Without on-kill stacks every damage arcane is inactive; Fractalized Reset used to win the
+  // tie while contributing nothing. With no improvement over the baseline, no arcane is fitted.
+  const without = run([
+    'search', 'Haalvu', '--enemy', 'Bombard', '--level', '150', '--armor-strip', '100',
+    '--arcane', 'auto', '--objective', 'dps', '--top', '1', '--json',
+  ]) as { builds: Array<{ arcanes: Array<{ name: string }> }> };
+  assert.deepEqual(without.builds[0].arcanes, []);
+});

@@ -108,8 +108,10 @@ current state, the working method and what is left to do.
 
 | Option | Meaning |
 |---|---|
-| `--mod NAME` / `--mod NAME:R5` | Equip a mod, optionally under-levelled |
+| `--mod NAME` / `--mod "A,B"` | Equip one or more mods, optionally under-levelled (`:R5`) |
 | `--arcane NAME[:R5]` | Equip a weapon arcane (Primary Merciless, Melee Exposure...) |
+| `--arcane auto` | (search) Let the search choose the arcane whose slot fits |
+| `--capacity 30\|60` | Mod capacity for calc/search (60 = Orokin Catalyst, default) |
 | `--buff roar,eclipse` | Activate Warframe buffs (see `wfcalc buffs`) |
 | `--strength 284` | Caster's Ability Strength in percent (default 100) |
 | `--frame-mods "Intensify,Blind Rage"` | Derive Ability Strength from Warframe mods |
@@ -130,7 +132,8 @@ current state, the working method and what is left to do.
 | `--stacks onKill=5` | Activate a conditional effect with N stacks |
 | `--status-types 4` | Status types on the target (Galvanized mods) |
 | `--headshot` | Every hit is a weak-point hit |
-| `--json` | Machine-readable output |
+| `--brief`, `--brief=answer` | One-line answer for agents (answer drops the context) |
+| `--json` | Machine-readable output; use it only when you must parse a field |
 
 ## Keeping the data fresh
 

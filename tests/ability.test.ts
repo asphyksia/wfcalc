@@ -168,6 +168,10 @@ test('the strip resolver turns squad, weapon and ability inputs into one additiv
   // Shattering Impact is 6 base armour per hit at max rank.
   assert.equal(resolveStrip(snapshot, { shatteringImpactHits: 10 }).armorStripBaseFlat, 60);
 
+  // Nyx: 80% at 100% strength, capped at the whole armour at 125% (the wiki's cap).
+  assert.ok(Math.abs((resolveStrip(snapshot, { stripFrom: 'Psychic Bolts', strength: 100 }).armorStrip ?? 0) - 0.8) < 1e-9);
+  assert.equal(resolveStrip(snapshot, { stripFrom: 'Psychic Bolts', strength: 125 }).armorStrip, 1);
+
   assert.throws(() => resolveStrip(snapshot, { stripFrom: 'Miasma' }), /does not strip armour/);
   assert.throws(() => resolveStrip(snapshot, { corrosiveProjections: 5 }), /0 to 4/);
 });
