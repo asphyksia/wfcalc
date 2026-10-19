@@ -283,6 +283,13 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
   if (resolved.inactiveConditions.length) console.log(`  · inactive conditions: ${resolved.inactiveConditions.length} (use --stacks to enable)`);
 }
 
+/** Machine-readable output for the listing commands; the human table stays the default. */
+function emitJson(payload: unknown): void {
+  console.log(JSON.stringify(payload, null, 0));
+}
+
+const wantsJson = (args: Args): boolean => args.flags.has('json');
+
 function main(): void {
   const args = parseArgs(process.argv.slice(2));
   const snapshot = loadSnapshot();
@@ -291,6 +298,13 @@ function main(): void {
     case 'weapons': {
       const query = args.positional[0] ?? '';
       const list = Object.values(snapshot.weapons).filter((w) => w.name.toLowerCase().includes(query.toLowerCase()));
+      if (wantsJson(args)) {
+        emitJson(list.map((w) => ({
+          name: w.name, category: w.category, type: w.type, masteryRank: w.masteryRank,
+          disposition: w.disposition, hasRivenSlot: w.hasRivenSlot, modClasses: w.modClasses,
+        })));
+        break;
+      }
       for (const weapon of list.slice(0, 60)) {
         console.log(`${weapon.name.padEnd(30)} ${weapon.category.padEnd(10)} ${weapon.type.padEnd(14)} MR${weapon.masteryRank}`);
       }
@@ -305,7 +319,24 @@ function main(): void {
       const list = modsForWeapon(snapshot, item).filter(
         (m) => !m.conclave && (m.name.toLowerCase().includes(query) || m.description.toLowerCase().includes(query) || m.effects.some((e) => e.target.toLowerCase().includes(query))),
       );
-      for (const mod of list.sort((a, b) => a.name.localeCompare(b.name))) {
+      const sorted = list.sort((a, b) => a.name.localeCompare(b.name));
+      if (wantsJson(args)) {
+        emitJson({
+          weapon: item.name,
+          modClasses: item.modClasses,
+          count: sorted.length,
+          mods: sorted.map((m) => ({
+            name: m.name, maxRank: m.maxRank, polarity: m.polarity, rarity: m.rarity,
+            baseDrain: m.baseDrain, classes: m.classes, isExilus: Boolean(m.isExilus),
+            // partial marks a lower bound: at least one line of the mod is not modelled.
+            partial: m.partial, outOfScopeLines: m.outOfScopeLines ?? [],
+            description: m.description, levels: m.levels ?? [],
+            effects: m.effects.map((e) => ({ target: e.target, op: e.op, value: e.value, condition: e.condition ?? null })),
+          })),
+        });
+        break;
+      }
+      for (const mod of sorted) {
         console.log(`${mod.name.padEnd(28)} ${String(mod.maxRank).padStart(2)}  ${mod.polarity ?? '-'.padEnd(8)}  ${mod.description.split('\n')[0]}`);
       }
       console.log(`\n${list.length} mod(s) fit ${item.name}`);
@@ -314,6 +345,13 @@ function main(): void {
     case 'enemies': {
       const query = (args.positional[0] ?? '').toLowerCase();
       const list = Object.values(snapshot.enemies).filter((e) => e.name.toLowerCase().includes(query));
+      if (wantsJson(args)) {
+        emitJson(list.map((e) => ({
+          name: e.name, faction: e.faction ?? null, health: e.health, shield: e.shield, armor: e.armor,
+          healthTypes: e.pools.map((p) => ({ type: p.type, category: p.category, amount: p.amount })),
+        })));
+        break;
+      }
       for (const enemy of list.slice(0, 60)) {
         console.log(`${enemy.name.padEnd(32)} ${(enemy.faction ?? '-').padEnd(10)} hp${enemy.health} sh${enemy.shield} ar${enemy.armor}  ${enemy.pools.map((p) => p.type).join('+')}`);
       }
@@ -326,6 +364,23 @@ function main(): void {
       const options = snapshot.incarnons[item.name] ?? [];
       if (!options.length) {
         console.log(`no Incarnon evolution data for ${item.name}`);
+        break;
+      }
+      if (wantsJson(args)) {
+        emitJson({
+          weapon: item.name,
+          tiers: [...new Set(options.map((o) => o.tier))].map((tier) => ({
+            tier,
+            choices: options
+              .filter((o) => o.tier === tier)
+              .map((o, index) => ({
+                index, name: o.name, text: o.text,
+                effects: o.effects.map((e) => ({
+                  target: e.target, element: e.element ?? null, value: e.value, flat: Boolean(e.flat), raw: e.raw,
+                })),
+              })),
+          })),
+        });
         break;
       }
       const byTier = new Map<string, typeof options>();
@@ -344,13 +399,32 @@ function main(): void {
     }
     case 'rivens': {
       const query = (args.positional[0] ?? '').toLowerCase();
-      for (const attribute of RIVEN_ATTRIBUTES.filter((a) => a.id.includes(query))) {
+      const attributes = RIVEN_ATTRIBUTES.filter((a) => a.id.includes(query));
+      if (wantsJson(args)) {
+        emitJson({ count: RIVEN_ATTRIBUTES.length, attributes: attributes.map((a) => ({ id: a.id, label: a.label })) });
+        break;
+      }
+      for (const attribute of attributes) {
         console.log(`${attribute.id.padEnd(18)} ${attribute.label}`);
       }
       console.log(`\n${RIVEN_ATTRIBUTES.length} attribute(s). Usage: --riven damage,multishot,-zoom`);
       break;
     }
     case 'buffs': {
+      if (wantsJson(args)) {
+        emitJson(availableBuffs(snapshot).map((buff) => {
+          const definition = BUFFS.find((b) => b.id === buff.id)!;
+          const ability = snapshot.abilities[definition.ability];
+          return {
+            id: buff.id, frame: buff.frame, ability: definition.ability,
+            abilityBaseValue: ability?.value ?? null, kind: definition.kind,
+            element: definition.element ?? null, unit: definition.unit ?? null,
+            subsumable: Boolean(buff.subsumable), augments: buff.augments ?? [],
+            note: definition.note ?? null, augmentOnly: Boolean(definition.augment),
+          };
+        }));
+        break;
+      }
       for (const buff of availableBuffs(snapshot)) {
         const definition = BUFFS.find((b) => b.id === buff.id)!;
         const ability = snapshot.abilities[definition.ability];
@@ -365,7 +439,16 @@ function main(): void {
     case 'arcanes': {
       const query = (args.positional[1] ?? args.positional[0] ?? '').toLowerCase();
       const list = Object.values(snapshot.arcanes).filter((a) => a.slot && a.slot !== 'warframe' && a.name.toLowerCase().includes(query));
-      for (const arcane of list.sort((a, b) => a.name.localeCompare(b.name))) {
+      const sortedArcanes = list.sort((a, b) => a.name.localeCompare(b.name));
+      if (wantsJson(args)) {
+        emitJson(sortedArcanes.map((a) => ({
+          name: a.name, slot: a.slot, maxRank: a.maxRank, rarity: a.rarity,
+          description: a.description,
+          effects: a.effects.map((e) => ({ target: e.target, op: e.op, value: e.value, condition: e.condition ?? null })),
+        })));
+        break;
+      }
+      for (const arcane of sortedArcanes) {
         console.log(`${arcane.name.padEnd(26)} ${String(arcane.slot).padEnd(10)} R${arcane.maxRank}  ${arcane.description.slice(0, 60)}`);
       }
       console.log(`\n${list.length} weapon arcane(s)`);
