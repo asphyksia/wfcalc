@@ -66,3 +66,33 @@ test('a partial mod makes the result a lower bound and says so', () => {
   const build = result.builds[0];
   assert.ok(build.partialMods.includes('Spectral Serration'));
 });
+
+test('two mods of the same family never end up together', () => {
+  // Pressure Point and Primed Pressure Point are mutually exclusive, and the data says so.
+  const result = search(snapshot, { weapon: 'Nikana Prime', objective: 'dps', enemy: 'Bombard', level: 150, limit: 3 });
+  for (const build of result.builds) {
+    const names = build.mods.map((mod) => mod.name);
+    const pressure = names.filter((name) => /Pressure Point$/.test(name));
+    assert.ok(pressure.length <= 1, `found ${pressure.join(' and ')}`);
+    for (const name of names) {
+      const mod = snapshot.mods[name];
+      const clash = mod.incompatible.filter((other) => names.includes(other));
+      assert.deepEqual(clash, [], `${name} cannot be equipped with ${clash.join(', ')}`);
+    }
+  }
+});
+
+test('a melee search assumes the combo multiplier players fight at', () => {
+  const result = search(snapshot, { weapon: 'Nikana Prime', enemy: 'Bombard', level: 150, limit: 1 });
+  assert.ok(result.assumptions.some((line) => /combo assumed at 12x/.test(line)));
+  // Blood Rush is worth nothing at 1x, so it only shows up because the combo is assumed.
+  const withCombo = search(snapshot, { weapon: 'Nikana Prime', objective: 'dps', enemy: 'Bombard', level: 150, limit: 1 });
+  const without = search(snapshot, { weapon: 'Nikana Prime', objective: 'dps', enemy: 'Bombard', level: 150, limit: 1, base: { comboHits: 0 } });
+  assert.ok(withCombo.builds[0].totalDps > without.builds[0].totalDps);
+});
+
+test('the dps objective counts status damage, not just direct hits', () => {
+  const result = search(snapshot, { weapon: 'Nikana Prime', objective: 'dps', enemy: 'Bombard', level: 150, limit: 1 });
+  const build = result.builds[0];
+  assert.ok(build.totalDps >= build.sustainedDps, 'total damage cannot be below direct damage');
+});

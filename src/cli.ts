@@ -483,7 +483,7 @@ function main(): void {
       console.log(`${result.weapon} vs ${result.enemy} level ${result.level} — best ${result.builds.length} of ${result.evaluated} builds tried (${result.elapsedMs}ms)\n`);
       result.builds.forEach((build, index) => {
         const ttk = build.timeToKill === null ? 'cannot kill' : `${build.timeToKill.toFixed(2)}s (${Math.ceil(build.shotsToKill ?? 0)} shots)`;
-        console.log(`${index + 1}. ${build.timeToKill === null ? '' : `${ttk}  `}sustained ${num(build.sustainedDps, 0)} dps  crit ${pct(build.critChance)}x${num(build.critMultiplier, 1)}  status ${pct(build.statusChance)}  multishot ${num(build.multishot, 2)}`);
+        console.log(`${index + 1}. ${build.timeToKill === null ? '' : `${ttk}  `}${num(build.totalDps, 0)} dps on target (${num(build.sustainedDps, 0)} direct)  crit ${pct(build.critChance)}x${num(build.critMultiplier, 1)}  status ${pct(build.statusChance)}  multishot ${num(build.multishot, 2)}`);
         console.log(`   capacity ${build.capacityUsed}/${build.capacity}${build.formaNeeded ? ` — ${build.formaNeeded} forma` : ''}${build.partialMods.length ? ` — lower bound: ${build.partialMods.join(', ')}` : ''}`);
         console.log(`   ${build.mods.map((mod) => `${mod.name}${mod.rank < 99 ? ` R${mod.rank}` : ''}`).join(', ')}\n`);
       });

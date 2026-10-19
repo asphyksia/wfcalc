@@ -57,7 +57,10 @@ export interface SearchBuild {
   fits: boolean;
   damagePerShot: number;
   burstDps: number;
+  /** Sustained direct damage, procs excluded. */
   sustainedDps: number;
+  /** Damage per second against this target, status damage included. */
+  totalDps: number;
   timeToKill: number | null;
   shotsToKill: number | null;
   critChance: number;
@@ -186,7 +189,11 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
 
   const excluded = new Set((request.exclude ?? []).map((n) => n.toLowerCase()));
   const mustInclude = (request.mustInclude ?? []).filter(Boolean);
-  const base = request.base ?? {};
+  // Blood Rush and Weeping Wounds scale with the melee combo multiplier and are worth nothing
+  // at 1x, so a melee search assumes the 12x a player actually fights at unless told otherwise.
+  // An explicit --combo-hits 0 means "no combo", and is respected.
+  const assumedCombo = weapon.category === 'melee' && request.base?.comboHits === undefined;
+  const base = assumedCombo ? { ...(request.base ?? {}), comboHits: 220 } : (request.base ?? {});
 
   const allMods = Object.values(snapshot.mods);
   const fitsWeapon = allMods.filter((mod) => {
@@ -231,7 +238,10 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
       hit = hitEnemy(snapshot, resolved, scaled, {});
       score = objective === 'ttk'
         ? (hit.timeToKill === null ? -1 : 1 / Math.max(hit.timeToKill, 1e-6))
-        : resolved.sustainedDps;
+        // totalDps is the damage against this target including status procs. sustainedDps
+        // alone ignores them, which made the dps objective blind to Weeping Wounds and to
+        // every slash or heat build: identical score for 33.6k and 17.9k real damage.
+        : hit.totalDps;
     } catch {
       return -1;
     }
@@ -249,7 +259,11 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
       .map((name) => ({ mod: pool.get(name) ?? snapshot.mods[name], rank: (pool.get(name) ?? snapshot.mods[name])?.maxRank ?? 0 }))
       .filter((entry): entry is { mod: ModData; rank: number } => Boolean(entry.mod));
     const result = fitMods(mods, weapon, capacity);
-    const ok = result.drain <= capacity && (maxForma === null || result.formaNeeded <= maxForma);
+    // Two mods of the same family cannot be equipped together: Pressure Point and Primed
+    // Pressure Point are the classic pair, and the data carries the incompatibility list.
+    const chosen = new Set(names);
+    const conflict = mods.some((entry) => entry.mod.incompatible.some((other) => chosen.has(other)));
+    const ok = !conflict && result.drain <= capacity && (maxForma === null || result.formaNeeded <= maxForma);
     return { ok, ...result };
   };
 
@@ -330,6 +344,7 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
       damagePerShot: scored.resolved.averageShotDamage,
       burstDps: scored.resolved.burstDps,
       sustainedDps: scored.resolved.sustainedDps,
+      totalDps: scored.hit.totalDps,
       timeToKill: scored.hit.timeToKill,
       shotsToKill: scored.hit.shotsToKill,
       critChance: scored.resolved.critChance,
@@ -381,17 +396,18 @@ export function search(snapshot: Snapshot, request: SearchRequest): SearchResult
 
   builds.sort((a, b) => (objective === 'ttk'
     ? (a.timeToKill ?? Infinity) - (b.timeToKill ?? Infinity)
-    : b.sustainedDps - a.sustainedDps));
+    : b.totalDps - a.totalDps));
 
   const assumptions: string[] = [
     `All mods at max rank, ${capacity} capacity${capacity === 60 ? ' (Orokin Catalyst)' : ''}`,
     objective === 'ttk'
       ? `Objective: kill ${enemy.name} at level ${level} in the fewest shots`
-      : 'Objective: highest sustained DPS',
+      : `Objective: highest damage per second against ${enemy.name} at level ${level}, status damage included`,
   ];
   if (base.conditions && Object.keys(base.conditions).length) {
     assumptions.push(`Conditions: ${Object.entries(base.conditions).map(([k, v]) => `${k}=${v}`).join(', ')}`);
   }
+  if (assumedCombo) assumptions.push('Melee combo assumed at 12x (220 hits)');
   if (base.buffs?.length) assumptions.push(`Buffs: ${base.buffs.join(', ')}`);
   if (base.frame) assumptions.push(`Warframe: ${base.frame}`);
   // Ability Strength decides how much a Roar or Eclipse is worth, so it is stated, not implied.

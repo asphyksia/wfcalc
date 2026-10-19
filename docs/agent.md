@@ -59,7 +59,9 @@ The response:
   "builds": [{
     "mods": [{"name": "Serration", "rank": 10, "drain": 7, "halvedByPolarity": true}, ...],
     "capacityUsed": 60, "capacity": 60, "formaNeeded": 2, "fits": true,
-    "sustainedDps": 37200, "timeToKill": 11.94, "shotsToKill": 240,
+    "sustainedDps": 37200,        // direct damage only
+    "totalDps": 41000,            // against this target, status damage included
+    "timeToKill": 11.94, "shotsToKill": 240,
     "critChance": 0.9, "critMultiplier": 6.6, "statusChance": 0.1, "multishot": 1.9,
     "warnings": [], "partialMods": []
   }],
@@ -69,8 +71,13 @@ The response:
 ```
 
 A returned build is **legal by construction**: at most eight mods, within capacity, within the
-Forma budget, no incompatible pairs, no Exilus mod in a standard slot, and no trigger-locked
-mod (Cannonade) on a weapon whose trigger does not match.
+Forma budget, no two mods of the same family (Pressure Point and Primed Pressure Point), no
+Exilus mod in a standard slot, and no trigger-locked mod (Cannonade) on a weapon whose trigger
+does not match.
+
+`--objective dps` scores **`totalDps`**, the damage against the given target including status
+procs: scoring direct damage alone makes Weeping Wounds, slash and heat builds invisible
+(measured on a Nikana Prime, 33.6k real damage per second scored the same as 17.9k).
 
 ## Recipe: judge a build the player already has
 
@@ -97,11 +104,14 @@ is subsumable.
 State these when they matter instead of guessing:
 
 - **The Exilus and stance slots are not searched.** An Exilus mod is never worth a standard slot.
+- **Melee assumes a 12x combo** (220 hits), because Blood Rush and Weeping Wounds are worth
+  nothing at 1x. Pass `--combo-hits 0` to score raw swings instead; the assumption is reported.
 - **Incarnon evolutions are not searched.** Pass them with `--incarnon "EVO2:0,EVO4:1"` after
   reading `wfcalc incarnon <weapon> --json`.
 - **Rivens must be spelled out**: `--riven damage,multishot,-zoom --riven-roll 1.05`.
 - **Conditional mods default to inactive.** Galvanized stacks, on-kill effects and "while
   aiming" need `--stacks onKill=5` or similar; otherwise the build is scored lower than it plays.
+  This matters most for search results: say which conditions your answer assumes.
 - **One target, average damage.** No spread, no multi-target, no enemy AI. Time to kill is a
   model of sustained fire including reloads, not a stopwatch.
 - **A meta is not a calculation.** If a mod is not in the snapshot, the tool cannot know it.
