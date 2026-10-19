@@ -320,7 +320,8 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
       `   avg hit ${num(resolved.averageShotDamage)}`,
   );
   console.log(
-    `  target       hp ${num(scaled.health)}  shields ${num(scaled.shield)}  armor ${num(scaled.armor)}` +
+    `  target       hp ${num(scaled.health)}  shields ${num(scaled.shield)}  armor ${num(hit.armor)}` +
+      (hit.armor !== scaled.armor ? ` (base ${num(scaled.armor)})` : '') +
       `   -> ${num(hit.shotsToKill)} shots${hit.timeToKill !== null ? `, ${num(hit.timeToKill, 2)}s` : ''}`,
   );
   if (hit.factionMultiplier !== 1) console.log(`  faction      x${hit.factionMultiplier.toFixed(2)} vs ${enemy.faction ?? 'unknown'}`);

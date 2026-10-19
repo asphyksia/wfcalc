@@ -144,3 +144,9 @@ test('batch prices every record and reports a bad one without stopping', () => {
   assert.match(lines[1], /^typo: error: weapon not found: NoSuchWeapon/);
   assert.match(lines[2], /^avalanche: Frost Avalanche .* · strip 100%/);
 });
+
+test('the text report shows the effective armour after a strip', () => {
+  const result = runRaw(['calc', 'Haalvu', '--armor-strip', '100', '--enemy', 'Bombard', '--level', '150']);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /armor 0 \(base 2,700\)/, result.stdout);
+});
