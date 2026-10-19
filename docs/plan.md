@@ -68,7 +68,7 @@ Rules that have prevented repeated mistakes:
   That is why `dev-server.sh` kills with `pgrep -f "server.ts --port N"`, and even then the
   match can hit the invoking shell: prefer `pgrep` + `ps` + `kill <pid>`.
 - **`/tmp` is wiped** between sessions: keep scratch files in a home directory (for example
-  `~/wfcheck/`), not in `/tmp`.
+  `~/scratch/`), not in `/tmp`.
 - **`agent-browser`** is useful for `eval`, `drag`, `hover` and `screenshot`, but its daemon
   sometimes fails (`Resource temporarily unavailable`), stays on `about:blank`, and **cannot
   drop onto covered slots**. When it fails, use synthetic events (`new DragEvent`) or a small
