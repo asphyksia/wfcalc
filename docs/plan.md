@@ -2,7 +2,7 @@
 
 Handover document: a new session should be able to start here with no other context.
 
-Last updated: commit `736ed20`, 2026-10-19.
+Last updated: 2026-10-19.
 
 ---
 
@@ -167,7 +167,7 @@ Useful commands: `wfcalc abilities`, `wfcalc ability <name> --strength N --enemy
 
 ```sh
 cd wfcalc
-git log --oneline | head -5      # 736ed20 or later
+git log --oneline | head -5      # the top commit
 npm test                          # 102 tests
 node tools/validate.ts            # 0 violations
 node tools/calibrate.ts           # 50/50

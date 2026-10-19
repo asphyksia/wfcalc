@@ -351,3 +351,43 @@ docs/api.md         the JSON API, for scripts and AI agents
 
 Formulas and their sources: [docs/formulas.md](docs/formulas.md).
 JSON API: [docs/api.md](docs/api.md).
+
+## Status and known limitations
+
+Usable now for comparing ranged weapon builds, mods, rivens, Incarnon and abilities against a
+concrete enemy. Calibration against 50 sampled Overframe builds matches on all seven arsenal
+stats. It does **not** model:
+
+- **Overguard**: no enemy in the snapshot has an overguard pool, so Steel Path survivability
+  claims are incomplete.
+- **Damage attenuation** (Liches, Sisters, Archons, Eidolons): damage per hit is capped in the
+  game and not here.
+- Shields in an ability's `castsToKill`, multi-target/AoE for abilities, and the second hit of
+  an Incarnon form (the report says when a hit was left out).
+- Stance modifiers, companions, Archwing and Necramech.
+
+`docs/plan.md` keeps the full list, the evidence for each gap, and the order to close them.
+
+## Data sources and licensing
+
+The **code** is licensed under the GNU General Public License v3.0 only: see [LICENSE](LICENSE).
+You can use, study, share and sell it; if you distribute a modified version, it must stay under
+the GPL and you must offer its source.
+
+The **data** has its own terms and they are not all compatible with commercial use:
+
+- [WFCD/warframe-items](https://github.com/WFCD/warframe-items): MIT. Weapon, mod, enemy and
+  arcane numbers, and the game-export text.
+- [wiki.warframe.com](https://wiki.warframe.com): **CC BY-NC-SA 3.0**. Mod descriptions, Incarnon
+  evolution trees, ability numbers and the formulas quoted in `docs/formulas.md` are derived
+  from it. NC means non-commercial: a paid product built on this snapshot needs permission or a
+  data source without that restriction. If you redistribute the snapshot, keep the attribution
+  and share-alike terms.
+- Overframe is queried as an oracle for calibration only; its builds are not shipped.
+- Warframe artwork, names and marks belong to Digital Extremes. No artwork is redistributed in
+  this repository: the server fetches mod cards and images on demand and caches them locally
+  (`data/cards/`, `data/img/`, `data/frames/`, all gitignored). If you plan to charge for an app
+  around this, read Digital Extremes' fan content and EULA terms first.
+
+Not legal advice, but the practical reading: GPLv3 does not stop you from monetising. The wiki's
+non-commercial data licence and Digital Extremes' IP are the parts to clear before selling.
