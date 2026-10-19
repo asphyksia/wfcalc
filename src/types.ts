@@ -134,6 +134,8 @@ export interface WeaponData {
   exilusPolarity: string | null;
   /** Which mod-compatibility class this weapon accepts. */
   modClasses: string[];
+  /** Firing trigger from the game data: Auto, Semi, Charge, Held... */
+  trigger?: string;
   /** Flavour text from the game data, shown under the weapon name. */
   description?: string;
   /** The arsenal stat block: what the game shows as the weapon's damage. */

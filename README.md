@@ -46,6 +46,7 @@ after closing the terminal: `setsid wfcalc serve --host 0.0.0.0 >/tmp/wfcalc.log
 
 | Command | What it does |
 |---|---|
+| `wfcalc search <weapon> [options]` | Find the best build for a target |
 | `wfcalc calc <weapon> [options]` | Full damage report |
 | `wfcalc compare <weapon> --vs a,b --vs c,d` | Same build, different mod choices |
 | `wfcalc weapons [query]` | Search the 622 weapons |
@@ -57,6 +58,9 @@ after closing the terminal: `setsid wfcalc serve --host 0.0.0.0 >/tmp/wfcalc.log
 | `wfcalc enemies [query]` | Search the 479 enemies |
 | `wfcalc serve [--port 7777]` | Local web UI + JSON API |
 | `wfcalc update` | Re-download sources and rebuild the snapshot |
+
+Every command takes `--json`. For driving the tool from an AI agent, see
+[docs/agent.md](docs/agent.md) and the `wfcalc` skill.
 
 ### Options
 

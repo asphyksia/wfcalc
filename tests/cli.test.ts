@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 const BIN = fileURLToPath(new URL('../bin/wfcalc', import.meta.url));
 
 const run = (args: string[]): unknown => {
-  const out = execFileSync(BIN, args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  const out = execFileSync(BIN, args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
   return JSON.parse(out);
 };
 

@@ -360,6 +360,7 @@ function buildWeapons(): Record<string, WeaponData> {
         polarities: Array.isArray(weapon.polarities) ? weapon.polarities.map((p: unknown) => String(p).toLowerCase()) : [],
         exilusPolarity: typeof weapon.exilusPolarity === 'string' ? weapon.exilusPolarity.toLowerCase() : null,
         modClasses: modClassesFor(category, type),
+        trigger: String(weapon.trigger ?? ''),
         description: String(weapon.description ?? '').replace(/\r\n?/g, ' ').replace(/\s+/g, ' ').trim(),
         stats,
         modes,

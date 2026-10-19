@@ -20,6 +20,7 @@
  */
 import { loadSnapshot, findEnemy, findMod, findWeapon, modsForWeapon } from './data.ts';
 import { resolveBuild, type Build, type BuildMod } from './engine/build.ts';
+import { search } from './engine/search.ts';
 import { scaleEnemy } from './engine/enemy.ts';
 import { hitEnemy } from './engine/damage.ts';
 import { BUFFS, availableBuffs } from './engine/buffs.ts';
@@ -454,6 +455,42 @@ function main(): void {
       console.log(`\n${list.length} weapon arcane(s)`);
       break;
     }
+    case 'search': {
+      const { item, suggestions } = findWeapon(snapshot, args.positional[0] ?? '');
+      if (!item) {
+        throw new Error(`weapon not found: ${args.positional[0]}${suggestions.length ? ` (did you mean: ${suggestions.join(', ')}?)` : ''}`);
+      }
+      const base = buildFromArgs(snapshot, args, []);
+      const commaList = (name: string): string[] =>
+        flagAll(args, name).flatMap((entry) => entry.split(',')).map((entry) => entry.trim()).filter(Boolean);
+      const result = search(snapshot, {
+        weapon: item.name,
+        objective: (flag(args, 'objective') as 'ttk' | 'dps' | undefined) ?? 'ttk',
+        enemy: flag(args, 'enemy') ?? 'Bombard',
+        level: flag(args, 'level') ? Number(flag(args, 'level')) : 150,
+        capacity: flag(args, 'capacity') ? Number(flag(args, 'capacity')) : 60,
+        maxForma: flag(args, 'forma') ? Number(flag(args, 'forma')) : null,
+        exclude: commaList('exclude'),
+        mustInclude: commaList('must'),
+        limit: flag(args, 'top') ? Number(flag(args, 'top')) : 3,
+        budget: flag(args, 'budget') ? Number(flag(args, 'budget')) : undefined,
+        base,
+      });
+      if (wantsJson(args)) {
+        emitJson(result);
+        break;
+      }
+      console.log(`${result.weapon} vs ${result.enemy} level ${result.level} — best ${result.builds.length} of ${result.evaluated} builds tried (${result.elapsedMs}ms)\n`);
+      result.builds.forEach((build, index) => {
+        const ttk = build.timeToKill === null ? 'cannot kill' : `${build.timeToKill.toFixed(2)}s (${Math.ceil(build.shotsToKill ?? 0)} shots)`;
+        console.log(`${index + 1}. ${build.timeToKill === null ? '' : `${ttk}  `}sustained ${num(build.sustainedDps, 0)} dps  crit ${pct(build.critChance)}x${num(build.critMultiplier, 1)}  status ${pct(build.statusChance)}  multishot ${num(build.multishot, 2)}`);
+        console.log(`   capacity ${build.capacityUsed}/${build.capacity}${build.formaNeeded ? ` — ${build.formaNeeded} forma` : ''}${build.partialMods.length ? ` — lower bound: ${build.partialMods.join(', ')}` : ''}`);
+        console.log(`   ${build.mods.map((mod) => `${mod.name}${mod.rank < 99 ? ` R${mod.rank}` : ''}`).join(', ')}\n`);
+      });
+      for (const assumption of result.assumptions) console.log(`· ${assumption}`);
+      for (const note of result.notes) console.log(`· ${note}`);
+      break;
+    }
     case 'calc': {
       report(snapshot, args, flagAll(args, 'mod').map(parseModArg), 'build');
       break;
@@ -486,6 +523,7 @@ function main(): void {
   wfcalc rivens [query]                 riven attribute ids
   wfcalc enemies [query]                search enemies
   wfcalc calc <weapon> [options]        damage report
+  wfcalc search <weapon> [options]      find the best build for a target
   wfcalc compare <weapon> --vs a,b      compare setups
   wfcalc serve                          web UI + JSON API (see docs/api.md)
 
@@ -500,7 +538,16 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>]  --buff roar,eclipse
          --combo-hits 220  --heavy   (melee combo multiplier / heavy attack)
          --aoe-distance 4            (AoE falloff distance in metres)
          --enemy NAME  --level N  --faction NAME  --mode "Name"
-         --stacks onKill=5  --status-types N  --headshot  --json`);
+         --stacks onKill=5  --status-types N  --headshot  --json
+
+Search options:
+         --objective ttk|dps   (default ttk: kill the target fastest)
+         --capacity 30|60      (default 60, i.e. with an Orokin Catalyst)
+         --forma N             maximum Forma the search may spend
+         --must "A,B"          mods that must be in the build
+         --exclude "A,B"       mods the player does not own
+         --top N               how many builds to return (default 3)
+         --budget N            evaluation budget (default 12000)`);
   }
 }
 

@@ -206,6 +206,7 @@ const server = createServer(async (req, res) => {
           name: w.name, category: w.category, type: w.type, masteryRank: w.masteryRank,
           // Needed by the client to work out mod capacity and polarity matches.
           polarities: w.polarities, exilusPolarity: w.exilusPolarity, modClasses: w.modClasses,
+          trigger: w.trigger ?? null,
           stancePolarity: WEAPON_STANCE.get(w.name) ?? null,
           image: WEAPON_IMAGE.get(w.name) ?? null,
           description: w.description ?? '',
