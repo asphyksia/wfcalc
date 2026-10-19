@@ -80,6 +80,10 @@ test('POST /api/calc resolves the armour-strip fields the same way the CLI does'
     assert.equal(eximus.target.overguard, 281865);
     assert.ok(eximus.target.timeToKill > plain.target.timeToKill);
 
+    const attenuated = await calc({ attenuation: 'archon' });
+    assert.equal(attenuated.target.attenuation.id, 'archon');
+    assert.equal(attenuated.target.attenuation.mdpi, 460000);
+
     const fitted = await calc({ mods: [{ name: 'Serration' }], arcanes: [{ name: 'Primary Merciless' }] });
     assert.equal(fitted.capacity, 60);
     assert.ok(fitted.capacityUsed > 0);

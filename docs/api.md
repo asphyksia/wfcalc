@@ -103,6 +103,7 @@ Finds the best eight-slot build for a target. Same options as the CLI's `wfcalc 
   "chooseArcane": false,
   "eximus": false,
   "overguard": null,
+  "attenuation": "archon",
   "base": { "arcanes": [{ "name": "Primary Merciless" }], "conditions": { "onKill": 12 } }
 }
 ```
@@ -115,6 +116,8 @@ Finds the best eight-slot build for a target. Same options as the CLI's `wfcalc 
   build. An explicit arcane in `base.arcanes` wins over `auto`.
 - `eximus` adds the wiki's level-scaled Overguard to the target; `overguard` sets an explicit
   amount instead. The search scores the time to remove it plus shields and health.
+- `attenuation` applies the same boss caps as `/api/calc`; the result echoes the resolved
+  profile in `attenuation` and its assumptions.
 - `base` fixes everything the search does not choose (arcanes, buffs, frame, riven, debuffs,
   the armour strip, conditions, mode, combo). The top level is accepted as well, so the
   `/api/calc` body shape works when `base` is omitted.
@@ -124,7 +127,7 @@ Response (abridged):
 ```json
 {
   "weapon": "Soma Prime", "objective": "dps", "enemy": "Bombard", "level": 150,
-  "capacity": 60, "evaluated": 787, "elapsedMs": 56, "overguard": 0,
+  "capacity": 60, "evaluated": 787, "elapsedMs": 56, "overguard": 0, "attenuation": null,
   "builds": [{
     "mods": [{ "name": "Split Chamber", "rank": 5, "drain": 5, "polarity": "madurai" }],
     "capacityUsed": 60, "capacity": 60, "formaNeeded": 2,
@@ -162,6 +165,7 @@ Response (abridged):
   "heavyAttack": false,
   "eximus": false,
   "overguard": null,
+  "attenuation": "archon",
   "mods": [{ "name": "Serration" }, { "name": "Vital Sense", "rank": 3 }],
   "enemy": "Bombard",
   "level": 150,
@@ -182,6 +186,10 @@ Response (abridged):
 - `elementBonus` is the Kuva/Tenet bonus (`value` as a fraction or a percentage).
 - `conditions.covenantDamage` feeds Harrow's Covenant (damage prevented).
 - `eximus` adds the level-scaled Eximus Overguard; `overguard` sets an explicit amount instead.
+- `attenuation` applies boss caps (`"archon"`, `"eidolon"`, `"none"`) or a custom object
+  `{ "id": "custom", "mdpi": 460000, "mdps": 935000, "flatDr": 0.2, "statusDr": 0.5 }`.
+  `mdpt`/`mdps`/`flatDr`/`statusDr` at the top level are shorthand for a custom profile
+  (`flatDr`/`statusDr` in percent). Eidolons apply theirs automatically.
 - `aoeDistance` (metres) applies the weapon's own AoE falloff; omitted means blast centre.
 - `comboHits` drives the melee combo multiplier; `heavyAttack` applies it to damage.
 - `frame` is optional: it validates Helminth availability of the requested buffs.
@@ -210,8 +218,8 @@ Response (abridged):
   "capacityUsed": 59, "capacity": 60, "formaNeeded": 3, "fits": true,
   "arcanes": [{ "name": "Primary Merciless", "rank": 5 }],
   "elements": [{ "type": "blast", "share": 0.935 }],
-  "overguard": 0, "overguardDps": 0, "capacityUsed": 59, "capacity": 60,
-  "formaNeeded": 3, "fits": true, "arcanes": [],
+  "overguard": 0, "overguardDps": 0, "attenuation": null,
+  "capacityUsed": 59, "capacity": 60, "formaNeeded": 3, "fits": true, "arcanes": [],
   "target": {
     "name": "Bombard", "level": 150, "health": 118480.2, "armor": 2700,
     "breakdown": [{ "type": "blast", "raw": 7117.37, "healthMultiplier": 0.1,

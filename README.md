@@ -124,6 +124,10 @@ current state, the working method and what is left to do.
 | `--viral 10`, `--corrosive 10` | Status stacks kept up on the target |
 | `--incarnon "EVO2:0,EVO4:1"` | Incarnon evolutions per tier (see `wfcalc incarnon`) |
 | `--incarnon form` | Transformed profile with no evolution perks |
+| `--eximus` / `--overguard N` | Add level-scaled Eximus Overguard, or an explicit amount |
+| `--attenuation archon\|eidolon` | Boss damage caps; Eidolons are automatic |
+| `--mdpt N --mdps N` | Custom caps per hit / per second |
+| `--flat-dr 20 --status-dr 50` | Extra flat and status-only damage reduction, percent |
 | `--combo-hits 220` / `--heavy` | Melee combo counter and heavy attack |
 | `--aoe-distance 4` | Distance to the blast centre for AoE weapons (falloff) |
 | `--enemy NAME`, `--level N` | Target and level (default Bombard at 100) |
@@ -257,7 +261,10 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
 ## What it does not model yet
 
 - Elemental Ward and Provoke do not buff weapon damage, so they are intentionally absent.
-- Boss damage attenuation (Archons, Liches) is not modelled: the game caps damage per hit.
+- **Damage attenuation** for bosses: `--attenuation archon` (MDPT 460k, MDPS 935k, 20% flat DR,
+  50% status DR) or `--mdpt/--mdps` for a known custom value; Eidolons apply their
+  health-relative caps automatically. The game's exponential smoothing is not modelled, so the
+  time to kill is conservative.
 - Umbral set bonuses, Archon Shards and Helminth invigorations for Ability Strength.
 - **Stances**: stance damage multipliers are per-combo-hit execution, not a build
   property, and the wiki keeps them in prose. Out of scope by design.
@@ -390,8 +397,10 @@ stats. It does **not** model:
 - **Overguard** is modelled for Eximus (`--eximus`) and for a known amount (`--overguard N`):
   base 12, wiki level scaling, Void +50%, no armour. Only direct damage is credited while it is
   up (status DoT and Magnetic's status amplification are not modelled).
-- **Damage attenuation** (Liches, Sisters, Archons, Eidolons): damage per hit is capped in the
-  game and not here.
+- **Damage attenuation**: the documented caps are applied for Archons/Eidolons and for explicit
+  `--mdpt/--mdps`; the exponential smoothing between hits is not modelled, and Liches/Sisters
+  have no published cap values (pass your own). Eidolon joints/invulnerability phases and Lich
+  ranks are also not modelled.
 - Shields in an ability's `castsToKill`, multi-target/AoE for abilities, and the second hit of
   an Incarnon form (the report says when a hit was left out).
 - Stance modifiers, companions, Archwing and Necramech.

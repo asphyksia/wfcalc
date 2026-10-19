@@ -164,6 +164,17 @@ const cases: Case[] = [
     },
   },
   {
+    name: 'boss attenuation',
+    question: 'Does an Eidolon answer cap damage, and can it be turned off?',
+    run: () => {
+      const result = run(['calc', 'Rubico Prime', '--mod', 'Serration', '--enemy', 'Eidolon Teralyst', '--level', '30', '--brief']);
+      check(result.status === 0, `exit ${result.status}: ${result.stderr}`);
+      contains(result.stdout, 'attenuation eidolon');
+      const off = run(['calc', 'Rubico Prime', '--mod', 'Serration', '--enemy', 'Eidolon Teralyst', '--level', '30', '--attenuation', 'none', '--brief']);
+      check(!off.stdout.includes('attenuation'), `--attenuation none must suppress it: ${off.stdout}`);
+    },
+  },
+  {
     name: 'partial mods are a lower bound',
     question: 'Split Flights on a Soma Prime: is the number exact?',
     run: () => {

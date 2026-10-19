@@ -210,3 +210,33 @@ test('an ability cast has to break Overguard before health', () => {
   // ceil(281865/3000) + ceil(118480/perCast) is 94 + 180.
   assert.equal(result.target.castsToKill, 274);
 });
+
+test('attenuation is opt-in for Archons and automatic for Eidolons', () => {
+  const plain = run(['calc', 'Haalvu', '--mod', 'Serration', '--enemy', 'Bombard', '--level', '150', '--json']) as {
+    timeToKill: number | null; attenuation: unknown;
+  };
+  const capped = run(['calc', 'Haalvu', '--mod', 'Serration', '--enemy', 'Bombard', '--level', '150', '--mdpt', '1', '--mdps', '1', '--json']) as {
+    timeToKill: number | null; attenuation: { id: string; mdpi: number; mdps: number } | null;
+  };
+  assert.equal(plain.attenuation, null);
+  assert.equal(capped.attenuation?.id, 'custom');
+  assert.equal(capped.attenuation?.mdpi, 1);
+  assert.ok((capped.timeToKill ?? 0) > (plain.timeToKill ?? 0));
+
+  const archon = run(['calc', 'Haalvu', '--mod', 'Serration', '--enemy', 'Bombard', '--level', '150', '--attenuation', 'archon', '--json']) as {
+    attenuation: { id: string; mdpi: number; mdps: number; flatDr: number; statusDr: number } | null;
+  };
+  assert.equal(archon.attenuation?.id, 'archon');
+  assert.equal(archon.attenuation?.mdpi, 460000);
+  assert.equal(archon.attenuation?.mdps, 935000);
+  assert.equal(archon.attenuation?.statusDr, 0.5);
+
+  const eidolon = run(['calc', 'Rubico Prime', '--mod', 'Serration', '--enemy', 'Eidolon Teralyst', '--level', '30', '--json']) as {
+    attenuation: { id: string } | null;
+  };
+  assert.equal(eidolon.attenuation?.id, 'eidolon');
+  const off = run(['calc', 'Rubico Prime', '--mod', 'Serration', '--enemy', 'Eidolon Teralyst', '--level', '30', '--attenuation', 'none', '--json']) as {
+    attenuation: unknown;
+  };
+  assert.equal(off.attenuation, null);
+});

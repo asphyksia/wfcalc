@@ -73,6 +73,9 @@ Flags:
 | `--viral 10 --corrosive 0 --headshot` | Target debuffs and headshots |
 | `--eximus` | Target is an Eximus: add its level-scaled Overguard (base 12) |
 | `--overguard N` | Explicit Overguard amount instead of the Eximus formula |
+| `--attenuation archon\|eidolon` | Boss damage caps; Eidolons apply theirs automatically |
+| `--mdpt N --mdps N` | Explicit caps per hit and per second (Archons use 460k/935k) |
+| `--flat-dr 20 --status-dr 50` | Extra flat and status-only damage reduction, in percent |
 | `--armor-strip 60` | Percent of the target's armour already removed |
 | `--strip-from "Avalanche" --strength 200` | Take the strip from an ability you will cast |
 | `--cp 2` | Corrosive Projection auras in the squad, 18% each |
@@ -178,8 +181,11 @@ State these when they matter instead of guessing:
   a separate layer before shields/health, neutral except Void (+50%), no armour. Only direct
   damage is credited while it is up; status DoT and Magnetic's status amplification are not
   modelled. Ability `castsToKill` includes the casts needed to break it.
-- **No damage attenuation** (Liches, Sisters, Archons, Eidolons): the model will say a sniper
-  melts them when the game caps damage per hit.
+- **Damage attenuation** is modelled as hard caps: `--attenuation archon` (MDPT 460k, MDPS 935k,
+  20% flat DR, 50% status DR) or `--mdpt/--mdps`; Eidolons apply 200%/100% of max health
+  automatically. The game's exponential smoothing is not modelled, so TTK is conservative.
+  There are no published Lich/Sister caps in the data: pass your own. Eidolon joints and
+  invulnerability phases, and Lich ranks, are not modelled.
 - **Armour strip covers five abilities** (Avalanche, Terrify, Seeking Shuriken and Psychic Bolts
   as a percentage; Polarize as a flat drain), Corrosive Projection and Shattering Impact.
   Anything else that strips must be passed with `--armor-strip`. Psychic Bolts is 80% at 100%

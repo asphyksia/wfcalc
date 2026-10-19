@@ -14,6 +14,7 @@ import type { Build, BuildMod } from './build.ts';
 import { resolveBuild } from './build.ts';
 import { hitEnemy } from './damage.ts';
 import { scaleEnemy } from './enemy.ts';
+import { automaticAttenuation, resolveAttenuation, type AttenuationProfile, type ResolvedAttenuation } from './attenuation.ts';
 import type { ModData, Snapshot, WeaponData } from '../types.ts';
 
 /** Effect axes that can change damage, and so are worth searching over. */
@@ -53,6 +54,8 @@ export interface SearchRequest {
   eximus?: boolean;
   /** Explicit Overguard amount (used as-is) instead of the Eximus formula. */
   overguard?: number;
+  /** Boss damage attenuation: a profile id, an explicit profile, or null to disable. */
+  attenuation?: string | AttenuationProfile | null;
   /** Everything else that affects the result: buffs, frame, arcanes, riven, debuffs. */
   base?: Partial<Build>;
   /** How many builds to return. */
@@ -100,6 +103,8 @@ export interface SearchResult {
   elapsedMs: number;
   /** Target Overguard, 0 unless the request asked for an Eximus/custom amount. */
   overguard: number;
+  /** Damage attenuation applied to the target, if any. */
+  attenuation: ResolvedAttenuation | null;
   builds: SearchBuild[];
   assumptions: string[];
   notes: string[];
@@ -239,6 +244,10 @@ function searchOnce(snapshot: Snapshot, request: SearchRequest): SearchResult {
   const enemy = snapshot.enemies[enemyName];
   if (!enemy) throw new Error(`enemy not found: ${enemyName}`);
   const scaled = scaleEnemy(snapshot, enemy, level, { eximus: request.eximus, overguard: request.overguard });
+  const attenuation = resolveAttenuation(
+    request.attenuation !== undefined ? request.attenuation : automaticAttenuation(enemy),
+    scaled.health,
+  );
 
   let evaluated = 0;
   const scoreCache = new Map<string, { score: number; resolved: ReturnType<typeof resolveBuild>; hit: ReturnType<typeof hitEnemy> }>();
@@ -266,7 +275,7 @@ function searchOnce(snapshot: Snapshot, request: SearchRequest): SearchResult {
     let hit: ReturnType<typeof hitEnemy>;
     try {
       resolved = resolveBuild(snapshot, build);
-      hit = hitEnemy(snapshot, resolved, scaled, {});
+      hit = hitEnemy(snapshot, resolved, scaled, { attenuation: request.attenuation });
       score = objective === 'ttk'
         ? (hit.timeToKill === null ? -1 : 1 / Math.max(hit.timeToKill, 1e-6))
         // totalDps is the damage against this target including status procs. sustainedDps
@@ -512,6 +521,7 @@ function searchOnce(snapshot: Snapshot, request: SearchRequest): SearchResult {
     assumptions.push(`Arcane: ${base.arcanes.map((entry) => (typeof entry === 'string' ? entry : `${entry.name}${entry.rank !== undefined ? ` R${entry.rank}` : ''}`)).join(', ')}`);
   }
   if (scaled.overguard > 0) assumptions.push(`Target Overguard: ${Math.round(scaled.overguard)}`);
+  if (attenuation) assumptions.push(`Damage attenuation: ${attenuation.id} (${Math.round(attenuation.mdpi)} per hit, ${Math.round(attenuation.mdps)} per second)`);
   if (base.buffs?.length) assumptions.push(`Buffs: ${base.buffs.join(', ')}`);
   if (base.frame) assumptions.push(`Warframe: ${base.frame}`);
   // Ability Strength decides how much a Roar or Eclipse is worth, so it is stated, not implied.
@@ -548,6 +558,7 @@ function searchOnce(snapshot: Snapshot, request: SearchRequest): SearchResult {
     evaluated,
     elapsedMs: Math.round(performance.now() - started),
     overguard: scaled.overguard,
+    attenuation,
     builds: builds.slice(0, limit),
     assumptions,
     notes,

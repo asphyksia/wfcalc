@@ -25,6 +25,7 @@ import { loadSnapshot, findEnemy, findMod, findWeapon, modsForWeapon } from './d
 import { resolveBuild, type Build, type BuildMod } from './engine/build.ts';
 import { search } from './engine/search.ts';
 import { capacityOf } from './engine/capacity.ts';
+import { attenuationProfile, type AttenuationProfile } from './engine/attenuation.ts';
 import { abilityCast } from './engine/ability.ts';
 import { resolveStrip, type StripDebuff } from './engine/strip.ts';
 import { buildFromJson } from './request.ts';
@@ -221,6 +222,42 @@ function targetScale(args: Args): { eximus?: boolean; overguard?: number } {
   return { overguard: value };
 }
 
+/** `--attenuation archon|eidolon|custom` plus the explicit caps. */
+function attenuationFromArgs(args: Args): string | AttenuationProfile | null | undefined {
+  const id = flag(args, 'attenuation');
+  const mdpi = flag(args, 'mdpt');
+  const mdps = flag(args, 'mdps');
+  const flat = flag(args, 'flat-dr');
+  const status = flag(args, 'status-dr');
+  if (!id && mdpi === undefined && mdps === undefined && flat === undefined && status === undefined) return undefined;
+  if (id && id.trim().toLowerCase() === 'none') return null;
+  const number = (name: string, raw: string | undefined): number | undefined => {
+    if (raw === undefined) return undefined;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0) throw new CliError(`--${name} expects a non-negative number`, 'invalid_argument');
+    return value;
+  };
+  const idLower = id?.trim().toLowerCase();
+  if (idLower && !['custom', 'archon', 'eidolon', 'none'].includes(idLower)) {
+    throw new CliError(`unknown attenuation profile: ${id} (use archon, eidolon, custom or none)`, 'invalid_argument');
+  }
+  const preset = idLower ? attenuationProfile(idLower) : null;
+  const overrides = {
+    mdpi: number('mdpt', mdpi),
+    mdps: number('mdps', mdps),
+    flatDr: flat === undefined ? undefined : number('flat-dr', flat)! / 100,
+    statusDr: status === undefined ? undefined : number('status-dr', status)! / 100,
+  };
+  const hasOverrides = Object.values(overrides).some((value) => value !== undefined);
+  if (preset && !hasOverrides) return preset.id;
+  const profile: AttenuationProfile = {
+    ...(preset ?? { id: 'custom' }),
+    ...overrides,
+    id: preset?.id ?? 'custom',
+  };
+  return profile;
+}
+
 /** The one-line calculation summary, shared by `calc`/`compare` and `batch`. */
 function calcBriefLine(
   label: string,
@@ -245,6 +282,7 @@ function calcBriefLine(
     ttk,
     `armour ${num(hit.armor)}`,
     ...(hit.overguard > 0 ? [`overguard ${num(hit.overguard)}`] : []),
+    ...(hit.attenuation ? [`attenuation ${hit.attenuation.id}`] : []),
     ...(fit && fit.mods.length ? [`${fit.capacityUsed}/${fit.capacity} cap${fit.fits ? '' : ' OVER'}`, `${fit.formaNeeded}F`] : []),
     ...(arcanes?.length ? [`arcane ${arcanes.map((arcane) => arcane.name).join(' + ')}`] : []),
   ];
@@ -281,6 +319,7 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
   const scaled = scaleEnemy(snapshot, enemy, level, targetScale(args));
   const hit = hitEnemy(snapshot, resolved, scaled, {
     armorModel: (flag(args, 'armor-model') as never) ?? undefined,
+    attenuation: attenuationFromArgs(args),
   });
   const capacityLimit = flag(args, 'capacity') ? Number(flag(args, 'capacity')) : 60;
   const fit = capacityOf(snapshot, resolved.weapon, build.mods, capacityLimit);
@@ -324,6 +363,7 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
           armor: hit.armor,
           overguard: hit.overguard,
           overguardDps: hit.overguardDps,
+          attenuation: hit.attenuation,
           dot: hit.dot,
           totalDps: hit.totalDps,
           arcanes: (build.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
@@ -373,6 +413,10 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
       (hit.armor !== scaled.armor ? ` (base ${num(scaled.armor)})` : '') +
       `   -> ${num(hit.shotsToKill)} shots${hit.timeToKill !== null ? `, ${num(hit.timeToKill, 2)}s` : ''}`,
   );
+  if (hit.attenuation) {
+    console.log(`  attenuation  ${hit.attenuation.id}  caps ${num(hit.attenuation.mdpi)}/hit · ${num(hit.attenuation.mdps)}/s`
+      + `${hit.attenuation.flatDr ? ` · ${(hit.attenuation.flatDr * 100).toFixed(0)}% DR` : ''}`);
+  }
   if (hit.factionMultiplier !== 1) console.log(`  faction      x${hit.factionMultiplier.toFixed(2)} vs ${enemy.faction ?? 'unknown'}`);
   if (build.arcanes?.length) {
     console.log(`  arcane       ${build.arcanes.map((entry) => (typeof entry === 'string' ? entry : `${entry.name}${entry.rank !== undefined ? ` R${entry.rank}` : ''}`)).join(', ')}`);
@@ -637,6 +681,7 @@ function main(): void {
         chooseIncarnon: commaList('incarnon').includes('auto'),
         chooseArcane: commaList('arcane').some((name) => name.toLowerCase() === 'auto'),
         ...targetScale(args),
+        attenuation: attenuationFromArgs(args),
         base: commaList('incarnon').includes('auto') ? { ...base, incarnon: undefined } : base,
       });
       if (wantsJson(args)) {
@@ -653,6 +698,7 @@ function main(): void {
           const facts = [
             `${num(build.totalDps)} dps`,
             ...(result.overguard > 0 ? [`overguard ${num(result.overguard)}`] : []),
+            ...(result.attenuation ? [`attenuation ${result.attenuation.id}`] : []),
             ...(build.arcanes.length ? [`arcane ${build.arcanes.map((arcane) => arcane.name).join(' + ')}`] : []),
             ...(build.incarnonNames.length ? [`incarnon ${build.incarnonNames.join(' + ')}`] : []),
             ...(build.partialMods.length ? ['lower bound'] : []),
@@ -839,6 +885,15 @@ function main(): void {
             overguard: record.overguard !== undefined ? Number(record.overguard) : undefined,
           }), {
             armorModel: record.armorModel as never,
+            attenuation: record.attenuation ?? (record.mdpt !== undefined || record.mdps !== undefined
+              ? {
+                  id: 'custom',
+                  mdpi: record.mdpt !== undefined ? Number(record.mdpt) : undefined,
+                  mdps: record.mdps !== undefined ? Number(record.mdps) : undefined,
+                  flatDr: record.flatDr !== undefined ? Number(record.flatDr) : undefined,
+                  statusDr: record.statusDr !== undefined ? Number(record.statusDr) : undefined,
+                }
+              : undefined),
           });
           const fit = capacityOf(snapshot, resolved.weapon, build.mods, record.capacity === undefined ? 60 : Number(record.capacity));
           if (jsonOut) {
@@ -852,6 +907,7 @@ function main(): void {
               shotsToKill: round(hit.shotsToKill, 1),
               arcanes: (build.arcanes ?? []).map((entry) => (typeof entry === 'string' ? { name: entry } : { name: entry.name, rank: entry.rank })),
               armor: round(hit.armor, 1), overguard: round(hit.overguard, 1),
+              attenuation: hit.attenuation ? { id: hit.attenuation.id, mdpi: round(hit.attenuation.mdpi, 0), mdps: round(hit.attenuation.mdps, 0) } : null,
               capacityUsed: fit.capacityUsed, capacity: fit.capacity,
               formaNeeded: fit.formaNeeded, fits: fit.fits,
               warnings: resolved.warnings, unsupportedMods: resolved.unsupportedMods,
@@ -906,6 +962,9 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>] (search: auto)  --buff ro
          --enemy NAME  --level N  --faction NAME  --mode "Name"
          --eximus                     target is an Eximus (adds level-scaled Overguard)
          --overguard N                explicit Overguard amount
+         --attenuation archon|eidolon|custom   boss damage caps (Eidolons are automatic)
+         --mdpt N --mdps N            explicit caps per hit / per second (implies custom)
+         --flat-dr 20 --status-dr 50  flat and status damage reduction, in percent
          --stacks onKill=5  --status-types N  --headshot
          --brief one line per result        --brief=answer answer only
          --json machine-readable output      --debug stack trace on failure

@@ -13,6 +13,7 @@ import { DAMAGE_TYPES, type DamageType, type Snapshot } from '../types.ts';
 import type { ResolvedBuild } from './build.ts';
 import { armorDamageReduction, type ArmorModel, type ScaledEnemy } from './enemy.ts';
 import { computeDot, effectiveArmor, viralMultiplier, type DotContext, type DotEntry } from './dot.ts';
+import { automaticAttenuation, resolveAttenuation, type AttenuationProfile, type ResolvedAttenuation } from './attenuation.ts';
 
 export interface TypeBreakdown {
   type: DamageType;
@@ -31,6 +32,11 @@ export interface TypeBreakdown {
 export interface HitOptions {
   /** Which reading of the armour-type modifier to use (see enemy.ts). */
   armorModel?: ArmorModel;
+  /**
+   * Boss damage attenuation: a profile id ("archon", "eidolon") or an explicit profile.
+   * Eidolons get theirs automatically from the enemy name.
+   */
+  attenuation?: string | AttenuationProfile | null;
 }
 
 export interface EnemyHit {
@@ -46,6 +52,8 @@ export interface EnemyHit {
   /** Overguard the target had, and our direct damage rate against it. */
   overguard: number;
   overguardDps: number;
+  /** The attenuation actually applied, if any. */
+  attenuation: ResolvedAttenuation | null;
   /** Trigger pulls needed to remove shields, then health. */
   shotsToKill: number;
   /** Seconds to kill, accounting for reloads. */
@@ -151,13 +159,45 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
   const cycleTime = build.magazineSize / Math.max(0.01, build.fireRate) + build.reloadTime;
   const pullsPerSecond = build.magazineSize / cycleTime;
 
+  // `undefined` means "automatic" (Eidolons); `null`/"none" means the caller explicitly
+  // turned attenuation off.
+  const attenuation = options.attenuation !== undefined
+    ? resolveAttenuation(options.attenuation, scaled.health)
+    : resolveAttenuation(automaticAttenuation(scaled.enemy), scaled.health);
+  /** Caps a direct-damage rate by the per-instance and per-second limits, before flat DR. */
+  const cappedDirect = (dps: number, perShot: number): number => {
+    if (!attenuation) return dps;
+    const byInstance = attenuation.mdpi > 0
+      ? Math.min(perShot, attenuation.mdpi) * pullsPerSecond
+      : dps;
+    return Math.min(dps, byInstance, attenuation.mdps > 0 ? attenuation.mdps : Infinity);
+  };
+  const flatFactor = attenuation ? 1 - attenuation.flatDr : 1;
+  const statusFactor = attenuation ? flatFactor * (1 - attenuation.statusDr) : 1;
+  const directHealthDps = damagePerShotHealth * pullsPerSecond;
+  const directShieldDps = damagePerShotShield * pullsPerSecond;
+  const directOverguardDps = damagePerShotOverguard * pullsPerSecond;
+  const effectiveHealthDps = attenuation
+    ? Math.min(
+        cappedDirect(directHealthDps, damagePerShotHealth) * flatFactor
+          + Math.min(dotDps * statusFactor, attenuation.mdps > 0 ? attenuation.mdps : Infinity),
+        attenuation.mdps > 0 ? attenuation.mdps : Infinity,
+      )
+    : directHealthDps + dotDps;
+  const effectiveShieldDps = attenuation
+    ? cappedDirect(directShieldDps, damagePerShotShield) * flatFactor
+    : directShieldDps;
+  const effectiveOverguardDps = attenuation
+    ? cappedDirect(directOverguardDps, damagePerShotOverguard) * flatFactor
+    : directOverguardDps;
+
   let remainingShield = scaled.shield;
   let remainingHealth = scaled.health;
   let shotsToKill = 0;
 
-  const shieldDps = damagePerShotShield * pullsPerSecond;
-  const healthDps = damagePerShotHealth * pullsPerSecond + dotDps;
-  const overguardDps = damagePerShotOverguard * pullsPerSecond;
+  const shieldDps = effectiveShieldDps;
+  const healthDps = effectiveHealthDps;
+  const overguardDps = effectiveOverguardDps;
   const totalPool = scaled.overguard + scaled.shield + scaled.health;
 
   if (overguardDps <= 0 && shieldDps <= 0 && healthDps <= 0) {
@@ -191,10 +231,19 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
   // included. With no Overguard or shields this is the old health rate, so the documented
   // health/totalDps == timeToKill relation still holds for a plain Bombard.
   const totalDps = timeToKill !== null && timeToKill > 0 ? totalPool / timeToKill : healthDps + overguardDps;
+  const num = (value: number): string => value.toLocaleString('en-US', { maximumFractionDigits: 0 });
   if (scaled.overguard > 0) {
     warnings.push('Overguard: direct damage only, status DoT not applied; Magnetic amplification not modelled');
   }
-
+  if (attenuation) {
+    warnings.push(
+      `Damage attenuation ${attenuation.id}: caps ${num(attenuation.mdpi)} per hit and `
+      + `${num(attenuation.mdps)} per second applied; exponential smoothing not modelled (TTK is conservative)`,
+    );
+    if (automaticAttenuation(scaled.enemy) && !options.attenuation) {
+      warnings.push('Eidolon joints and invulnerability phases are not modelled; the caps apply to the whole health pool');
+    }
+  }
   const bestType = breakdown.reduce<{ type: DamageType; multiplier: number } | null>(
     (best, entry) => (!best || entry.healthMultiplier > best.multiplier ? { type: entry.type, multiplier: entry.healthMultiplier } : best),
     null,
@@ -211,7 +260,8 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
     damagePerShotShield,
     damagePerShotHealth,
     overguard: scaled.overguard,
-    overguardDps,
+    overguardDps: effectiveOverguardDps,
+    attenuation,
     shotsToKill,
     timeToKill,
     factionMultiplier,

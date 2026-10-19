@@ -871,3 +871,29 @@ test('Eximus Overguard is a separate layer, neutral except Void', () => {
   close(hit.timeToKill!, 4 + 1_000_000 / 200);
   assert.ok(hit.warnings.some((line) => /Overguard/.test(line)));
 });
+
+test('Archon attenuation caps damage per hit and per second', () => {
+  // One shot of 1,000,000 would kill the 1,000,000-health dummy instantly. Archon caps it at
+  // 460,000 per trigger and 935,000 per second, with 20% flat DR: 460,000 x 0.8 = 368,000.
+  const snap = snapshot([weapon({ heat: 1_000_000, critChance: 0, statusChance: 0, fireRate: 1, magazineSize: 1, reloadTime: 0 })], []);
+  const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: [] });
+  const plain = hitEnemy(snap, resolved, scaleEnemy(snap, dummy, 1));
+  const capped = hitEnemy(snap, resolved, scaleEnemy(snap, dummy, 1), { attenuation: 'archon' });
+  close(plain.timeToKill!, 1);
+  close(capped.timeToKill!, 1_000_000 / 368_000);
+  assert.equal(capped.attenuation?.id, 'archon');
+  assert.ok(capped.warnings.some((line) => /attenuation archon/.test(line)));
+});
+
+test('Eidolon attenuation is automatic and health-relative', () => {
+  // MDPI = 200% and MDPS = 100% of max health. A 5M hit on a 1M-health Eidolon is capped to
+  // 1M per second, so it takes one second instead of one fifth.
+  const eidolon: EnemyData = { ...dummy, name: 'Eidolon Teralyst' };
+  const snap = snapshot([weapon({ heat: 5_000_000, critChance: 0, statusChance: 0, fireRate: 1, magazineSize: 1, reloadTime: 0 })], []);
+  const resolved = resolveBuild(snap, { weapon: 'Test Weapon', mods: [] });
+  const plain = hitEnemy(snap, resolved, scaleEnemy(snap, eidolon, 1), { attenuation: null });
+  const capped = hitEnemy(snap, resolved, scaleEnemy(snap, eidolon, 1));
+  close(plain.timeToKill!, 0.2);
+  close(capped.timeToKill!, 1);
+  assert.equal(capped.attenuation?.id, 'eidolon');
+});

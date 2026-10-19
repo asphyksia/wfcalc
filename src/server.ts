@@ -119,7 +119,18 @@ function calculate(body: any) {
       eximus: Boolean(body.eximus),
       overguard: body.overguard !== undefined ? Number(body.overguard) : undefined,
     });
-    const hit = hitEnemy(snapshot, resolved, scaled);
+    const attenuation = body.attenuation !== undefined
+      ? body.attenuation
+      : (body.mdpt !== undefined || body.mdps !== undefined
+        ? {
+            id: 'custom',
+            mdpi: body.mdpt !== undefined ? Number(body.mdpt) : undefined,
+            mdps: body.mdps !== undefined ? Number(body.mdps) : undefined,
+            flatDr: body.flatDr !== undefined ? Number(body.flatDr) / 100 : undefined,
+            statusDr: body.statusDr !== undefined ? Number(body.statusDr) / 100 : undefined,
+          }
+        : undefined);
+    const hit = hitEnemy(snapshot, resolved, scaled, { attenuation });
     target = { name: enemy.name, faction: enemy.faction, pools: scaled.pools, ...hit };
   }
 
@@ -307,6 +318,11 @@ const server = createServer(async (req, res) => {
         chooseArcane,
         eximus: Boolean(body.eximus),
         overguard: body.overguard !== undefined ? Number(body.overguard) : undefined,
+        attenuation: body.attenuation !== undefined
+          ? body.attenuation
+          : (body.mdpt !== undefined || body.mdps !== undefined
+            ? { id: 'custom', mdpi: Number(body.mdpt ?? 0), mdps: Number(body.mdps ?? 0) }
+            : undefined),
         base: chooseIncarnon ? { ...base, incarnon: undefined } : base,
       });
       return json(res, 200, result);
