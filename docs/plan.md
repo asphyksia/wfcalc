@@ -141,9 +141,13 @@ Known loose ends from A1:
 
 ### C. Pending modelling, by value
 
-| # | Gap |
-|---|---|
-| — | All modelling items are done; **B2c** remains the only data-blocked one |
+| # | Gap | State |
+|---|---|---|
+| B2c | Attenuation beyond the per-hit formula (see B) | Data-blocked |
+| A1-L1 | Ceramic Dagger's **two spectral daggers** per heavy attack: the melee attack table has no multishot, so the model counts one and the melee Incarnon form is a lower bound by roughly x2 on that pair | Needs an attack-table field or a per-weapon override |
+| A1-L2 | **Flat EVO2 base damage**: Okina's page says the spectral daggers use it, Ceramic Dagger and Hate say they do not; the engine keeps it on all three | Needs one in-game reading to settle |
+
+Those two are the only modelling items left; everything else in C is done.
 
 ### D. Coverage and confidence
 
@@ -198,6 +202,19 @@ Still open from the review outside the UI:
   beta tester can do this; it is the only way to turn the wiki table into evidence.
 - **"Sierra"**: no such mod in WFCD or the wiki snapshot. Ask for the exact name before
   treating it as a data gap; see U4 for the real behaviour behind the complaint.
+
+### I. Candidate features from the beta review (not committed)
+
+The reviewer's own list of what a calculator like this should do. None of these is planned
+yet: each needs its own plan, data source and tests, and the weapon core comes first. Written
+down so the "what next" question has a starting point.
+
+| Candidate | What it needs |
+|---|---|
+| **Heat inherit** | Track the heat proc seed from the source weapon and every later heat proc inheriting it; needs the proc-snapshot rules from the wiki |
+| **Xata's Whisper explosive interaction** | The Void damage instance and how it composes with AoE; the buff is modelled, the interaction is not |
+| **Nova's Molecular Prime (4th)** | The "unattributed damage" mechanic, which is a separate pipeline from weapon damage |
+| **Riven tiers and re-roll combinations** | Tier grading (A–F) and the distribution of stat combinations per roll; the calculator takes manual riven stats today |
 
 ### E. Out of scope, decided
 
