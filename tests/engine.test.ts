@@ -92,13 +92,13 @@ function snapshot(
     // Abilities are keyed by ability name (AbilityData has no `name` field).
     abilities: Object.fromEntries((extras.abilities ?? []).map((a) => [a.ability, a])),
     enemies: byName(enemies),
-    // Alloy Armor: Radiation +75, Puncture +15. Cloned Flesh: Slash +25, Heat +25.
+    // Damage 3.0 (Update 36): one table per faction health class.
+    // Grineer: Impact and Corrosive +50. Orokin: Puncture/Viral +50, Radiation -50.
+    // Overguard: Void +50 and neutral to everything else.
     modifiers: {
-      'Neutral Flesh': {},
-      radiation: { 'Alloy Armor': 75 },
-      puncture: { 'Alloy Armor': 15 },
-      slash: { 'Cloned Flesh': 25 },
-      heat: { 'Cloned Flesh': 25 },
+      corrosive: { Grineer: 50 },
+      radiation: { Grineer: 0, Orokin: -50 },
+      puncture: { Orokin: 50 },
       void: { Overguard: 50 },
     },
     healthTypes: { 'Alloy Armor': 'armor', 'Cloned Flesh': 'health' },
@@ -120,14 +120,14 @@ function snapshot(
 }
 
 const dummy: EnemyData = {
-  id: 'Dummy', name: 'Dummy', faction: 'grineer', kind: 'Grineer', baseLevel: 1,
+  id: 'Dummy', name: 'Dummy', faction: 'grineer', healthClass: 'Grineer', kind: 'Grineer', baseLevel: 1,
   health: 1_000_000, shield: 0, armor: 0,
   pools: [{ type: 'Neutral Flesh', category: 'health', amount: 1_000_000 }],
   toxinBypassesShields: true,
 };
 
 const bombard: EnemyData = {
-  id: 'Bombard', name: 'Bombard', faction: 'grineer', kind: 'Grineer', baseLevel: 1,
+  id: 'Bombard', name: 'Bombard', faction: 'grineer', healthClass: 'Grineer', kind: 'Grineer', baseLevel: 1,
   health: 300, shield: 0, armor: 500,
   pools: [
     { type: 'Alloy Armor', category: 'armor', amount: 500 },
@@ -257,8 +257,6 @@ test('armor damage reduction follows the wiki curve', () => {
   close(armorDamageReduction(0), 0);
   // Above 2700 armor the game switches back to armor / (armor + 300).
   close(armorDamageReduction(5400), 5400 / 5700, 1e-9);
-  // A vulnerability reduces effective armor, so it reduces DR.
-  assert.ok(armorDamageReduction(2700, 0.75) < armorDamageReduction(2700));
 });
 
 test('enemy health scaling follows the documented curves', () => {
@@ -273,15 +271,15 @@ test('enemy health scaling follows the documented curves', () => {
   close(at150.armor, 2700, 1e-9);
 });
 
-test('radiation beats other damage types against a Bombard', () => {
+test('the faction table decides the element: corrosive beats radiation against a Bombard', () => {
   const radiationMod = mod('Radiation Mod', 5, ['+90% Radiation']);
-  const snap = snapshot([weapon({ puncture: 100 })], [radiationMod], [bombard]);
-  const resolved = build(snap, ['Radiation Mod']);
-  const hit = hitEnemy(snap, resolved, scaleEnemy(snap, bombard, 100));
-  const radiation = hit.breakdown.find((entry) => entry.type === 'radiation');
-  const puncture = hit.breakdown.find((entry) => entry.type === 'puncture');
-  // Radiation: +75% vs Alloy Armor, so it reduces effective armor and hits harder.
-  assert.ok(radiation && puncture && radiation.healthMultiplier > puncture.healthMultiplier);
+  const corrosiveMod = mod('Corrosive Mod', 5, ['+90% Corrosive']);
+  const snap = snapshot([weapon({ puncture: 100 })], [radiationMod, corrosiveMod], [bombard]);
+  const hit = hitEnemy(snap, build(snap, ['Corrosive Mod']), scaleEnemy(snap, bombard, 100));
+  const corrosive = hit.breakdown.find((entry) => entry.type === 'corrosive');
+  // Damage 3.0: Grineer takes +50% Corrosive and is neutral to Radiation (the Damage 2.0
+  // Alloy Armor table gave Radiation +75 and Corrosive nothing).
+  close(corrosive?.healthMultiplier ?? 0, (1 + 0.5) * (1 - 0.9 * Math.sqrt(2700 / 2700)), 1e-9);
 });
 
 test('toxin bypasses shields when the enemy allows it', () => {
@@ -313,7 +311,7 @@ function arcane(name: string, slot: string, maxRank: number, topRankStats: strin
 
 const grineer = bombard;
 const corpusEnemy: EnemyData = {
-  ...bombard, id: 'Corpus Tech', name: 'Corpus Tech', faction: 'corpus',
+  ...bombard, id: 'Corpus Tech', name: 'Corpus Tech', faction: 'corpus', healthClass: 'Corpus',
   pools: [{ type: 'Cloned Flesh', category: 'health', amount: 300 }],
 };
 

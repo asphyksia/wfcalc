@@ -9,7 +9,7 @@ Hard-won details about the upstream data. Read this before touching
 |---|---|---|
 | `wiki.warframe.com/w/Module:Mods/data?action=raw` | Master mod list, descriptions, internal upgrade axes | 1550 mods |
 | `wiki.warframe.com/api.php` (category members) | Which mods are Exilus-only | 74 members. `action=raw` cannot list categories; the API is at the site root, **not** under `/w`. It sends no ETag but does send `Last-Modified`. |
-| `wiki.warframe.com/w/Module:DamageTypes/data` | Damage-type modifier matrix, health type → category | Percentage points per health type |
+| `wiki.warframe.com/w/Module:DamageTypes/data` | Damage 3.0 faction modifier table (`Types`) and pool categories (`Health`) | ±50 per faction health class; the Damage 2.0 matrix is deprecated as of U36 |
 | `wiki.warframe.com/w/Module:Warframes/data` | Warframe base stats + abilities | Not used yet (phase 2) |
 | `wiki.warframe.com/w/Damage/Calculation`, `Armor`, `Enemy_Level_Scaling`, `Riven_Mods` | Formulas | Kept verbatim in `data/raw/` for reference |
 | `WFCD/warframe-items` JSON | Per-rank mod numbers, weapon stats, enemies, arcanes | Public repo, MIT-licensed tooling |
@@ -45,10 +45,10 @@ Cloudflare. Do not use it.
 6. **`attacks[].crit_chance` is a percentage** (35) while `criticalChance` is a
    fraction (0.35).
 
-7. **WFCD enemy `resistances[].affectors[].modifier` values do not match the wiki
-   matrix** (Bombard's Alloy Armor shows Radiation `0` where the wiki says +75).
-   Only `resistances[].type` and `.amount` are trustworthy; modifiers come from the
-   wiki module.
+7. **WFCD enemy `resistances[].affectors[].modifier` values are not used at all.**
+   Only `resistances[].type` and `.amount` are trustworthy (they say which pools exist);
+   what a damage type does to an enemy comes from the wiki's faction table and the enemy's
+   `healthClass`.
 
 8. **Wiki Lua modules are data followed by real code inside a long comment.** The
    parser stops at the first non-`local`/`return` statement and then looks for a

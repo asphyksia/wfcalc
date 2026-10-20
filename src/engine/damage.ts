@@ -11,7 +11,7 @@
  */
 import { DAMAGE_TYPES, type DamageType, type Snapshot } from '../types.ts';
 import type { ResolvedBuild } from './build.ts';
-import { armorDamageReduction, type ArmorModel, type ScaledEnemy } from './enemy.ts';
+import { armorDamageReduction, type ScaledEnemy } from './enemy.ts';
 import { computeDot, effectiveArmor, viralMultiplier, type DotContext, type DotEntry } from './dot.ts';
 import { automaticAttenuation, resolveAttenuation, type AttenuationProfile, type ResolvedAttenuation } from './attenuation.ts';
 
@@ -30,8 +30,6 @@ export interface TypeBreakdown {
 }
 
 export interface HitOptions {
-  /** Which reading of the armour-type modifier to use (see enemy.ts). */
-  armorModel?: ArmorModel;
   /**
    * Boss damage attenuation: a profile id ("archon", "eidolon") or an explicit profile.
    * Eidolons get theirs automatically from the enemy name.
@@ -80,14 +78,15 @@ const healthModifier = (snapshot: Snapshot, type: DamageType, healthType: string
   (snapshot.modifiers[type]?.[healthType] ?? 0) / 100;
 
 export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: ScaledEnemy, options: HitOptions = {}): EnemyHit {
-  const armorModel = options.armorModel ?? 'armor-scaling';
   const warnings: string[] = [];
   const armor = scaled.pools.find((pool) => pool.category === 'armor');
   const shields = scaled.pools.filter((pool) => pool.category === 'shield');
   const health = scaled.pools.filter((pool) => pool.category === 'health' || pool.category === 'object');
 
-  if (!health.length) warnings.push('enemy has no health pool in the dataset; assuming Cloned Flesh');
-  const healthType = health[0]?.type ?? 'Cloned Flesh';
+  // Damage 3.0: the faction health class decides the modifier, once, for every pool. The
+  // pools still say what exists (armour, shields, health) and how much of it, nothing else.
+  const healthClass = scaled.enemy.healthClass;
+  if (!health.length) warnings.push('enemy has no health pool in the dataset; health damage is still reported');
   const shieldType = shields[0]?.type ?? null;
 
   const crit = Math.max(1, build.critMultiplier);
@@ -101,7 +100,7 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
 
   // Status debuffs the player keeps up on the target.
   // The pool's amount is the level-1 armour, which a base-armour reduction has to be scaled by.
-  const debuffs: DotContext = { ...build.debuffs, armorModel, armorBase: armor?.amount };
+  const debuffs: DotContext = { ...build.debuffs, armorBase: armor?.amount };
   const viral = viralMultiplier(debuffs.viralStacks ?? 0);
   const armorAfterStatus = effectiveArmor(scaled.armor, debuffs);
 
@@ -114,25 +113,21 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
     const raw = build.damage.perProjectile[type] ?? 0;
     if (raw <= 0) continue;
 
-    const healthMod = healthModifier(snapshot, type, healthType);
-    const armorMod = armor ? healthModifier(snapshot, type, armor.type) : 0;
-    const dr = armor ? armorDamageReduction(armorAfterStatus, armorMod, armorModel) : 0;
-    // The armour modifier multiplies damage in the 'multiply' and 'both' readings; in the
-    // default reading it acts on the armour value instead (see armorDamageReduction).
-    const armorModifierOnDamage = armorModel === 'armor-scaling' ? 1 : 1 + armorMod;
+    const healthMod = healthModifier(snapshot, type, healthClass);
+    const dr = armor ? armorDamageReduction(armorAfterStatus) : 0;
     // Wiki (Armor): "When damage is reduced from armor, each damage type has a minimum damage
     // of 1" — a Braton always does at least 3 against an armoured target. Verified in game:
     // an unmodded Soma Prime (3 damage types) deals exactly 3 to a level 101 Elite Frontier
     // Lancer, where every type would otherwise round to under 1.
     const armorFloor = armor ? 1 : 0;
     // Viral amplifies all damage dealt to health, direct hits included.
-    const toHealth = Math.max(raw * (1 + healthMod) * (1 - dr) * viral * armorModifierOnDamage, armorFloor);
+    const toHealth = Math.max(raw * (1 + healthMod) * (1 - dr) * viral, armorFloor);
 
-    // Overguard is neutral to every damage type except Void (+50%), ignores armour and is
-    // not bypassed by Toxin. Magnetic's status amplification is not modelled (see warnings).
+    // Overguard is a health class of its own: Void +50%, neutral to everything else, no
+    // armour, and not bypassed by Toxin. Magnetic's status amplification is not modelled.
     perProjectileOverguard += raw * (1 + healthModifier(snapshot, type, 'Overguard'));
 
-    const shieldMod = shieldType ? healthModifier(snapshot, type, shieldType) : 0;
+    const shieldMod = healthModifier(snapshot, type, healthClass);
     const bypassesShield = type === 'toxin' && scaled.enemy.toxinBypassesShields;
     const toShield = shieldType && !bypassesShield ? raw * (1 + shieldMod) : 0;
 

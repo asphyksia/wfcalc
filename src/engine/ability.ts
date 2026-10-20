@@ -10,7 +10,7 @@
  * Ability Strength multiplies the base damage linearly, which the wiki states and the game
  * follows for every ability modelled here.
  */
-import { armorDamageReduction, scaleEnemy, type ArmorModel, type ScaledEnemy } from './enemy.ts';
+import { armorDamageReduction, scaleEnemy, type ScaledEnemy } from './enemy.ts';
 import { corrosiveArmorMultiplier, statusProcDamage, viralMultiplier } from './dot.ts';
 import type { DamageType, Snapshot } from '../types.ts';
 
@@ -19,7 +19,6 @@ export interface AbilityCastOptions {
   strength?: number;
   enemy?: string;
   level?: number;
-  armorModel?: ArmorModel;
   /** Target is an Eximus: add its level-scaled Overguard. */
   eximus?: boolean;
   /** Explicit Overguard amount instead of the Eximus formula. */
@@ -185,13 +184,12 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       eximus: options.eximus,
       overguard: options.overguard,
     });
-    const armorModel = options.armorModel ?? 'armor-scaling';
     // A pool's `amount` is its level-1 value: the scaled totals live on the enemy itself.
     const armor = scaled.pools.find((pool) => pool.category === 'armor');
     const shields = scaled.pools.filter((pool) => pool.category === 'shield');
     const shieldType = shields[0]?.type ?? null;
-    const health = scaled.pools.filter((pool) => pool.category === 'health' || pool.category === 'object');
-    const healthType = health[0]?.type ?? 'Cloned Flesh';
+    // Damage 3.0: one modifier per faction health class, applied to every pool.
+    const healthClass = scaled.enemy.healthClass;
     const healthPool = scaled.health;
     const armorAmount = scaled.armor;
 
@@ -236,12 +234,10 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
 
     // Each component keeps its own damage type, so each gets its own modifiers.
     const against = (type: DamageType, amount: number): { dealt: number; healthMod: number; dr: number } => {
-      const healthMod = healthModifier(snapshot, type, healthType);
-      const armorMod = armor ? healthModifier(snapshot, type, armor.type) : 0;
-      const dr = armor ? armorDamageReduction(rampedArmor, armorMod, armorModel) : 0;
-      const armorOnDamage = armorModel === 'armor-scaling' ? 1 : 1 + armorMod;
+      const healthMod = healthModifier(snapshot, type, healthClass);
+      const dr = armor ? armorDamageReduction(rampedArmor) : 0;
       // Same floor rule as weapons: on an armoured target every damage type deals at least 1.
-      return { dealt: Math.max(amount * (1 + healthMod) * (1 - dr) * viral * armorOnDamage, armor ? 1 : 0), healthMod, dr };
+      return { dealt: Math.max(amount * (1 + healthMod) * (1 - dr) * viral, armor ? 1 : 0), healthMod, dr };
     };
 
     const main = components.reduce(
@@ -265,7 +261,7 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       const seed = proc.seed !== undefined
         ? proc.seed * (strength / 100) * seconds
         : scaledDamage * (proc.seedFraction ?? 1);
-      const dot = statusProcDamage(snapshot, proc.type, seed, scaled, { armorModel, armorBase: armor?.amount }, viralStacks);
+      const dot = statusProcDamage(snapshot, proc.type, seed, scaled, { armorBase: armor?.amount }, viralStacks);
       return {
         type: proc.type,
         stacks: proc.stacks,
@@ -281,10 +277,10 @@ export function abilityCast(snapshot: Snapshot, abilityName: string, options: Ab
       amount * (1 + healthModifier(snapshot, type, 'Overguard'));
     const overguardPerCast = components.reduce((sum, component) => sum + againstOverguard(component.type, component.amount), 0)
       + (ticks?.damageType ? againstOverguard(ticks.damageType as DamageType, ticks.perSecond * ticks.seconds) : 0);
-    // Shields are a pool of their own: no armour, their own health-type modifiers. Toxin is the
-    // documented shield-bypassing type (the same rule weapons use).
+    // Shields are a pool of their own: no armour, and the faction modifier applies to them too.
+    // Toxin is the documented shield-bypassing type (the same rule weapons use).
     const againstShield = (type: DamageType, amount: number): number =>
-      amount * (1 + (shieldType ? healthModifier(snapshot, type, shieldType) : 0));
+      amount * (1 + (shieldType ? healthModifier(snapshot, type, healthClass) : 0));
     const shieldPerCast = shieldType
       ? components.reduce((sum, component) => sum + againstShield(component.type, component.amount), 0)
         + (ticks?.damageType ? againstShield(ticks.damageType as DamageType, ticks.perSecond * ticks.seconds) : 0)

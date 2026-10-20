@@ -238,8 +238,8 @@ Everything comes from two upstreams, rebuilt into `data/snapshot.json` (1.7 MB):
 - Conditional mods (on-kill, aiming, weak-point) with stacks.
 - Enemy level scaling (the current two-curve smoothstep for health/shields, the
   single armor curve, the 200–2700 armor clamp).
-- Damage-type modifiers per health **and** armor type, armor damage reduction,
-  Toxin shield bypass.
+- Damage 3.0 faction health classes (Grineer, Corpus, Kuva Grineer, Orokin, ...) with the
+  wiki's ±50% table, armor damage reduction, Toxin shield bypass.
 - **Rivens** with real values: wiki base table × the weapon's own disposition × the
   bonus/malus weights × an optional roll.
 - **Incarnon evolutions**: per-weapon perk trees scraped from the wiki, with the parsed

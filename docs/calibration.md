@@ -32,10 +32,10 @@ and you know where the error starts.
   can be trusted.
 - **Cases 2-7 fail** → the arsenal formula or the mod parser. Check the mod's effects with
   `wfcalc mods <weapon> <name>`; a wrong number there is a parser bug.
-- **Case 8 passes, 9 fails** → the armour model, specifically the assumption in
-  `docs/formulas.md §4` that armour-type modifiers scale the armour *value*. This is the
-  one modelling decision that has never been verified in game. Fixing it is a one-function
-  change (`armorDamageReduction`).
+- **Case 8 passes, 9 fails** → the faction table or the armour DR. Since Damage 3.0
+  (`docs/formulas.md §4`) there are no armour types: the class modifier multiplies damage
+  and `armorDamageReduction()` only turns armour into DR. Check the enemy's `healthClass`
+  first, then the DR curve.
 - **Cases 10-12 fail** → the status layer.
 - **Case 13 fails** → the Kuva/Tenet bonus, which is a player input rather than data.
 - **Cases 14-15 fail** → the buff/combo layer, i.e. the curated registry, not the maths.

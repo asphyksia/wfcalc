@@ -357,7 +357,6 @@ const server = createServer(async (req, res) => {
           strength: strength ? Number(strength) : undefined,
           enemy: url.searchParams.get('enemy') ?? undefined,
           level: level ? Number(level) : undefined,
-          armorModel: (url.searchParams.get('armorModel') ?? undefined) as never,
           eximus: eximus === '1' || eximus === 'true',
           overguard: overguard ? Number(overguard) : undefined,
           viralStacks: url.searchParams.get('viral') ? Number(url.searchParams.get('viral')) : undefined,

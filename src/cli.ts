@@ -341,7 +341,6 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
   const { enemy, level } = resolveEnemy(snapshot, args);
   const scaled = scaleEnemy(snapshot, enemy, level, targetScale(args));
   const hit = hitEnemy(snapshot, resolved, scaled, {
-    armorModel: (flag(args, 'armor-model') as never) ?? undefined,
     attenuation: attenuationFromArgs(args),
     targets: flag(args, 'targets') ? Number(flag(args, 'targets')) : undefined,
   });
@@ -591,13 +590,14 @@ function main(): void {
       const list = Object.values(snapshot.enemies).filter((e) => e.name.toLowerCase().includes(query));
       if (wantsJson(args)) {
         emitJson(list.map((e) => ({
-          name: e.name, faction: e.faction ?? null, health: e.health, shield: e.shield, armor: e.armor,
+          name: e.name, faction: e.faction ?? null, healthClass: e.healthClass,
+          health: e.health, shield: e.shield, armor: e.armor,
           healthTypes: e.pools.map((p) => ({ type: p.type, category: p.category, amount: p.amount })),
         })));
         break;
       }
       for (const enemy of list.slice(0, 60)) {
-        console.log(`${enemy.name.padEnd(32)} ${(enemy.faction ?? '-').padEnd(10)} hp${enemy.health} sh${enemy.shield} ar${enemy.armor}  ${enemy.pools.map((p) => p.type).join('+')}`);
+        console.log(`${enemy.name.padEnd(32)} ${(enemy.healthClass ?? '-').padEnd(16)} hp${enemy.health} sh${enemy.shield} ar${enemy.armor}  ${enemy.pools.map((p) => p.type).join('+')}`);
       }
       console.log(`\n${list.length} enemy(ies)`);
       break;
@@ -811,7 +811,6 @@ function main(): void {
           strength: flag(args, 'strength') ? Number(flag(args, 'strength')) : 100,
           enemy: flag(args, 'enemy'),
           level: flag(args, 'level') ? Number(flag(args, 'level')) : 30,
-          armorModel: flag(args, 'armor-model') as never,
           viralStacks: flag(args, 'viral') ? Number(flag(args, 'viral')) : undefined,
           targets: flag(args, 'targets') ? Number(flag(args, 'targets')) : undefined,
           mode: flag(args, 'ability-mode'),
@@ -941,7 +940,6 @@ function main(): void {
                 strength: record.strength ?? record.abilityStrength ?? 100,
                 enemy: record.enemy,
                 level: record.level,
-                armorModel: record.armorModel as never,
                 viralStacks: record.viral !== undefined ? Number(record.viral) : undefined,
                 targets: record.targets !== undefined ? Number(record.targets) : undefined,
                 mode: record.abilityMode,
@@ -976,7 +974,6 @@ function main(): void {
             eximus: Boolean(record.eximus),
             overguard: record.overguard !== undefined ? Number(record.overguard) : undefined,
           }), {
-            armorModel: record.armorModel as never,
             targets: record.targets !== undefined ? Number(record.targets) : undefined,
             attenuation: record.attenuation ?? (record.mdpt !== undefined || record.mdps !== undefined
               ? {
@@ -1050,7 +1047,6 @@ Options: --mod NAME[:R<rank>]  --arcane NAME[:R<rank>] (search: auto)  --buff ro
          --strip-from "Avalanche"    (take the strip from an ability, at --strength)
          --cp 2                      (Corrosive Projections in the squad, 18% each)
          --shattering-impact 30      (melee hits that chipped the target's base armour)
-         --armor-model armor-scaling|multiply|both   (open question, see docs/formulas.md)
          --combo-hits 220  --heavy   (melee combo multiplier / heavy attack)
          --aoe-distance 4            (AoE falloff distance in metres)
          --capacity 30|60            (Orokin Catalyst: 60, default)

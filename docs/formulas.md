@@ -111,61 +111,56 @@ Armored enemies still take a minimum of 1 damage per damage type per hit.
 
 ## 4. Damage type modifiers (`Module:DamageTypes/data`)
 
-Each health type (Cloned Flesh, Alloy Armor, Shield, ...) has positive and negative
-modifiers in percentage points, e.g. Alloy Armor: Radiation +75, Cold +25,
-Puncture +15, Electricity −50, Magnetic −50. The snapshot stores them as
-`modifiers[damage_type][health_type]`.
+**Damage 3.0** (Update 36.0, 2024-06-18) replaced the Damage 2.0 health/armour types with
+**faction health classes**. The wiki says it plainly on `Damage`:
 
-```
-health hit = damage × (1 + health_type_modifier) × (1 − DR)
-shield hit = damage × (1 + shield_type_modifier)      (armor does not apply)
-```
+> With the removal of Resistances/Vulnerabilities being tied to Health Type, they will now be
+> Faction-specific.
 
-### Open question: how does an armour modifier interact with armour?
+and `Module:DamageTypes/data` marks the old matrix as
+`--- Depreciated health/armor types as of U36; keeping to preserve links and template calls`.
 
-**Status: RESOLVED in game.** A level 102 Bombard hit with Soma Prime + Serration +
-Stormbringer shows 5 damage (19 on a crit), which our per-type values reproduce exactly
-(`Σ floor(raw_i) = 5`, `Σ floor(raw_i × 3) = 19`). The default reading is confirmed and
-`tests/ingame.test.ts` pins it. Historical note: "Modifier merely
-multiplies damage" is eliminated (it predicts 3 where the game shows 4, and 6 where it shows
-7). The default fits rows 1, 2 and 4 exactly and row 3 once the display truncates per damage
-type. See [verified-in-game.md](verified-in-game.md) for the table and the two loose ends.
+So there is one modifier table per class, and every pool of an enemy takes the same one:
 
-**This was the one modelling decision that had not been verified in game, and it is not a
-detail.** Against a level 150 Bombard (2700 armour) with a radiation build, the three
-readings give:
-
-| reading | shots to kill | relative |
+| class | +50% | −50% |
 |---|---|---|
-| modifier scales the armour value (default) | 28.9 | 1.0x |
-| modifier multiplies damage, DR untouched | 113.2 | 3.9x slower |
-| modifier does both | 17.2 | 1.7x faster |
+| Grineer | Impact, Corrosive | — |
+| Kuva Grineer | Impact, Corrosive | Heat |
+| Corpus | Puncture, Magnetic | — |
+| Corpus Amalgam | Electricity, Magnetic | Blast |
+| Orokin | Puncture, Viral | Radiation |
+| Infested | Slash, Heat | — |
+| Infested Deimos | Blast, Gas | Viral |
+| Sentient | Cold, Radiation | Corrosive |
+| Narmer | Slash, Toxin | Magnetic |
+| Zariman | Void | — |
+| The Murmur | Electricity, Radiation | Viral |
+| Scaldra | Impact, Corrosive | Gas |
+| Techrot | Gas, Magnetic | Cold |
+| Anarchs | Impact, Electricity | Radiation |
+| Overguard | Void | — |
 
-The wiki says damage type modifiers are "independent of sources of damage reduction", which
-argues for the middle reading, while every open-source calculator does the third. We default
-to the first because it reproduces the community experience that radiation shreds Bombards,
-but that is reasoning, not evidence.
-
-`--armor-model armor-scaling|multiply|both` switches it at runtime, and
-`armorDamageReduction()` is the only function involved.
-
-**How to settle it with one screenshot**: take a radiation-modded weapon with a known
-per-shot damage against a level 150 Bombard and read the damage number on screen. The three
-models predict ratios of roughly 1 : 0.32 : 1.68, so a single hit discriminates them.
-
-### Modelling decision: armour modifiers act on armour
-
-A vulnerability does two things at once: it increases damage **and** makes armour
-protect less. We model that the way the game does — by scaling the armour value:
+The snapshot stores them as `modifiers[damage_type][health_class]`, and each enemy carries
+the `healthClass` its faction maps to (`Grineer`, `Kuva Grineer`, `Corpus`, ... `Object`).
 
 ```
-effective_armor = armor × (1 − armor_type_modifier)
+health hit  = damage × (1 + class_modifier) × (1 − DR)
+shield hit  = damage × (1 + class_modifier)       (armor does not apply)
+overguard   = damage × (1 + Overguard_modifier)   (only Void, +50%)
 ```
 
-so `+75%` Radiation vs Alloy Armor turns 2700 armour into 675 (DR 90% → 45%).
-The alternative model (armour modifier as a plain damage multiplier) gives visibly
-different rankings against high-armour Grineer, so this is the first thing to
-re-verify in game if numbers ever look off.
+Consequences:
+
+- The old "does the armour modifier scale the armour?" question **no longer exists**: there
+  are no armour types, so `armorDamageReduction(armor)` only turns armour into DR and the
+  class modifier is a plain multiplier. `--armor-model` was removed with the Damage 2.0 table.
+- Element choice changed with it. Against a level 150 Bombard (Grineer) Corrosive is +50%
+  and Radiation is neutral; under the old Alloy Armor table it was the other way round.
+  The pinned agent eval and the tests were updated to the new table on 2026-10-20.
+- Shields use the faction class too: Corpus is +50% Magnetic, which is the simplified
+  replacement for "Magnetic +75% vs Shield".
+- The in-game captures in [verified-in-game.md](verified-in-game.md) that pinned the
+  Damage 2.0 numbers predate Update 36 and are kept only as history.
 
 ## 5. Warframe buffs and arcanes
 
@@ -209,7 +204,7 @@ dot_dps   = procs_per_second × total
 - `C`: 0.35 for Slash, 0.5 for Heat / Electricity / Toxin / Gas.
 - Faction damage is applied **twice** (it is already inside the seed), as the wiki notes.
 - `ticks`: 6 for Slash/Heat/Toxin/Electricity/Gas, 1 for Blast's detonation.
-- Bleed is **True** damage: no armour DR, no health-type modifier.
+- Bleed is **True** damage: no armour DR, no health-class modifier.
 - `procs_per_second = fireRate × multishot × statusChance × damageShare`, plus forced
   procs such as Hunter Munitions (`+30% chance on crit` → crit-gated rate).
 

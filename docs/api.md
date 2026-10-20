@@ -62,8 +62,8 @@ need to know what `stripFrom` accepts.
 
 ## `GET /api/ability?name=Miasma&strength=200&enemy=Bombard&level=150`
 
-One damage-dealing ability, resolved through the same target maths weapons use: health-type
-modifier, armour reduction and a minimum of 1 per damage type.
+One damage-dealing ability, resolved through the same target maths weapons use: faction
+health-class modifier (Damage 3.0), armour reduction and a minimum of 1 per damage type.
 
 ```json
 {
@@ -71,19 +71,19 @@ modifier, armour reduction and a minimum of 1 per damage type.
   "baseDamage": 150, "strength": 200, "scaledDamage": 300,
   "perSecond": true, "durationSeconds": 6, "totalDamage": 1800,
   "armorStrip": null,
-  "target": { "enemy": "Bombard", "level": 150, "healthMultiplier": 1.75,
-              "armorReduction": 0.9, "perCast": 315, "directPerCast": 315,
+  "target": { "enemy": "Bombard", "level": 150, "healthMultiplier": 1,
+              "armorReduction": 0.9, "perCast": 180, "directPerCast": 180,
               "statusPerCast": 0, "viralStacks": 1, "corrosiveStacks": 0, "corrosiveArmorMultiplier": 1,
-              "targets": 1, "totalPerCast": 315,
+              "targets": 1, "totalPerCast": 180,
               "statusProcs": [{ "type": "viral", "stacks": 1, "damageType": "viral", "total": 0 }],
               "shield": 0, "shieldPerCast": 0, "bypassesShield": false,
-              "overguard": 0, "overguardPerCast": 0, "castsToKill": 377 },
+              "overguard": 0, "overguardPerCast": 0, "castsToKill": 659 },
   "notes": ["Ability damage is flat: it does not crit, use multi..."]
 }
 ```
 
 Parameters: `name` (required), `strength` (percent, default 100), `enemy`, `level`,
-`armorModel` (`armor-scaling` | `multiply` | `both`), `eximus` (`1`/`true`), `overguard`
+`eximus` (`1`/`true`), `overguard`
 (an explicit amount), `viral` (Viral stacks already on the target; Miasma also applies its
 own), `targets` (enemies hit by one cast, all at full damage), `mode` (Thermal Sunder's `heat`)
 and `distance` (Discharge's falloff). `target.castsToKill` includes the casts needed to break Overguard;

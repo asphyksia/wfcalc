@@ -1,5 +1,15 @@
 # Verified in game
 
+> **2026-10-20 — the damage-type captures below are history.** Update 36 (2024-06-18)
+> replaced the Damage 2.0 health/armour types with faction health classes ("With the removal
+> of Resistances/Vulnerabilities being tied to Health Type, they will now be
+> Faction-specific", wiki: `Damage`). Every number below that depends on a health-type
+> modifier was taken under the old table and no longer describes the game; the engine now
+> follows the faction table and `tests/ingame.test.ts` pins its output. The armour-floor
+> observation still holds, because it comes from the floor rule, not from a modifier.
+> Re-capture cases 9 and 10 of `docs/calibration.md` when convenient; until then the wiki
+> table is the only source for damage-type behaviour.
+
 Numbers read from the arsenal by the user, compared against `data/snapshot.json`. This is the
 only ground truth the project has; everything else is the wiki, the export, or Overframe.
 
@@ -31,8 +41,8 @@ only ground truth the project has; everything else is the wiki, the export, or O
 
 - **Tenet Arca Plasmor**: does a Cannonade mod block the fire rate penalty? Our answer (blocked,
   following the mod text) is the last failing comparison, ratio x1.25.
-- **The armour-modifier model**: needs one damage number from a level 150 Bombard. See
-  `docs/formulas.md`.
+- **The armour-modifier model**: obsolete as of Damage 3.0. There are no armour types, so
+  `armorDamageReduction()` only turns armour into DR. See `docs/formulas.md §4`.
 
 ## Armour floor (verified 2026-10)
 

@@ -207,8 +207,9 @@ test('an ability cast has to break Overguard before health', () => {
   };
   assert.equal(result.target.overguard, 281865);
   assert.equal(result.target.overguardPerCast, 3000); // Cold is neutral to Overguard
-  // ceil(281865/3000) + ceil(118480/perCast) is 94 + 180.
-  assert.equal(result.target.castsToKill, 274);
+  // ceil(281865/3000) overguard casts, then the health pool. Cold has no Grineer modifier in
+  // Damage 3.0, so the health phase takes more casts than it did under the Damage 2.0 table.
+  assert.equal(result.target.castsToKill, 489);
 });
 
 test('attenuation is opt-in for Archons and automatic for Eidolons', () => {
@@ -244,7 +245,7 @@ test('attenuation is opt-in for Archons and automatic for Eidolons', () => {
 test('ability statuses are reported in the brief', () => {
   const miasma = runRaw(['ability', 'Miasma', '--strength', '100', '--enemy', 'Bombard', '--level', '150', '--brief']);
   assert.equal(miasma.status, 0);
-  assert.match(miasma.stdout, /315\/cast/);
+  assert.match(miasma.stdout, /180\/cast/);
   assert.match(miasma.stdout, /1 viral/);
 
   const stacked = runRaw(['ability', 'Miasma', '--viral', '10', '--enemy', 'Bombard', '--level', '150', '--brief']);
@@ -264,7 +265,7 @@ test('ability briefs show the shield phase against Corpus', () => {
 test('ability --targets reports the whole cast', () => {
   const result = runRaw(['ability', 'Miasma', '--strength', '100', '--enemy', 'Bombard', '--level', '150', '--targets', '5', '--brief']);
   assert.equal(result.status, 0);
-  assert.match(result.stdout, /5 targets = 1,575/);
+  assert.match(result.stdout, /5 targets = 900/);
 });
 
 test('search briefs name the conditional mods', () => {

@@ -43,13 +43,19 @@ export const FACTIONS = ['grineer', 'corpus', 'infested', 'orokin', 'murmur', 's
 export type Faction = (typeof FACTIONS)[number];
 
 /**
- * Damage-type modifiers: percentage points, e.g. +75 or -50.
- * Indexed `modifiers[damageType][healthType]`, matching the wiki's matrix.
+ * Damage-type modifiers: percentage points, e.g. +50 or -50.
+ * Indexed `modifiers[damageType][healthClass]`, using the Damage 3.0 health classes
+ * (Grineer, Corpus, Orokin, Overguard, ...) that replaced the Damage 2.0 health types
+ * in Update 36.
  */
 export type ModifierTable = Record<string, Record<string, number>>;
 
 export interface HealthPool {
-  /** Health type name as used by the wiki, e.g. "Cloned Flesh", "Alloy Armor". */
+  /**
+   * Pool name from the data export, e.g. "Cloned Flesh" or "Alloy Armor".
+   * Since Damage 3.0 these no longer select a damage modifier: the enemy's
+   * `healthClass` does. They still say which pools exist and how big they are.
+   */
   type: string;
   /** Wiki category: health, armor or shield (each is modified differently). */
   category: 'health' | 'armor' | 'shield' | 'object';
@@ -60,6 +66,12 @@ export interface EnemyData {
   id: string;
   name: string;
   faction: string | null;
+  /**
+   * Damage 3.0 health class (Grineer, Kuva Grineer, Corpus, Orokin, Sentient, ...).
+   * Every pool of the enemy takes the same modifier, which is the whole point of the
+   * simplified faction resistances introduced in Update 36.
+   */
+  healthClass: string;
   kind: string | null;
   /** Base level as used by the scaling curves (1 for almost every enemy). */
   baseLevel: number;
@@ -427,8 +439,8 @@ export interface Snapshot {
   /** Set Mod bonuses, keyed by set name. */
   setBonuses: Record<string, SetBonus>;
   enemies: Record<string, EnemyData>;
-  /** damage type -> health type -> percentage points */
+  /** damage type -> health class -> percentage points */
   modifiers: ModifierTable;
-  /** Health type -> category, so enemies can reference types without repeating them. */
+  /** Pool type -> category, so enemies can reference types without repeating them. */
   healthTypes: Record<string, 'health' | 'armor' | 'shield' | 'object'>;
 }

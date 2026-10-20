@@ -35,8 +35,8 @@ test('armour reduction uses the scaled armour, not the pool base value', () => {
 
   const cast = abilityCast(snapshot, 'Rhino Stomp', { enemy: 'Bombard', level: 150 });
   assert.ok(cast.target);
-  // Blast has no armour-type modifier here, so the reduction is the plain armour formula.
-  assert.ok(Math.abs(cast.target!.armorReduction - armorDamageReduction(scaled.armor, 0)) < 1e-9);
+  // Armour sets DR on its own; the damage-type modifier multiplies damage on top (Damage 3.0).
+  assert.ok(Math.abs(cast.target!.armorReduction - armorDamageReduction(scaled.armor)) < 1e-9);
   assert.ok(cast.target!.armorReduction > 0.85, 'a level 150 Bombard should shrug off most of it');
 
   // Casts to kill must agree with the target's scaled health.
@@ -179,8 +179,9 @@ test('the strip resolver turns squad, weapon and ability inputs into one additiv
 test('Miasma applies one Viral stack and doubles its health damage', () => {
   const cast = abilityCast(snapshot, 'Miasma', { enemy: 'Bombard', level: 150 });
   assert.equal(cast.target?.viralStacks, 1);
-  // 150/s x 6s = 900 Viral; the proc doubles it to 1,800 on health, then armour leaves 315.
-  assert.ok(Math.abs((cast.target?.perCast ?? 0) - 315) < 1e-6);
+  // 150/s x 6s = 900 Viral; the proc doubles it to 1,800 on health. Grineer has no Viral
+  // vulnerability in Damage 3.0, so only the 90% armour DR applies: 180 per cast.
+  assert.ok(Math.abs((cast.target?.perCast ?? 0) - 180) < 1e-6);
   const stacked = abilityCast(snapshot, 'Miasma', { enemy: 'Bombard', level: 150, viralStacks: 10 });
   assert.equal(stacked.target?.viralStacks, 10);
   assert.ok((stacked.target?.perCast ?? 0) > (cast.target?.perCast ?? 0));
@@ -229,8 +230,9 @@ test('Inferno splits its direct damage into Impact and Heat', () => {
   const cast = abilityCast(snapshot, 'Inferno', { enemy: 'Bombard', level: 150 });
   assert.deepEqual(cast.damageComponents.map((component) => component.type), ['impact', 'heat']);
   assert.deepEqual(cast.damageComponents.map((component) => component.amount), [1250, 1250]);
-  // The Heat half now takes Cloned Flesh's +25% instead of being modelled as Impact.
-  assert.ok(Math.abs((cast.target?.directPerCast ?? 0) - 1562.5) < 1e-6);
+  // Damage 3.0: Grineer takes +50% Impact and is neutral to Heat, so the Impact half lands
+  // harder than the Heat half instead of the other way round.
+  assert.ok(Math.abs((cast.target?.directPerCast ?? 0) - 1362.5) < 1e-6);
 });
 
 test('Fireball counts its direct and area Heat and guarantees a Heat proc', () => {

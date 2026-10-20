@@ -25,7 +25,7 @@
  */
 import { type DamageType, type Snapshot } from '../types.ts';
 import type { ResolvedBuild } from './build.ts';
-import { armorDamageReduction, type ArmorModel, type ScaledEnemy } from './enemy.ts';
+import { armorDamageReduction, type ScaledEnemy } from './enemy.ts';
 
 /** Damage types that produce a damage-over-time effect from weapon hits. */
 export const DOT_TYPES = ['slash', 'heat', 'toxin', 'electricity', 'gas', 'blast'] as const;
@@ -79,8 +79,6 @@ const healthModifier = (snapshot: Snapshot, type: DamageType, healthType: string
   (snapshot.modifiers[type]?.[healthType] ?? 0) / 100;
 
 export interface DotContext {
-  /** Armour-model reading, threaded from the hit calculation. */
-  armorModel?: ArmorModel;
   /** Viral stacks on the target: +100% damage to health at 1 stack, +25% each more. */
   viralStacks?: number;
   /** Corrosive stacks: 26% armour reduction, then 6% more each, capped at 80%. */
@@ -141,9 +139,7 @@ export function computeDot(
   context: DotContext,
   factionMultiplier: number,
 ): DotEntry[] {
-  const healthPool = scaled.pools.find((pool) => pool.category === 'health' || pool.category === 'object');
-  const armorPool = scaled.pools.find((pool) => pool.category === 'armor');
-  const healthType = healthPool?.type ?? 'Cloned Flesh';
+  const healthClass = scaled.enemy.healthClass;
   const armor = effectiveArmor(scaled.armor, context);
   const viral = viralMultiplier(context.viralStacks ?? 0);
 
@@ -192,9 +188,8 @@ export function computeDot(
     // Faction damage scales the seed itself and is then applied again, exactly as the wiki's
     // worked examples do it: ((seed x faction) + 1) x C x (1 + element bonus) x status x faction.
     const rawTick = ((seed * factionMultiplier) + 1) * coefficient * (1 + elementalBonus) * statusDamageBonus * factionMultiplier;
-    const armorModifier = armorPool && dotType !== 'true' ? healthModifier(snapshot, dotType, armorPool.type) : 0;
-    const dr = dotType === 'true' ? 0 : armorDamageReduction(armor, armorModifier, context.armorModel);
-    const healthMod = dotType === 'true' ? 0 : healthModifier(snapshot, dotType, healthType);
+    const dr = dotType === 'true' ? 0 : armorDamageReduction(armor);
+    const healthMod = dotType === 'true' ? 0 : healthModifier(snapshot, dotType, healthClass);
     const tickDamage = rawTick * (1 + healthMod) * (1 - dr) * viral;
 
     const damagePerProc = tickDamage * ticks;
@@ -231,13 +226,10 @@ export function statusProcDamage(
   const coefficient = TICK_COEFFICIENT[type];
   const ticks = TICK_COUNT[type];
   const dotType = TICK_DAMAGE_TYPE[type];
-  const healthPool = scaled.pools.find((pool) => pool.category === 'health' || pool.category === 'object');
-  const armorPool = scaled.pools.find((pool) => pool.category === 'armor');
-  const healthType = healthPool?.type ?? 'Cloned Flesh';
+  const healthClass = scaled.enemy.healthClass;
   const armor = effectiveArmor(scaled.armor, context);
-  const armorModifier = armorPool && dotType !== 'true' ? healthModifier(snapshot, dotType, armorPool.type) : 0;
-  const dr = dotType === 'true' ? 0 : armorDamageReduction(armor, armorModifier, context.armorModel);
-  const healthMod = dotType === 'true' ? 0 : healthModifier(snapshot, dotType, healthType);
+  const dr = dotType === 'true' ? 0 : armorDamageReduction(armor);
+  const healthMod = dotType === 'true' ? 0 : healthModifier(snapshot, dotType, healthClass);
   const tickDamage = (seed + 1) * coefficient * (1 + healthMod) * (1 - dr) * viralMultiplier(viralStacks);
   return { type, damageType: dotType, tickDamage, ticks, total: tickDamage * ticks };
 }

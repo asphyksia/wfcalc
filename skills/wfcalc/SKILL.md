@@ -96,7 +96,7 @@ part of the build: do not omit it from the answer.
   target with no Overguard or shields that is `health / totalDps`.
 - **ttk** is the model's sustained fire, not a stopwatch. Quote shots too when they ask.
 - **armour** is the effective armour *after* every strip. Show it when strip is involved.
-- A weapon can have huge burst and modest total: the target's armour and health types decide.
+- A weapon can have huge burst and modest total: the target's armour and faction health class decide.
 - Status is most of the damage on slash/heat builds; do not read `sustained` as "real DPS".
 
 ## What must travel with the answer

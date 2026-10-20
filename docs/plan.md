@@ -2,7 +2,7 @@
 
 Handover document: a new session should be able to start here with no other context.
 
-Last updated: 2026-10-19.
+Last updated: 2026-10-20.
 
 ---
 
@@ -10,7 +10,7 @@ Last updated: 2026-10-19.
 
 | | |
 |---|---|
-| Tests | **148 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
+| Tests | **151 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration | **35/35** public builds, local battery (not shipped); `node tools/calibrate.ts` offline after `calibrate:refresh` |
 | Types | `npm run check` clean |
@@ -97,6 +97,8 @@ Rules that have prevented repeated mistakes:
 | A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, `--brief=answer` for repeated calls, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
 | A6 | **`wfcalc batch`**: JSONL of calc/ability records priced in one process, one line per record, `--json` as compact rounded JSONL. Bad records do not abort the batch; exit 1. The JSON->Build mapping moved to `src/request.ts`, shared with the server. | `tests/cli.test.ts`; `tools/agent-eval.ts` case "batch" |
 | A7 | **Agent eval**: `npm run eval` pins ten real questions (best build, strip, melee Incarnon, CO, ability, errors, partial mods, batch) and fails if an answer or the brief size regresses. Runs in CI. | `tools/agent-eval.ts`, 10/10 |
+| A31 | **13 enemies had no faction** (beta review): WFCD puts the weapon class in `type` ("Rifle", "Shotgun") for Lancer, Trooper, Crewman and Corrupted Lancer, so `FACTION_NAMES` returned null and they fell back to the neutral health curve: a level 80 Lancer read **9,635 hp instead of 24,791**. Faction now falls back to the `uniqueName` path. Same commit adds `healthClass` (Kuva Grineer, Corpus Amalgam, ...) for Damage 3.0. | `data/snapshot.json` has 0 enemies with a null faction; `tests/engine.test.ts` and the review's level-80 example agree with the wiki curves |
+| A30 | **Damage 3.0 faction table** (beta review): Update 36 replaced health/armour types with faction health classes ("deprecated as of U36" in the module we already download). The engine was still using the Damage 2.0 matrix, so every element recommendation was wrong: against Grineer, Radiation was +75% and Corrosive nothing, the exact opposite of the current table. Modifiers are now parsed from `Types` (Grineer: Impact/Corrosive +50), every pool of an enemy takes its faction's table, and the obsolete `--armor-model` switch is gone. | Bombard 150: Radiation build 154 s → 497 s, Corrosive 548 s → 464 s; best Soma Prime build changes from the Viral one (11.94 s) to a Slash/status one (30.2 s); eval and in-game tests re-pinned |
 | A29 | **CSS-only card frames (UI cleanup)**: removed the `/frame/` route, `FRAME_UPSTREAM`/`FRAME_ROOT` and the `data/frames` cache. Mod cards use a rarity-coloured border, rails and glow in CSS, so the UI no longer fetches frame art from a third party. | Desktop screenshot checked with a full Haalvu build; no `/frame/` requests, no broken cards |
 | A28 | **Riven base values were near zero (found in the full refresh)**: the wiki's Riven_Mods table changed shape and the parser was reading the wrong cells, so every riven read like +0.02%. The refreshed table gives +165% Damage base; a real-snapshot test pins the order of magnitude. | Soma Prime riven `damage,multishot`: +179.7% / +98.0% (was ~+0.02%); `tests/riven.test.ts` uses the real snapshot |
 | A27 | **Ability distance falloff (C2d)**: Discharge falls linearly to 50% at 20 m; `--ability-distance N` applies the factor to the components and reports it in the brief/JSON. | Discharge 0 m 82.76 per cast vs 20 m 41.38 (x0.50); tests pin the factor and the brief |
@@ -236,7 +238,7 @@ Useful commands: `wfcalc abilities`, `wfcalc ability <name> --strength N --enemy
 ```sh
 cd wfcalc
 git log --oneline | head -5      # the top commit
-npm test                          # 145 tests
+npm test                          # 151 tests
 npm run eval                      # 10 pinned agent cases
 node tools/validate.ts            # 0 violations
 node tools/calibrate.ts           # 35/35 local battery, after calibrate:refresh

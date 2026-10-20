@@ -60,24 +60,33 @@ function buildDamageTypes(): { modifiers: Record<string, Record<string, number>>
   const modifiers: Record<string, Record<string, number>> = {};
   const healthTypes: Record<string, HealthPool['category']> = {};
 
+  // Pool categories only. The stat block still calls pools "Cloned Flesh" or "Alloy Armor",
+  // so they need a category (health/armour/shield) for the shield phase and the armour DR.
   for (const [name, entry] of Object.entries<Loose>(module.Health ?? {})) {
     const category = String(entry.Type ?? 'Health').toLowerCase() as HealthPool['category'];
     healthTypes[name] = category === 'armor' ? 'armor' : category === 'shield' ? 'shield' : category === 'object' ? 'object' : 'health';
-    for (const pair of luaArray(entry.Positives)) {
-      const [element, pct] = luaArray(pair);
-      const key = element.toLowerCase();
-      (modifiers[key] ??= {})[name] = pct;
-    }
-    for (const pair of luaArray(entry.Negatives)) {
-      const [element, pct] = luaArray(pair);
-      const key = element.toLowerCase();
-      (modifiers[key] ??= {})[name] = -pct;
+  }
+
+  // Damage 3.0 (Update 36, 2024-06-18): "With the removal of Resistances/Vulnerabilities being
+  // tied to Health Type, they will now be Faction-specific" (wiki: Damage). The matrix the
+  // wiki still keeps under Health[...].Positives is the Damage 2.0 one, marked "Depreciated
+  // health/armor types as of U36; keeping to preserve links and template calls". Use it and
+  // every element recommendation is two years stale.
+  //
+  // `Types[damage].Positives/Negatives` lists health classes without a magnitude, which the
+  // module's own patch code (the commented-out block at the end) reads as ±50%.
+  for (const [name, entry] of Object.entries<Loose>(module.Types ?? {})) {
+    const key = name.toLowerCase();
+    for (const [field, sign] of [['Positives', 1], ['Negatives', -1]] as const) {
+      for (const item of luaArray(entry[field])) {
+        const pair = luaArray(item);
+        const healthClass = String(typeof item === 'object' ? pair[0] : item).trim();
+        const pct = typeof item === 'object' ? Number(pair[1] ?? 50) : 50;
+        if (!healthClass || !Number.isFinite(pct)) continue;
+        (modifiers[key] ??= {})[healthClass] = sign * pct;
+      }
     }
   }
-  // The Overguard entry keeps its only vulnerability on the damage type ("Void: Positives =
-  // Overguard"), not in its own Positives list, so the health matrix above misses it. The wiki
-  // (Overguard) states a 50% Void vulnerability and neutrality to everything else.
-  if (healthTypes['Overguard']) (modifiers.void ??= {})['Overguard'] = 50;
   // Modifiers not mentioned are 0; keep the table sparse and default to 0 at runtime.
   return { modifiers, healthTypes };
 }
@@ -537,6 +546,49 @@ const FACTION_NAMES: Record<string, string> = {
   orbiter: 'neutral',
 };
 
+/**
+ * Damage 3.0 health class for each enemy faction.
+ *
+ * The simplified faction resistances made the class a property of the faction, not of the
+ * pool: every pool of a Grineer takes the Grineer table, armour included. `Object` is the
+ * wiki's catch-all for things with no table (conservation animals, destructibles).
+ */
+const HEALTH_CLASS: Record<string, string> = {
+  grineer: 'Grineer',
+  corpus: 'Corpus',
+  infested: 'Infested',
+  orokin: 'Orokin',
+  sentient: 'Sentient',
+  stalker: 'Tenno',
+  tenno: 'Tenno',
+  neutral: 'Object',
+};
+
+/**
+ * Faction from the asset path, for rows whose `type` is not a faction.
+ *
+ * WFCD puts the weapon class in `type` for a handful of enemies ("Rifle", "Shotgun"), which
+ * left Lancer, Trooper, Crewman and Corrupted Lancer with no faction and made them fall back
+ * to the neutral health curve: a level 80 Lancer read 9,635 hp instead of 24,791.
+ */
+function factionFromPath(uniqueName: string): string | null {
+  const segment = /\/Enemies\/([^/]+)\//.exec(uniqueName)?.[1] ?? '';
+  if (/^Grineer/.test(segment)) return 'grineer';
+  if (/^Corpus/.test(segment)) return 'corpus';
+  if (/^Orokin/.test(segment)) return 'orokin';
+  if (/^Infested/.test(segment)) return 'infested';
+  if (/^Sentients/.test(segment)) return 'sentient';
+  if (/^(Acolytes|Stalker)$/.test(segment)) return 'stalker';
+  return null;
+}
+
+/** The Damage 3.0 class, including the sub-factions the wiki splits off by name. */
+function healthClassFor(name: string, faction: string | null): string {
+  if (faction === 'grineer' && /^Kuva /.test(name)) return 'Kuva Grineer';
+  if (faction === 'corpus' && /^Amalgam /.test(name)) return 'Corpus Amalgam';
+  return HEALTH_CLASS[faction ?? ''] ?? 'Object';
+}
+
 function buildEnemies(healthTypes: Record<string, HealthPool['category']>): Record<string, EnemyData> {
   const out: Record<string, EnemyData> = {};
   for (const enemy of readJson('wfcd-Enemy.json')) {
@@ -552,10 +604,14 @@ function buildEnemies(healthTypes: Record<string, HealthPool['category']>): Reco
       pools.push({ type, category: healthTypes[type] ?? 'health', amount });
     }
 
+    const faction = FACTION_NAMES[String(enemy.type ?? '').toLowerCase()]
+      ?? factionFromPath(String(enemy.uniqueName ?? ''));
+
     out[name] = {
       id: name,
       name,
-      faction: FACTION_NAMES[String(enemy.type ?? '').toLowerCase()] ?? null,
+      faction,
+      healthClass: healthClassFor(name, faction),
       kind: String(enemy.type ?? '') || null,
       baseLevel: 1,
       health: Number(enemy.health ?? 0),
