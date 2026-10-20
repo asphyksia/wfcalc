@@ -285,6 +285,7 @@ function calcBriefLine(
     head,
     `burst ${num(resolved.burstDps)}`,
     `sustained ${num(resolved.sustainedDps)}`,
+    `shot ${num(hit.damagePerShotHealth)} to health`,
     `total ${num(hit.totalDps)} dps with status`,
     ttk,
     `armour ${num(hit.armor)}`,
@@ -374,6 +375,11 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
           projectileTotal: resolved.damage.projectileTotal,
           shotDamage: resolved.shotDamage,
           averageShotDamage: resolved.averageShotDamage,
+          // Damage per trigger pull actually landing on the target: armour, the faction
+          // health class, crit average, multishot and viral included, status DoT excluded.
+          damagePerShotHealth: hit.damagePerShotHealth,
+          damagePerShotShield: hit.damagePerShotShield,
+          damagePerShotOverguard: hit.damagePerShotOverguard,
           burstDps: resolved.burstDps,
           sustainedDps: resolved.sustainedDps,
           critChance: resolved.critChance,
@@ -423,6 +429,14 @@ function report(snapshot: Snapshot, args: Args, mods: BuildMod[], label: string)
   console.log(
     `  damage/shot  ${num(resolved.damage.projectileTotal, 2).padStart(9)}  ` +
       `×${resolved.multishot.toFixed(2)} multishot  ×${(1 + resolved.critChance * (resolved.critMultiplier - 1)).toFixed(2)} crit avg`,
+  );
+  // The headline damage/shot is the arsenal number (raw, before the target). This is what one
+  // pull actually removes from the thing in front of you.
+  console.log(
+    `  vs target    ${num(hit.damagePerShotHealth)} to health` +
+      `  ·  ${num(hit.damagePerShotShield)} to shields` +
+      (hit.overguard > 0 ? `  ·  ${num(hit.damagePerShotOverguard)} to overguard` : '') +
+      `   (per pull, crit avg, after armour)`,
   );
   console.log(
     `  crit         ${pct(resolved.critChance).padStart(7)} ×${resolved.critMultiplier.toFixed(2)}` +

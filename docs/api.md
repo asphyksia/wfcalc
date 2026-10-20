@@ -228,6 +228,7 @@ Response (abridged):
   "damage": { "impact": 495.55, "blast": 7117.37 },
   "projectileTotal": 7612.92,
   "averageShotDamage": 32791.1,
+  "damagePerShotHealth": 612.4, "damagePerShotShield": 0, "damagePerShotOverguard": 32791.1,
   "critChance": 0.35, "critMultiplier": 4.62, "statusChance": 0.21,
   "multishot": 1.9, "fireRate": 0.667,
   "burstDps": 21860.8, "sustainedDps": 15614.8,

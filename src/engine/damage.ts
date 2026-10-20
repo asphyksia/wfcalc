@@ -47,8 +47,10 @@ export interface EnemyHit {
   breakdown: TypeBreakdown[];
   /** Damage per trigger pull against shields. */
   damagePerShotShield: number;
-  /** Damage per trigger pull against health. */
+  /** Damage per trigger pull against health (armour, class modifier, crit avg, multishot). */
   damagePerShotHealth: number;
+  /** Damage per trigger pull against Overguard: 0 unless the target has any. */
+  damagePerShotOverguard: number;
   /** Overguard the target had, and our direct damage rate against it. */
   overguard: number;
   overguardDps: number;
@@ -324,6 +326,7 @@ export function hitEnemy(snapshot: Snapshot, build: ResolvedBuild, scaled: Scale
     breakdown,
     damagePerShotShield,
     damagePerShotHealth,
+    damagePerShotOverguard,
     overguard: scaled.overguard,
     overguardDps: effectiveOverguardDps,
     attenuation,

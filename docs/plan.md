@@ -10,7 +10,7 @@ Last updated: 2026-10-20.
 
 | | |
 |---|---|
-| Tests | **153 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
+| Tests | **154 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration | **35/35** public builds, local battery (not shipped); `node tools/calibrate.ts` offline after `calibrate:refresh` |
 | Types | `npm run check` clean |
@@ -97,6 +97,7 @@ Rules that have prevented repeated mistakes:
 | A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, `--brief=answer` for repeated calls, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
 | A6 | **`wfcalc batch`**: JSONL of calc/ability records priced in one process, one line per record, `--json` as compact rounded JSONL. Bad records do not abort the batch; exit 1. The JSON->Build mapping moved to `src/request.ts`, shared with the server. | `tests/cli.test.ts`; `tools/agent-eval.ts` case "batch" |
 | A7 | **Agent eval**: `npm run eval` pins ten real questions (best build, strip, melee Incarnon, CO, ability, errors, partial mods, batch) and fails if an answer or the brief size regresses. Runs in CI. | `tools/agent-eval.ts`, 10/10 |
+| A34 | **The answer shows what a pull does to the target** (beta review): `damage/shot` was the arsenal number, before armour and modifiers, and nothing in the answer said so. `calc` now prints `vs target X to health · Y to shields · Z to overguard (per pull, crit avg, after armour)`, the brief carries `shot X to health`, and the JSON adds `damagePerShotHealth/Shield/Overguard` (already on the API target object). | Soma Prime + Serration vs Bombard 150: 31.8 raw → **6.18 per pull on health**; `tests/cli.test.ts` pins both |
 | A33 | **The board exists at boot** (beta review): the slots used to appear one at a time as mods were added, so a fresh page showed a single "+ add mod" button and a placeholder that read like a selected weapon. Now all 8 + Exilus (+ stance on melee) slots render empty from the first paint, dropping cannot fail for lack of a target, "drop outside" clears the slot instead of shrinking the grid, and the weapon field says "search a weapon…". | Screenshot of the empty board at 420 px; `agent-browser` checks: 9 slots for Soma Prime, 10 (with stance) for Nikana Prime, remove keeps the board |
 | A32 | **A duplicate mod is rejected** (beta review): `--mod Serration --mod Serration` used to take 14 capacity and raise the DPS from 152.6 to 234.5, which the game cannot do. `resolveBuild` throws an `InputError('duplicate_mod')`; the CLI exits 2 with the usual JSON error, the API answers 400, and the UI refuses the second copy (clicking an equipped mod flashes its slot) and de-dupes an old shared link. | `tests/cli.test.ts` and `tests/server.test.ts`; browser checks: the second click adds nothing and the slot flashes |
 | A31 | **13 enemies had no faction** (beta review): WFCD puts the weapon class in `type` ("Rifle", "Shotgun") for Lancer, Trooper, Crewman and Corrupted Lancer, so `FACTION_NAMES` returned null and they fell back to the neutral health curve: a level 80 Lancer read **9,635 hp instead of 24,791**. Faction now falls back to the `uniqueName` path. Same commit adds `healthClass` (Kuva Grineer, Corpus Amalgam, ...) for Damage 3.0. | `data/snapshot.json` has 0 enemies with a null faction; `tests/engine.test.ts` and the review's level-80 example agree with the wiki curves |
@@ -176,6 +177,28 @@ amplification are not credited to it.
   command, version and output.
 - **B2c** only if a published equation or Lich/Sister table appears.
 
+### H. Beta review: UI work deferred (2026-10-20)
+
+The review's UI findings that are not done are parked here on purpose: engine and CLI contract
+first. Nothing here is forgotten; U1 and U2 are what a player sees, and they should land
+together with U3.
+
+| # | Item | Where / why it is open |
+|---|---|---|
+| U1 | **Rank control**: two unlabelled sliders control the same value (the slot's `input.rank` and the card's `.mcard-rank`). Replace with a labelled numeric box: drag to change, click to type, ±1 buttons, clamped to 0..maxRank. | `renderSlots()` and `modCardMarkup()` in `src/web/app.js` |
+| U2 | **Visible breakdown** in the web UI: raw → class modifier → armour DR → effective per type → crit/multishot → burst/sustained → TTK, with the unmodded value next to the modified one. The engine already returns `raw`, `healthMultiplier` and `toHealth` per type; the UI prints the table without the steps. | `renderResults()`; the CLI half (effective per shot) is A34 |
+| U3 | **The target's health class, not the pool names**: the target chips still say "Alloy Armor + Cloned Flesh", which no longer mean anything. Show `healthClass` (Grineer, Orokin, ...) and let the player pick the faction. | `result.target` / `pools` chips in the UI |
+| U4 | **Slot cards hide the mod's stats** when the mod has artwork: `.mod-desc` is skipped when `info.card` is set, so only the headline number shows. The reviewer called this out as "Sierra shows no stats" (no mod by that name exists in the snapshot; likely Serration or a typo). | `renderSlots()` |
+| U5 | **Abilities and Compare**: the reviewer would drop both. We keep them, frozen: no new abilities or comparison features until the weapon core is settled. | Decided, no action |
+
+Still open from the review outside the UI:
+
+- **One in-game capture** to confirm Damage 3.0 with a live number: Soma Prime + Serration +
+  Stormbringer vs a level 150 Bombard should show **18** on a crit (Damage 2.0 said 19). The
+  beta tester can do this; it is the only way to turn the wiki table into evidence.
+- **"Sierra"**: no such mod in WFCD or the wiki snapshot. Ask for the exact name before
+  treating it as a data gap; see U4 for the real behaviour behind the complaint.
+
 ### E. Out of scope, decided
 
 Stance slot is not searched; conditional mods are off by default (`--stacks`); rivens take manual
@@ -240,7 +263,7 @@ Useful commands: `wfcalc abilities`, `wfcalc ability <name> --strength N --enemy
 ```sh
 cd wfcalc
 git log --oneline | head -5      # the top commit
-npm test                          # 153 tests
+npm test                          # 154 tests
 npm run eval                      # 10 pinned agent cases
 node tools/validate.ts            # 0 violations
 node tools/calibrate.ts           # 35/35 local battery, after calibrate:refresh

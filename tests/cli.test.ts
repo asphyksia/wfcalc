@@ -368,3 +368,19 @@ test('a duplicate mod is a bad request, not a doubled bonus', () => {
   assert.equal(ok.status, 0);
   assert.match(ok.stdout, /dps/);
 });
+
+test('the answer states the damage per pull that actually lands on the target', () => {
+  // The arsenal number (31.8) is before the target. Against a level 150 Bombard, 2700 armour
+  // cuts 90% and the per-type floor applies, so a pull removes 6.18 from health.
+  const result = run(['calc', 'Soma Prime', '--mod', 'Serration', '--enemy', 'Bombard', '--level', '150', '--json']) as {
+    projectileTotal: number; averageShotDamage: number;
+    damagePerShotHealth: number; damagePerShotShield: number;
+  };
+  assert.equal(result.projectileTotal.toFixed(2), '31.80');
+  assert.equal(result.damagePerShotHealth.toFixed(4), '6.1792');
+  assert.equal(result.damagePerShotShield, 0);
+  assert.ok(result.damagePerShotHealth < result.averageShotDamage / 8, 'armour must show up in the per-shot number');
+
+  const brief = runRaw(['calc', 'Soma Prime', '--mod', 'Serration', '--enemy', 'Bombard', '--level', '150', '--brief']);
+  assert.match(brief.stdout, /shot 6\.2 to health/);
+});

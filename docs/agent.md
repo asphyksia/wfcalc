@@ -148,7 +148,8 @@ Each line is a calculation record with the same fields as `POST /api/calc` (`wea
 optionally `ability`/`strength` for a cast instead of a weapon. Stackable conditions go in
 `"conditions": {"onKill": 12}`, not as a top-level `stacks` field. Default output is the brief line per
 record; `--json` gives compact JSONL with rounded values (`burstDps`, `sustainedDps`,
-`totalDps`, `timeToKill`, `shotsToKill`, `armor`, `warnings`) or the ability fields. The exit
+`damagePerShotHealth`, `totalDps`, `timeToKill`, `shotsToKill`, `armor`, `warnings`) or the
+ability fields. The exit
 code is 1 if any record failed, but every record is still processed and reported.
 
 ## Recipe: with a warframe
