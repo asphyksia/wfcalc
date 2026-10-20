@@ -132,3 +132,22 @@ test('POST /api/search returns a build and accepts the /api/calc shape', async (
     assert.equal(unknown.status, 404);
   });
 });
+
+test('POST /api/calc rejects a duplicate mod with 400 and a code', async () => {
+  await withServer(async (base) => {
+    const response = await fetch(`${base}/api/calc`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        weapon: 'Soma Prime',
+        mods: [{ name: 'Serration' }, { name: 'Serration' }],
+        enemy: 'Bombard',
+        level: 150,
+      }),
+    });
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as any;
+    assert.equal(body.code, 'duplicate_mod');
+    assert.match(body.error, /duplicate mod/);
+  });
+});

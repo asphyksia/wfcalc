@@ -252,7 +252,9 @@ Response (abridged):
 }
 ```
 
-Errors come back as `{ "error": "...", "suggestions": ["..."] }` with status 404.
+Errors come back as `{ "error": "...", "suggestions": ["..."] }`. An unknown weapon, enemy or
+ability is a 404. A request that cannot describe a legal build is a 400 with a stable `code`:
+`duplicate_mod` (the same mod twice — the game equips one copy) or `unknown_weapon`.
 
 ## Agent recipes
 

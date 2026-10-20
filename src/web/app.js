@@ -224,6 +224,45 @@ const EXILUS_SLOT = 8;
 const STANCE_SLOT = 9;
 const isStance = (index) => index === STANCE_SLOT;
 const hasStance = () => Boolean(weaponData.get(state.weapon)?.stancePolarity);
+/** 8 standard slots, the Exilus slot and, on a melee weapon, the stance slot. */
+const slotCount = () => MAX_SLOTS + 1 + (hasStance() ? 1 : 0);
+
+/**
+ * The board always shows every slot, empty ones included: the player sees how much room the
+ * build has before touching anything, and the drop targets exist from the first render.
+ */
+function padSlots() {
+  const total = slotCount();
+  while (state.mods.length < total) state.mods.push({ name: '', rank: undefined });
+  // Switching from melee to a rifle leaves one slot too many; drop it if it is empty.
+  while (state.mods.length > total && !state.mods[state.mods.length - 1].name) state.mods.pop();
+}
+
+/** One copy of each mod: a saved or shared build from before the rule may carry two. */
+function dedupeMods() {
+  const seen = new Set();
+  state.mods = state.mods.map((mod) => {
+    if (!mod?.name) return { name: '', rank: undefined };
+    if (seen.has(mod.name)) return { name: '', rank: undefined };
+    seen.add(mod.name);
+    return mod;
+  });
+}
+
+/** Index of the slot already carrying this mod, ignoring one slot (the drop target). */
+function equippedIndex(name, except = -1) {
+  return state.mods.findIndex((entry, index) => index !== except && entry.name === name);
+}
+
+/** Briefly outline a slot, to show where the mod the player just tried to add already is. */
+function flashSlot(index) {
+  const row = $('slots')?.querySelectorAll('.slot')[index];
+  if (!row) return;
+  row.classList.remove('flash');
+  void row.offsetWidth;
+  row.classList.add('flash');
+  setTimeout(() => row.classList.remove('flash'), 700);
+}
 
 function slotPolarity(index) {
   const forma = state.slotPolarities?.[index];
@@ -336,7 +375,7 @@ let dragPayload = null;
 function renderSlots() {
   const container = $('slots');
   container.innerHTML = '';
-  const total = MAX_SLOTS + 1 + (hasStance() ? 1 : 0);
+  padSlots();
 
   state.mods.forEach((mod, index) => {
     const info = allMods.find((entry) => entry.name === mod.name);
@@ -405,25 +444,6 @@ function renderSlots() {
     container.appendChild(row);
   });
 
-  if (!state.weapon) {
-    container.innerHTML = '<p class="hint">Pick a weapon to see the mods that fit it.</p>';
-    $('mod-count').textContent = '0';
-    return;
-  }
-  if (state.mods.length < total) {
-    const add = document.createElement('button');
-    add.className = 'add-slot';
-    add.textContent = state.mods.length === MAX_SLOTS
-      ? '+ add exilus mod'
-      : state.mods.length === MAX_SLOTS + 1 && hasStance()
-        ? '+ add stance mod'
-        : '+ add mod';
-    add.onclick = () => {
-      state.mods.push({ name: '', rank: undefined });
-      renderSlots();
-    };
-    container.appendChild(add);
-  }
   previousMods = state.mods.map((mod) => mod.name).filter(Boolean);
   $('mod-count').textContent = state.mods.filter((mod) => mod.name).length;
   const capacity = capacityInfo();
@@ -450,7 +470,8 @@ function renderSlots() {
     event.preventDefault();
     const index = dragFrom.index;
     dragFrom = null;
-    state.mods.splice(index, 1);
+    // Dragging a slot out of the grid clears it; the slot itself stays.
+    state.mods[index] = { name: '', rank: undefined };
     renderSlots();
     recalc();
   };
@@ -481,14 +502,24 @@ function renderSlots() {
         state.mods[index].rank = undefined;
         renderModList(event.target.value.toLowerCase());
       });
-      input.addEventListener('change', () => {
+      // Typing the name of a mod that is already in another slot would duplicate it.
+      const commit = () => {
+        const index = Number(input.dataset.index);
+        const typed = (state.mods[index]?.name ?? '').trim();
+        const already = typed ? equippedIndex(typed, index) : -1;
+        if (already >= 0) {
+          state.mods[index] = { name: '', rank: undefined };
+          dragWarning = `${typed} is already equipped: a build can only carry one copy.`;
+          renderSlots();
+          recalc();
+          flashSlot(already);
+          return;
+        }
         renderSlots();
         recalc();
-      });
-      input.addEventListener('blur', () => {
-        renderSlots();
-        recalc();
-      });
+      };
+      input.addEventListener('change', commit);
+      input.addEventListener('blur', commit);
     };
     label.addEventListener('click', edit);
     label.addEventListener('keydown', (event) => {
@@ -508,7 +539,8 @@ function renderSlots() {
   });
   container.querySelectorAll('.remove').forEach((button) => {
     button.onclick = () => {
-      state.mods.splice(Number(button.dataset.index), 1);
+      // Empty the slot instead of removing it: the board keeps its shape.
+      state.mods[Number(button.dataset.index)] = { name: '', rank: undefined };
       renderSlots();
       recalc();
     };
@@ -551,8 +583,17 @@ function applyDrop(index) {
     const a = state.mods[from];
     state.mods[from] = state.mods[index] ?? { name: '', rank: undefined };
     state.mods[index] = a;
-    if (!state.mods[from].name) state.mods.splice(from, 1);
   } else if (dragFrom?.kind === 'library' && dragPayload) {
+    const already = equippedIndex(dragPayload, index);
+    if (already >= 0) {
+      dragWarning = `${dragPayload} is already equipped: a build can only carry one copy.`;
+      dragFrom = null;
+      dragPayload = null;
+      renderSlots();
+      recalc();
+      flashSlot(already);
+      return;
+    }
     const conflict = exilusConflict(dragPayload, index);
     if (conflict) {
       dragWarning = conflict;
@@ -597,6 +638,10 @@ function renderLibrary() {
         : a.name.localeCompare(b.name),
     );
   $('lib-count').textContent = String(list.length);
+  if (!state.weapon) {
+    $('mod-list').innerHTML = '<p class="hint">Pick a weapon to see the mods that fit it.</p>';
+    return;
+  }
 
   $('mod-list').innerHTML = list
     .slice(0, 120)
@@ -623,10 +668,15 @@ function renderLibrary() {
     });
     card.addEventListener('click', () => {
       hidePreview();
+      // One copy per build: clicking an equipped mod points at its slot instead of adding it.
+      const already = equippedIndex(name);
+      if (already >= 0) {
+        flashSlot(already);
+        return;
+      }
       const empty = state.mods.findIndex((entry) => !entry.name);
-      const target = empty >= 0 ? empty : state.mods.length < MAX_SLOTS + 1 ? state.mods.length : -1;
-      if (target < 0) return;
-      state.mods[target] = { name, rank: undefined };
+      if (empty < 0) return;
+      state.mods[empty] = { name, rank: undefined };
       renderSlots();
       recalc();
     });
@@ -1104,6 +1154,7 @@ function renderSaved() {
       const entry = loadLibrary()[Number(button.dataset.load)];
       if (!entry) return;
       state = { ...emptyState(), ...entry.state };
+      dedupeMods();
       syncInputs();
       showTab('build');
       recalc();
@@ -1412,16 +1463,14 @@ function showBootError(error) {
 async function main() {
   try {
     loadFromUrl();
+    dedupeMods();
     await loadStaticLists();
     bindEvents();
     syncInputs();
     renderSaved();
-    if (state.weapon) {
-      await loadModsForWeapon();
-      renderSlots();
-    } else {
-      $('stats').innerHTML = '<p class="hint">Pick a weapon to start.</p>';
-    }
+    if (state.weapon) await loadModsForWeapon();
+    // The board renders even with no weapon: the slots are the first thing to see.
+    renderSlots();
     recalc();
   } catch (error) {
     console.error('wfcalc boot failed', error);

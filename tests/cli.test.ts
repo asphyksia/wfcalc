@@ -349,3 +349,22 @@ test('ability distance falloff is reported in the brief', () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /20 m \(x0\.50\)/);
 });
+
+test('a duplicate mod is a bad request, not a doubled bonus', () => {
+  // The game equips one copy; before this check, Serration twice took 14 capacity and raised
+  // the DPS from 152.6 to 234.5.
+  const duplicate = runRaw(['calc', 'Soma Prime', '--mod', 'Serration', '--mod', 'Serration', '--json']);
+  assert.equal(duplicate.status, 2);
+  const payload = JSON.parse(duplicate.stderr) as { error: { code: string; message: string } };
+  assert.equal(payload.error.code, 'duplicate_mod');
+  assert.match(payload.error.message, /Serration/);
+
+  // The same mod written differently is the same mod.
+  const caseVariant = runRaw(['calc', 'Soma Prime', '--mod', 'Serration', '--mod', 'serration:R4', '--json']);
+  assert.equal(caseVariant.status, 2);
+
+  // A normal build still works.
+  const ok = runRaw(['calc', 'Soma Prime', '--mod', 'Serration', '--enemy', 'Bombard', '--level', '150', '--brief=answer']);
+  assert.equal(ok.status, 0);
+  assert.match(ok.stdout, /dps/);
+});

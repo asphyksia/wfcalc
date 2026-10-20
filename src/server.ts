@@ -21,6 +21,7 @@ import { availableBuffs } from './engine/buffs.ts';
 import { search } from './engine/search.ts';
 import { abilityCast } from './engine/ability.ts';
 import { buildFromJson } from './request.ts';
+import { InputError } from './errors.ts';
 import { capacityOf } from './engine/capacity.ts';
 
 const WEB_ROOT = new URL('./web/', import.meta.url).pathname;
@@ -105,7 +106,13 @@ function calculate(body: any) {
   } catch (error) {
     return { error: String((error as Error).message) };
   }
-  const resolved = resolveBuild(snapshot, build);
+  let resolved: ReturnType<typeof resolveBuild>;
+  try {
+    resolved = resolveBuild(snapshot, build);
+  } catch (error) {
+    const code = error instanceof InputError ? error.code : undefined;
+    return { error: String((error as Error).message), ...(code ? { code } : {}) };
+  }
   const capacity = capacityOf(snapshot, weapon, build.mods, body.capacity !== undefined ? Number(body.capacity) : 60);
 
   let target = null;
@@ -372,7 +379,7 @@ const server = createServer(async (req, res) => {
     if (url.pathname === '/api/calc' && req.method === 'POST') {
       const body = await readBody(req);
       const result = calculate(body);
-      return json(res, result.error ? 404 : 200, result);
+      return json(res, result.error ? ('code' in result && result.code ? 400 : 404) : 200, result);
     }
 
     // Full mod cards from the wiki: frame, name and stat baked in. Cached on first use,

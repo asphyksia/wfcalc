@@ -32,6 +32,7 @@ import {
 import { normalizeName } from '../data.ts';
 import { abilityStrengthFromMods, buffById, buffEffects } from './buffs.ts';
 import { rivenEffects, type RivenSpec } from './riven.ts';
+import { InputError } from '../errors.ts';
 
 export interface BuildMod {
   name: string;
@@ -232,7 +233,24 @@ export function statsForMode(weapon: WeaponData, modeName?: string): { stats: We
 
 export function resolveBuild(snapshot: Snapshot, build: Build): ResolvedBuild {
   const weapon = snapshot.weapons[build.weapon];
-  if (!weapon) throw new Error(`unknown weapon: ${build.weapon}`);
+  if (!weapon) throw new InputError(`unknown weapon: ${build.weapon}`, 'unknown_weapon');
+
+  // The game equips one copy of a mod, so a repeated name is a bad request and not a build
+  // with double Serration. Compare on the resolved name so "serration" and an under-ranked
+  // copy of the same mod collide too.
+  const named = new Set<string>();
+  for (const entry of build.mods ?? []) {
+    const wanted = String(typeof entry === 'string' ? entry : entry.name ?? '').trim();
+    if (!wanted) continue;
+    const mod = snapshot.mods[wanted]
+      ?? snapshot.mods[Object.keys(snapshot.mods).find((key) => normalizeName(key) === normalizeName(wanted)) ?? ''];
+    const key = mod?.name ?? normalizeName(wanted);
+    const label = mod?.name ?? wanted;
+    if (named.has(key)) {
+      throw new InputError(`duplicate mod: ${label} (a build can only carry one copy of a mod)`, 'duplicate_mod');
+    }
+    named.add(key);
+  }
 
   let aoeWarning: string | null = null;
   const resolvedMode = statsForMode(weapon, build.mode);

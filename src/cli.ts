@@ -29,6 +29,7 @@ import { attenuationProfile, type AttenuationProfile } from './engine/attenuatio
 import { abilityCast } from './engine/ability.ts';
 import { resolveStrip, type StripDebuff } from './engine/strip.ts';
 import { buildFromJson } from './request.ts';
+import { InputError } from './errors.ts';
 import { scaleEnemy } from './engine/enemy.ts';
 import { hitEnemy } from './engine/damage.ts';
 import { BUFFS, availableBuffs } from './engine/buffs.ts';
@@ -1087,15 +1088,15 @@ function run(): void {
   } catch (error) {
     const args = parseArgs(process.argv.slice(2));
     const message = error instanceof Error ? error.message : String(error);
-    const code = error instanceof CliError ? error.code : 'error';
-    const suggestions = error instanceof CliError ? error.suggestions : [];
+    const code = error instanceof CliError || error instanceof InputError ? error.code : 'error';
+    const suggestions = error instanceof CliError || error instanceof InputError ? error.suggestions : [];
     if (wantsJson(args)) {
       console.error(JSON.stringify({ error: { code, message, ...(suggestions.length ? { suggestions } : {}) } }));
     } else {
       console.error(`error: ${message}${suggestions.length ? ` (did you mean: ${suggestions.join(', ')}?)` : ''}`);
     }
     if (args.flags.has('debug') && error instanceof Error && error.stack) console.error(error.stack);
-    process.exitCode = error instanceof CliError ? 2 : 1;
+    process.exitCode = error instanceof CliError || error instanceof InputError ? 2 : 1;
   }
 }
 

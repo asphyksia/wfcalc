@@ -109,6 +109,15 @@ input[type="number"] { padding: 6px 8px; }
   transition: transform .35s var(--ease), box-shadow .35s var(--ease), border-color .2s ease;
 }
 .slot.filled:hover { transform: translateY(-2px); box-shadow: var(--shadow), var(--glow); }
+/* An empty slot is a drop target, not a card: dashed outline and no remove button. */
+.slot:not(.filled) { border-style: dashed; }
+.slot:not(.filled) .remove { visibility: hidden; }
+/* A mod the player tried to add twice: point at the slot that already has it. */
+.slot.flash { animation: slot-flash .7s var(--ease); }
+@keyframes slot-flash {
+  0%, 100% { box-shadow: 0 1px 2px rgba(0,0,0,.5); }
+  30% { box-shadow: 0 0 0 2px var(--warn), 0 0 18px rgba(224,176,74,.35); }
+}
 
 /* Rarity frame: a soft ring in the mod's rarity colour, plus a corner sheen. */
 .slot.filled {
@@ -142,7 +151,6 @@ input[type="number"] { padding: 6px 8px; }
 .slot .rank-value { font-size: 9.5px; color: var(--muted); letter-spacing: 0.04em; }
 .slot .remove { padding: 0 2px; line-height: 1; font-size: 14px; color: var(--muted); background: transparent; border: 0; }
 .slot .mod-desc { font-size: 10px; color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.add-slot { grid-column: 1 / -1; background: transparent; border: 1px dashed var(--border); color: var(--muted); padding: 8px; font-size: 12px; }
 .arcane-slot { margin-top: 10px; }
 .arcane-slot .field { margin: 0; }
 
@@ -295,7 +303,6 @@ details > *:not(summary) { margin-top: 8px; }
 .board .slot { min-height: 92px; background: linear-gradient(165deg, #232a36, #1b202a 75%); }
 .board .slot.filled { box-shadow: 0 2px 10px #0005; }
 .board .slot .mod-name { font-size: 13px; }
-.board .add-slot { padding: 10px; }
 
 /* library sidebar */
 .library-panel { display: flex; flex-direction: column; gap: 8px; }

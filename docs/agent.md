@@ -220,7 +220,9 @@ State these when they matter instead of guessing:
 - Expected failures exit **2**; unexpected ones **1**. No stack trace unless `--debug`.
 - With `--json`, errors are `{"error":{"code":"weapon_not_found","message":"...","suggestions":[]}}`
   on **stderr**. Text mode prints `error: ... (did you mean: ...?)`.
-- Codes: `weapon_not_found`, `enemy_not_found`, `ability_not_found`, `invalid_argument`, `error`.
+- Codes: `weapon_not_found`, `enemy_not_found`, `ability_not_found`, `duplicate_mod`, `invalid_argument`, `error`.
+- A build carries **one copy of each mod**: `--mod Serration --mod Serration` is a `duplicate_mod`
+  error, not a doubled bonus.
 - `weapon not found: X` → fix the name with `wfcalc weapons <query>`; do not retry blindly.
 - An empty `builds` array means no combination fits the capacity/Forma budget; relax `--forma`
   or raise `--capacity`.
