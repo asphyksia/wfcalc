@@ -10,7 +10,7 @@ Last updated: 2026-10-20.
 
 | | |
 |---|---|
-| Tests | **154 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
+| Tests | **155 pass, 0 fail** (`npm test`, ~10 s); `npm run eval` 14/14 |
 | Invariants | `node tools/validate.ts` → PASS, 0 violations |
 | Calibration | **35/35** public builds, local battery (not shipped); `node tools/calibrate.ts` offline after `calibrate:refresh` |
 | Types | `npm run check` clean |
@@ -97,6 +97,7 @@ Rules that have prevented repeated mistakes:
 | A5 | **Agent contract**: the CLI is the interface, not MCP. `--brief` one-line output for calc/search/ability/compare, `--brief=answer` for repeated calls, JSON only when parsing, expected failures exit 2 with no stack trace (JSON `{error:{code,message,suggestions}}` under `--json`), and `skills/wfcalc/SKILL.md` + `docs/agent.md` as the operating manual. | `tests/cli.test.ts` pins the brief shape and the error contract; the skill ships in the repo |
 | A6 | **`wfcalc batch`**: JSONL of calc/ability records priced in one process, one line per record, `--json` as compact rounded JSONL. Bad records do not abort the batch; exit 1. The JSON->Build mapping moved to `src/request.ts`, shared with the server. | `tests/cli.test.ts`; `tools/agent-eval.ts` case "batch" |
 | A7 | **Agent eval**: `npm run eval` pins ten real questions (best build, strip, melee Incarnon, CO, ability, errors, partial mods, batch) and fails if an answer or the brief size regresses. Runs in CI. | `tools/agent-eval.ts`, 10/10 |
+| A35 | **The Ceramic Dagger fires two spectral daggers** (plan A1-L1): the wiki's Incarnon Genesis page says the heavy attack sends "a flurry of 2 spectral daggers", and the melee attack table has no multishot to carry it, so the form was a x2 lower bound. The form now carries multishot 2 through a per-weapon override, which also doubles the status rolls and the explosions. | `calc` with the form: 700 per dagger → **1,400 per attack**; CO with 3 status types 1,540 per dagger → 3,080; `tests/incarnon.test.ts` pins the count and that Hate, Ack & Brunt and Okina stay at 1 |
 | A34 | **The answer shows what a pull does to the target** (beta review): `damage/shot` was the arsenal number, before armour and modifiers, and nothing in the answer said so. `calc` now prints `vs target X to health · Y to shields · Z to overguard (per pull, crit avg, after armour)`, the brief carries `shot X to health`, and the JSON adds `damagePerShotHealth/Shield/Overguard` (already on the API target object). | Soma Prime + Serration vs Bombard 150: 31.8 raw → **6.18 per pull on health**; `tests/cli.test.ts` pins both |
 | A33 | **The board exists at boot** (beta review): the slots used to appear one at a time as mods were added, so a fresh page showed a single "+ add mod" button and a placeholder that read like a selected weapon. Now all 8 + Exilus (+ stance on melee) slots render empty from the first paint, dropping cannot fail for lack of a target, "drop outside" clears the slot instead of shrinking the grid, and the weapon field says "search a weapon…". | Screenshot of the empty board at 420 px; `agent-browser` checks: 9 slots for Soma Prime, 10 (with stance) for Nikana Prime, remove keeps the board |
 | A32 | **A duplicate mod is rejected** (beta review): `--mod Serration --mod Serration` used to take 14 capacity and raise the DPS from 152.6 to 234.5, which the game cannot do. `resolveBuild` throws an `InputError('duplicate_mod')`; the CLI exits 2 with the usual JSON error, the API answers 400, and the UI refuses the second copy (clicking an equipped mod flashes its slot) and de-dupes an old shared link. | `tests/cli.test.ts` and `tests/server.test.ts`; browser checks: the second click adds nothing and the slot flashes |
@@ -127,9 +128,7 @@ Rules that have prevented repeated mistakes:
 
 Known loose ends from A1:
 
-- Ceramic Dagger fires **2 spectral daggers** per heavy attack; the attack table has no
-  multishot for melee, so the model counts one. With the explosion now included, the melee form
-  is a lower bound by roughly a factor of two on that pair.
+- ~~Ceramic Dagger fires **2 spectral daggers** per heavy attack~~ — fixed in A35.
 - Flat EVO2 base damage: Okina's page says the spectral daggers *do* use it, Ceramic Dagger and
   Hate say they do not. The engine keeps flat Incarnon base damage on all three.
 
@@ -144,10 +143,9 @@ Known loose ends from A1:
 | # | Gap | State |
 |---|---|---|
 | B2c | Attenuation beyond the per-hit formula (see B) | Data-blocked |
-| A1-L1 | Ceramic Dagger's **two spectral daggers** per heavy attack: the melee attack table has no multishot, so the model counts one and the melee Incarnon form is a lower bound by roughly x2 on that pair | Needs an attack-table field or a per-weapon override |
 | A1-L2 | **Flat EVO2 base damage**: Okina's page says the spectral daggers use it, Ceramic Dagger and Hate say they do not; the engine keeps it on all three | Needs one in-game reading to settle |
 
-Those two are the only modelling items left; everything else in C is done.
+**A1-L2** is the only modelling item left that is not blocked; **B2c** stays data-blocked.
 
 ### D. Coverage and confidence
 
@@ -280,7 +278,7 @@ Useful commands: `wfcalc abilities`, `wfcalc ability <name> --strength N --enemy
 ```sh
 cd wfcalc
 git log --oneline | head -5      # the top commit
-npm test                          # 154 tests
+npm test                          # 155 tests
 npm run eval                      # 10 pinned agent cases
 node tools/validate.ts            # 0 violations
 node tools/calibrate.ts           # 35/35 local battery, after calibrate:refresh

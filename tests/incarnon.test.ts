@@ -42,8 +42,11 @@ test('the five melee Incarnon forms carry the wiki spectral stats', () => {
 test('a melee form can be used without an evolution selection', () => {
   // Okina Prime inherits Okina's tree, but the form is usable even with no perks picked.
   const resolved = resolveBuild(snapshot, { weapon: 'Ceramic Dagger', mods: [], incarnon: ['form'] });
-  // Spectral dagger 350 + its 350 Heat explosion at the blast centre.
+  // Per dagger: 350 direct + its 350 Heat explosion at the blast centre.
   assert.equal(resolved.damage.projectileTotal, 700);
+  // The heavy attack fires a flurry of 2 daggers (wiki), so one attack is two of those.
+  assert.equal(resolved.multishot, 2);
+  assert.equal(resolved.shotDamage, 1400);
   assert.ok(resolved.incarnonLines.includes('form only, no evolution perks'));
   assert.ok(resolved.incarnonLines.some((line) => /Spectral Dagger Explosion included at the blast centre/.test(line)),
     `expected the explosion in ${JSON.stringify(resolved.incarnonLines)}`);
@@ -61,8 +64,8 @@ test('Incarnon option names keep apostrophes and EVO1 is not an option', () => {
 test('spectral direct hits ignore melee damage bonuses but keep Condition Overload', () => {
   // Wiki (Ceramic Dagger, Hate, Okina pages): spectral hits are not affected by Pressure
   // Point, the stance or the combo multiplier, while direct hits *are* affected by Condition
-  // Overload, whose multiplier only scales the direct share (350 of the 700 total):
-  // direct 350 x 3.4 + explosion 350 = 1540.
+  // Overload, whose multiplier only scales the direct share (350 of the 700 per dagger):
+  // direct 350 x 3.4 + explosion 350 = 1540 per dagger, so 3080 for the two-dagger attack.
   const resolved = resolveBuild(snapshot, {
     weapon: 'Ceramic Dagger',
     mods: ['Pressure Point', 'Condition Overload'],
@@ -72,10 +75,11 @@ test('spectral direct hits ignore melee damage bonuses but keep Condition Overlo
     heavyAttack: true,
   });
   assert.ok(Math.abs(resolved.damage.projectileTotal - 1540) < 1e-6,
-    `expected 1540, got ${resolved.damage.projectileTotal}`);
+    `expected 1540 per dagger, got ${resolved.damage.projectileTotal}`);
   assert.ok(resolved.inactiveConditions.some((line) => /Pressure Point/.test(line)),
     `Pressure Point should be reported as inactive: ${JSON.stringify(resolved.inactiveConditions)}`);
-  assert.equal(resolved.shotDamage, resolved.damage.projectileTotal); // no 12x heavy multiplier
+  // No 12x heavy multiplier, but the pair of daggers still counts.
+  assert.ok(Math.abs(resolved.shotDamage - 3080) < 1e-6, `expected 3080 per attack, got ${resolved.shotDamage}`);
 });
 
 test('the Incarnon second hit follows falloff', () => {
@@ -92,4 +96,16 @@ test('a gun Incarnon form is unaffected by the spectral rule', () => {
   // 51 Toxin x 2.65 Serration: a ranged form still takes its damage mods.
   assert.ok(Math.abs(resolved.damage.projectileTotal - 51 * 2.65) < 1e-6);
   assert.ok(!resolved.incarnonLines.some((line) => /spectral/.test(line)));
+});
+
+test('only the Ceramic Dagger fires a second spectral dagger', () => {
+  // Wiki: Ceramic Dagger "fires a flurry of 2 spectral daggers"; Hate launches 1 blade, the
+  // Ack & Brunt one axe, and Okina's daggers come from kills (a different mechanic).
+  const counts = Object.fromEntries(
+    ['Ceramic Dagger', 'Hate', 'Ack & Brunt', 'Okina', 'Okina Prime']
+      .map((name) => [name, snapshot.weapons[name].incarnonForm?.multishot]),
+  );
+  assert.deepEqual(counts, {
+    'Ceramic Dagger': 2, Hate: 1, 'Ack & Brunt': 1, Okina: 1, 'Okina Prime': 1,
+  });
 });

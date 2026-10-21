@@ -33,5 +33,11 @@
         "multishot": 1
       }
     }
+  },
+  "Ceramic Dagger": {
+    "note": "The Incarnon heavy attack fires a flurry of 2 spectral daggers (wiki: Ceramic Dagger Incarnon Genesis); the melee attack table has no multishot, so the form carries it here.",
+    "incarnonForm": {
+      "multishot": 2
+    }
   }
 }

@@ -144,8 +144,10 @@ Cloudflare. Do not use it.
 
 31. **`data/weapon-overrides.json`** holds per-weapon corrections for fields the export gets
     wrong, each with its evidence: Nataruk's reload, Fulmin Prime's magazine, Felarx's
-    per-shell reload, Grimoire's missing magazine. Prefer a rule when the ratio is constant
-    across weapons; use an override when it is one weapon's quirk.
+    per-shell reload, Grimoire's missing magazine, the Ceramic Dagger's two spectral daggers
+    (`incarnonForm.multishot`). `modes` patches one fire mode; `incarnonForm` patches the
+    transformed profile. Prefer a rule when the ratio is constant across weapons; use an
+    override when it is one weapon's quirk.
 
 32. **Open calibration mismatches** (79/120 builds match; these are the rest):
     - **Bows** (`Nataruk`): Overframe's reload is 0.15 s where the export says 0.05 s, and its

@@ -425,6 +425,15 @@ function readIncarnonForms(): Record<string, RawIncarnonForm> {
   return out;
 }
 
+/** Numeric overrides for a transformed profile, from data/weapon-overrides.json. */
+function applyFormOverrides(form: WeaponStats, overrides: unknown): WeaponStats {
+  if (!overrides || typeof overrides !== 'object') return form;
+  for (const [field, value] of Object.entries(overrides as Record<string, unknown>)) {
+    if (typeof value === 'number' && field in form) (form as any)[field] = value;
+  }
+  return form;
+}
+
 /** Turns a raw Incarnon form into full stats, on top of the weapon's own damage-type keys. */
 function incarnonFormStats(raw: RawIncarnonForm, base: WeaponStats): WeaponStats {
   const stats = statsFromDamage(raw.damage, base);
@@ -495,7 +504,12 @@ function buildWeapons(): Record<string, WeaponData> {
         hasRivenSlot: category !== 'sentinel',
         ...(incarnonForms[name]
           ? {
-              incarnonForm: incarnonFormStats(incarnonForms[name], stats),
+              // Curated form corrections (the Ceramic Dagger fires two spectral daggers, and the
+              // melee attack table has no multishot to say so). See data/weapon-overrides.json.
+              incarnonForm: applyFormOverrides(
+                incarnonFormStats(incarnonForms[name], stats),
+                override?.incarnonForm,
+              ),
               ...(incarnonForms[name].extra.length ? { incarnonFormExtra: incarnonForms[name].extra } : {}),
               ...(incarnonForms[name].extra.length ? { incarnonFormDirectShare: incarnonForms[name].directShare } : {}),
               ...(incarnonForms[name].spectral ? { incarnonFormSpectral: true } : {}),
